@@ -1,0 +1,32 @@
+{
+  "name": "helpy-app-fullstack",
+  "version": "1.0.0",
+  "description": "Aplicativo Fullstack Helpy",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "start": "node api/server",
+    "dev": "nodemon api/server",
+    "build": "echo 'Build completo - nenhuma ação necessária'",
+    "vercel-build": "node vercel-build.js"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.588.0",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "debug": "^4.3.4",
+    "depd": "^2.0.0",
+    "dotenv": "^16.4.5",
+    "express": "4.17.1",
+    "jsonwebtoken": "^9.0.2",
+    "mongodb": "^6.20.0",
+    "mongoose": "^8.4.1",
+    "multer": "^2.0.2",
+    "nodemailer": "^7.0.10",
+    "sharp": "^0.33.4"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.2"
+  }
+}

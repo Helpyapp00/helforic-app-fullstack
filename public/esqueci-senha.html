@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Esqueci minha senha - Helpy</title>
+    <link rel="icon" href="icons/helpy.ico" type="image/x-icon">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link rel="stylesheet" href="/login-styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        .esqueci-senha-container {
+            width: 450px;
+            min-height: auto;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 2rem;
+            background-color: rgba(255, 255, 255, 0.95);
+            position: absolute;
+            right: 50px;
+            top: 50%;
+            transform: translateY(-50%);
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            z-index: 2;
+        }
+
+        .esqueci-senha-form-container {
+            background: white;
+            padding: 2.5rem;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 450px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .etapa {
+            display: none;
+        }
+
+        .etapa.active {
+            display: block;
+        }
+
+        .btn-esqueci-senha {
+            display: inline-block;
+            width: 100%;
+            padding: 0.85rem 1.5rem;
+            background: linear-gradient(135deg, #4a6bff 0%, #3a5bef 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(74, 107, 255, 0.3);
+            margin-top: 1rem;
+        }
+
+        .btn-esqueci-senha:hover {
+            background: linear-gradient(135deg, #3a5bef 0%, #2a4bdf 100%);
+            box-shadow: 0 6px 20px rgba(74, 107, 255, 0.4);
+            transform: translateY(-2px);
+        }
+
+        .btn-esqueci-senha:active {
+            transform: translateY(0);
+        }
+
+        .btn-esqueci-senha:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-secundario {
+            background: linear-gradient(135deg, #6c757d 0%, #5a6268 100%);
+            box-shadow: 0 4px 15px rgba(108, 117, 125, 0.3);
+        }
+
+        .btn-secundario:hover {
+            background: linear-gradient(135deg, #5a6268 0%, #495057 100%);
+            box-shadow: 0 6px 20px rgba(108, 117, 125, 0.4);
+        }
+
+        .codigo-input {
+            text-align: center;
+            font-size: 24px;
+            letter-spacing: 8px;
+            font-weight: bold;
+            padding: 1rem;
+        }
+
+        .link-reenviar {
+            color: #4a6bff;
+            text-decoration: none;
+            font-weight: 500;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-top: 1rem;
+            transition: color 0.2s ease;
+        }
+
+        .link-reenviar:hover {
+            color: #3a5bef;
+            text-decoration: underline;
+        }
+
+        .botoes-container {
+            display: flex;
+            gap: 10px;
+            margin-top: 1.5rem;
+        }
+
+        .botoes-container .btn-esqueci-senha {
+            flex: 1;
+            margin-top: 0;
+        }
+
+        @media (max-width: 992px) {
+            .esqueci-senha-container {
+                position: relative;
+                width: 100%;
+                margin: 0 auto;
+                right: auto;
+                top: auto;
+                transform: none;
+                max-width: 400px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- 🧹 Silencia console.* em produção (ative com localStorage.DEBUG=1) -->
+    <script src="/console-silencer.js"></script>
+    <!-- Background Content -->
+    <section class="login-hero">
+        <div class="hero-content">
+            <h2>Recupere sua conta</h2>
+            <p>Digite seu email para receber um código de verificação e redefinir sua senha</p>
+        </div>
+    </section>
+
+    <!-- Esqueci Senha Form -->
+    <main class="esqueci-senha-container">
+        <div class="esqueci-senha-form-container">
+            <div class="login-header">
+                <img src="imagens/helpy-login.png" alt="Logo Helpy" class="login-logo">
+                <h1>Esqueci minha senha</h1>
+                <p>Vamos te ajudar a recuperar</p>
+            </div>
+
+            <div id="form-message" class="hidden"></div>
+
+            <!-- Etapa 1: Solicitar código -->
+            <div id="etapa-solicitar" class="etapa active">
+                <form id="form-solicitar-codigo">
+                    <div class="form-group">
+                        <label for="email-recuperacao">Email</label>
+                        <input type="email" id="email-recuperacao" name="email" placeholder="seu@email.com" required>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="submit" class="btn-esqueci-senha">
+                            <i class="fas fa-paper-plane"></i> Enviar código
+                        </button>
+                    </div>
+                </form>
+
+                <div class="login-footer">
+                    Lembrou sua senha? <a href="login.html">Fazer login</a>
+                </div>
+            </div>
+
+            <!-- Etapa 2: Validar código -->
+            <div id="etapa-validar-codigo" class="etapa">
+                <h2 style="text-align: center; margin-bottom: 20px; color: #333;">Verificação de Email</h2>
+                <p style="text-align: center; color: #666; margin-bottom: 30px;">
+                    Enviamos um código de 6 dígitos para <strong id="email-exibido-recuperacao"></strong><br>
+                    Digite o código abaixo para redefinir sua senha.
+                </p>
+                <div class="form-group">
+                    <label for="codigo-recuperacao">Código de Verificação</label>
+                    <input type="text" id="codigo-recuperacao" name="codigo" required placeholder="000000" maxlength="6" pattern="[0-9]{6}" class="codigo-input">
+                </div>
+                <div class="botoes-container">
+                    <button type="button" id="btn-voltar-solicitar" class="btn-esqueci-senha btn-secundario">
+                        <i class="fas fa-arrow-left"></i> Voltar
+                    </button>
+                    <button type="button" id="btn-validar-codigo-recuperacao" class="btn-esqueci-senha">
+                        <i class="fas fa-check"></i> Validar
+                    </button>
+                </div>
+                <p style="text-align: center; margin-top: 20px;">
+                    <a href="#" id="link-reenviar-codigo-recuperacao" class="link-reenviar">
+                        <i class="fas fa-redo"></i> Reenviar código
+                    </a>
+                </p>
+            </div>
+
+            <!-- Etapa 3: Nova senha -->
+            <div id="etapa-nova-senha" class="etapa">
+                <h2 style="text-align: center; margin-bottom: 20px; color: #333;">Nova Senha</h2>
+                <p style="text-align: center; color: #666; margin-bottom: 30px;">
+                    Digite sua nova senha abaixo.
+                </p>
+                <form id="form-nova-senha">
+                    <div class="form-group">
+                        <label for="nova-senha">Nova Senha</label>
+                        <input type="password" id="nova-senha" name="novaSenha" required placeholder="••••••••" minlength="6">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="confirmar-nova-senha">Confirmar Nova Senha</label>
+                        <input type="password" id="confirmar-nova-senha" name="confirmarNovaSenha" required placeholder="••••••••" minlength="6">
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="submit" class="btn-esqueci-senha">
+                            <i class="fas fa-key"></i> Redefinir Senha
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </main>
+
+    <script src="/esqueci-senha.js"></script>
+</body>
+</html>
+
+
+

@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Configurações - Helpy</title>
+    <link rel="icon" href="/icons/helpy.ico" type="image/x-icon">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/style.css">
+    <link rel="stylesheet" href="/perfil.css">
+</head>
+<body class="page-configuracoes">
+    <!-- 🧹 Silencia console.* em produção (ative com localStorage.DEBUG=1) -->
+    <script src="/console-silencer.js"></script>
+    <script>
+        (function() {
+            const savedTheme = localStorage.getItem('theme');
+            if (savedTheme === 'dark') {
+                document.documentElement.classList.add('dark-mode');
+            }
+        })();
+    </script>
+    <header>
+        <div class="logo-box">
+            <img src="imagens/helpy-feed.png" alt="Logo Helpy"> <h1>Helpy</h1>
+        </div>
+        <div class="header-actions">
+            <!-- Botão de busca (mobile) -->
+            <button id="search-toggle" class="search-toggle" aria-label="Buscar">
+                <i class="fas fa-search"></i>
+            </button>
+            <input type="text" class="search" placeholder="Buscar serviços ou profissionais...">
+            <!-- 🔔 Ícone de Notificações -->
+            <div id="notificacoes-container" style="position: relative; margin-right: 15px;">
+                <button id="btn-notificacoes" style="background: none; border: none; cursor: pointer; font-size: 20px; color: var(--text-primary); position: relative;">
+                    <i class="fas fa-bell"></i>
+                    <span id="badge-notificacoes" style="position: absolute; top: -5px; right: -5px; background: #dc3545; color: white; border-radius: 50%; width: 18px; height: 18px; font-size: 11px; display: none; align-items: center; justify-content: center;">0</span>
+                </button>
+            </div>
+        </div>
+        <div class="user-info">
+            <img id="user-avatar-header" src="imagens/default-user.png" alt="Avatar" class="user-avatar-header">
+            <span id="user-name-header">Carregando...</span>
+            <button id="logout-button">Sair</button>
+        </div>
+    </header>
+
+    <div class="conteudo">
+        <aside class="categorias">
+            <button id="mobile-sidebar-close" class="mobile-sidebar-close" aria-label="Fechar menu">
+                &times;
+            </button>
+            <h2>Menu</h2>
+
+            <div id="menu-disponibilidade" class="filtro-disponibilidade" style="display: none;">
+                <div class="filtro-disponibilidade-row">
+                    <span class="filtro-disponibilidade-label">Disponível agora?</span>
+                    <label class="switch">
+                        <input type="checkbox" id="toggle-disponibilidade">
+                        <span class="slider round"></span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="filtro-acoes-rapidas">
+                <h4>Ações Rápidas</h4>
+                <button id="btn-preciso-agora" class="btn-preciso-agora-lateral">
+                    <i class="fas fa-bolt"></i> Preciso agora!
+                </button>
+                <button id="btn-ver-pedidos-urgentes" class="btn-acao-lateral">
+                    <i class="fas fa-bolt"></i> Procurar Pedidos
+                </button>
+            </div>
+
+            <div class="filtro-times-locais">
+                <div class="section-header-lateral">
+                    <h4><i class="fas fa-users"></i> Equipe</h4>
+                    <div style="display: flex; gap: 8px;">
+                        <button id="btn-ver-concluidas" class="btn-criar-time-lateral" title="Equipes Concluídas">
+                            <i class="fas fa-check-circle"></i>
+                        </button>
+                        <button id="btn-criar-time" class="btn-criar-time-lateral" title="Montar Equipe">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                    </div>
+                </div>
+                <div id="times-container" class="times-container-lateral">
+                    <p class="mensagem-vazia">Nenhuma equipe aberta na sua cidade no momento.</p>
+                </div>
+            </div>
+
+            <div class="filtro-configuracoes">
+                <h4>Configurações</h4>
+                <a href="/configuracoes-conta.html" class="filtro-config-btn">
+                    <i class="fas fa-user-cog"></i> Conta
+                </a>
+                <a href="/" class="filtro-config-btn">
+                    <i class="fas fa-home"></i> Feed
+                </a>
+            </div>
+        </aside>
+
+        <main>
+            <div class="content-perfil">
+                <div class="perfil-card">
+            <div class="perfil-header perfil-header-config">
+                <button id="btn-voltar-feed" class="btn-voltar-feed" type="button" aria-label="Voltar ao feed" title="Voltar ao feed">
+                    <i class="fas fa-arrow-left" aria-hidden="true"></i>
+                    <span>Voltar</span>
+                </button>
+                <h2 id="nomePerfil">Configurações</h2>
+            </div>
+
+            <!-- Mobile: usuário + sair (aparece só em telas menores via CSS) -->
+            <div class="config-mobile-userbar" aria-label="Usuário logado">
+                <div class="config-mobile-userleft">
+                    <img id="config-user-avatar" class="config-mobile-avatar" src="imagens/default-user.png" alt="Avatar do usuário">
+                    <span id="config-user-name" class="config-mobile-name">Usuário</span>
+                    <div class="config-mobile-logout-wrap">
+                        <button id="logout-button-mobile" class="config-mobile-logout" type="button">Sair</button>
+                        <div id="logout-inline-confirm" class="config-mobile-logout-confirm" aria-live="polite">
+                            <span class="logout-confirm-text">Tem certeza?</span>
+                            <button id="logout-inline-yes" type="button" class="logout-confirm-btn">Sim</button>
+                            <button id="logout-inline-no" type="button" class="logout-confirm-btn">Não</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="perfil-body config-layout">
+                <aside class="config-sidebar">
+                    <ul class="config-menu">
+                        <li class="config-menu-item active" data-section="sec-dados-pessoais">
+                            <i class="fas fa-id-card"></i>
+                            <span>Dados pessoais</span>
+                        </li>
+                        <li class="config-menu-item" data-section="sec-senha">
+                            <i class="fas fa-shield-alt"></i>
+                            <span>Senha e segurança</span>
+                        </li>
+                        <li class="config-menu-item" data-section="sec-anuncios">
+                            <i class="fas fa-bullhorn"></i>
+                            <span>Preferências de anúncios</span>
+                        </li>
+                        <li class="config-menu-item" data-section="sec-selo">
+                            <i class="fas fa-certificate"></i>
+                            <span>Selo</span>
+                        </li>
+                        <li class="config-menu-item" data-section="sec-notificacoes">
+                            <i class="fas fa-bell"></i>
+                            <span>Notificações</span>
+                        </li>
+                        <li class="config-menu-item" data-section="sec-personalizacao">
+                            <i class="fas fa-sliders-h"></i>
+                            <span>Personalização</span>
+                        </li>
+                    </ul>
+                </aside>
+
+                <section class="config-content">
+                    <!-- Seção: Dados pessoais -->
+                    <div id="sec-dados-pessoais" class="config-section active">
+                        <h3>Dados pessoais</h3>
+                        <form id="form-dados-pessoais" class="config-form">
+                            <div class="form-group">
+                                <label for="cfg-nome">Nome completo</label>
+                                <input type="text" id="cfg-nome" class="input-edicao" placeholder="Seu nome" required>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="cfg-email">E-mail</label>
+                                <input type="email" id="cfg-email" class="input-edicao" placeholder="Seu e-mail" disabled>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="cfg-idade">Idade</label>
+                                <input type="number" id="cfg-idade" class="input-edicao" min="0" max="120" placeholder="Sua idade">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="cfg-telefone">Telefone / WhatsApp</label>
+                                <input type="text" id="cfg-telefone" class="input-edicao" placeholder="DDD + número">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="cfg-cidade">Cidade</label>
+                                <input type="text" id="cfg-cidade" class="input-edicao" placeholder="Sua cidade">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="cfg-estado">Estado</label>
+                                <input type="text" id="cfg-estado" class="input-edicao" placeholder="UF (ex: SP)">
+                            </div>
+
+                            <hr class="config-divider">
+
+                            <button type="submit" class="salvar-btn" style="margin-top: 10px;">
+                                <span class="btn-text">Salvar alterações</span>
+                                <span class="btn-spinner"></span>
+                            </button>
+
+                            <p id="msg-dados-pessoais" class="config-descricao" style="margin-top: 10px;"></p>
+                        </form>
+                    </div>
+
+                    <!-- Seção: Senha e segurança -->
+                    <div id="sec-senha" class="config-section">
+                        <h3>Senha e segurança</h3>
+                        <form class="config-form">
+                            <label for="senha-atual">Senha atual</label>
+                            <input type="password" id="senha-atual" class="input-edicao" placeholder="Sua senha atual">
+                            
+                            <label for="nova-senha">Nova senha</label>
+                            <input type="password" id="nova-senha" class="input-edicao" placeholder="Mínimo 8 caracteres">
+                            
+                            <label for="confirma-nova-senha">Confirmar nova senha</label>
+                            <input type="password" id="confirma-nova-senha" class="input-edicao" placeholder="Repita a nova senha">
+                            
+                            <button type="submit" class="salvar-btn" style="margin-top: 10px;">Salvar nova senha</button>
+                        </form>
+                        <hr class="config-divider">
+                        <h3>Área de perigo</h3>
+                        <p class="config-descricao">Ações permanentes. Tenha cuidado.</p>
+                        <button class="cancelar-btn">Desativar minha conta</button>
+                    </div>
+
+                    <!-- Seção: Preferências de anúncios -->
+                    <div id="sec-anuncios" class="config-section">
+                        <h3>Preferências de anúncios</h3>
+                        <div class="config-form">
+                            <div class="config-item-toggle">
+                                <div class="config-item-texto">
+                                    <strong>Anúncios personalizados</strong>
+                                    <p>Permitir que a Helpy use suas interações para sugerir anúncios mais relevantes.</p>
+                                </div>
+                                <label class="switch">
+                                    <input type="checkbox" id="cfg-anuncios-personalizados" checked>
+                                    <span class="slider round"></span>
+                                </label>
+                            </div>
+                            <div class="config-item-toggle">
+                                <div class="config-item-texto">
+                                    <strong>E-mails promocionais</strong>
+                                    <p>Receber novidades e oportunidades de serviços por e-mail.</p>
+                                </div>
+                                <label class="switch">
+                                    <input type="checkbox" id="cfg-emails-promocionais">
+                                    <span class="slider round"></span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Seção: Selo -->
+                    <div id="sec-selo" class="config-section">
+                        <h3>Selo Helpy</h3>
+                        <div class="config-form">
+                            <p class="config-descricao">
+                                O <strong>Selo Helpy</strong> destaca profissionais com boas avaliações, histórico confiável 
+                                e documentos verificados.
+                            </p>
+                            <p class="config-descricao">
+                                Em breve você poderá enviar seus documentos e acompanhar o status do seu selo diretamente por aqui.
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Seção: Notificações -->
+                    <div id="sec-notificacoes" class="config-section">
+                        <h3>Notificações</h3>
+                        <div class="config-form">
+                            <div class="config-item-toggle">
+                                <div class="config-item-texto">
+                                    <strong>Pedidos e propostas</strong>
+                                    <p>Receber alertas quando houver novas propostas ou atualizações dos seus pedidos.</p>
+                                </div>
+                                <label class="switch">
+                                    <input type="checkbox" id="cfg-notif-pedidos" checked>
+                                    <span class="slider round"></span>
+                                </label>
+                            </div>
+                            <div class="config-item-toggle">
+                                <div class="config-item-texto">
+                                    <strong>Notificações por e-mail</strong>
+                                    <p>Receber um resumo das atividades importantes da sua conta por e-mail.</p>
+                                </div>
+                                <label class="switch">
+                                    <input type="checkbox" id="cfg-notif-email">
+                                    <span class="slider round"></span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Seção: Personalização -->
+                    <div id="sec-personalizacao" class="config-section">
+                        <h3>Personalização</h3>
+                        <div class="config-form">
+                            <div class="config-item-toggle">
+                                <div class="config-item-texto">
+                                    <strong>Modo escuro</strong>
+                                    <p>Deixe o Helpy mais confortável para os olhos, especialmente à noite.</p>
+                                </div>
+                                <label class="switch">
+                                    <input type="checkbox" id="dark-mode-toggle-config">
+                                    <span class="slider round"></span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </div>
+    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+    <div id="logout-confirm-modal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <h3>Tem certeza que deseja sair?</h3>
+            <div class="modal-buttons">
+                <button id="confirm-logout-yes" class="btn-confirm-yes">Sim</button>
+                <button id="confirm-logout-no" class="btn-confirm-no">Não</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 🔔 Modal Notificações -->
+    <div id="modal-notificacoes" class="modal-overlay hidden">
+        <div class="modal-content modal-grande">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px; position: relative;">
+                <h2 style="margin: 0;"><i class="fas fa-bell"></i> Notificações</h2>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <button id="btn-marcar-todas-lidas" class="btn-secondary" style="padding: 8px 15px;">
+                        <i class="fas fa-check-double"></i> Marcar todas como lidas
+                    </button>
+                    <button id="btn-limpar-notificacoes" class="btn-lixeira" title="Deletar notificações" style="position: absolute; top: 0; right: 0;" onclick="event.stopPropagation(); event.preventDefault(); if (window.handleClickLixeira) { window.handleClickLixeira(event); } return false;">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            </div>
+            <div id="selecionar-tudo-container" style="display: none; margin-bottom: 10px; position: relative;">
+                <button id="btn-selecionar-tudo" class="btn-secondary" style="padding: 6px 12px; font-size: 14px;">
+                    Selecionar tudo
+                </button>
+                <span id="mensagem-selecionar-primeiro" style="display: none; position: absolute; left: 0; top: 100%; margin-top: 5px; color: #ff6b6b; font-size: 12px; white-space: nowrap;">Primeiro selecione!</span>
+            </div>
+            <div id="mensagem-proposta-respondida" style="display: none; padding: 10px 15px; margin-bottom: 10px; background: rgba(255, 193, 7, 0.1); border-left: 3px solid #ffc107; border-radius: 4px; color: var(--text-secondary); font-size: 13px;">
+                <i class="fas fa-info-circle" style="color: #ffc107; margin-right: 8px;"></i>
+                <span id="mensagem-proposta-texto"></span>
+            </div>
+            <div id="lista-notificacoes" class="lista-propostas">
+                <p>Carregando notificações...</p>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-aviso-notificacoes" class="modal-overlay hidden" style="z-index: 10001;">
+        <div class="modal-content modal-confirmacao">
+            <div style="text-align: center; padding: 20px;">
+                <div id="modal-aviso-icon" style="font-size: 48px; margin-bottom: 15px;">⚠️</div>
+                <h3 id="modal-aviso-titulo" style="margin: 0 0 15px 0; color: var(--text-primary);">Aviso</h3>
+                <p id="modal-aviso-mensagem" style="margin: 0 0 25px 0; color: var(--text-secondary); line-height: 1.5;">Mensagem</p>
+                <div style="display: flex; gap: 10px; justify-content: center;">
+                    <button id="modal-aviso-btn-cancelar" class="btn-secondary" style="display: none; padding: 10px 20px;">Cancelar</button>
+                    <button id="modal-aviso-btn-ok" class="btn-secondary" style="padding: 10px 20px;">OK</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 🧭 Barra fixa inferior (mobile): atalhos -->
+    <nav id="mobile-bottom-nav" class="mobile-bottom-nav" aria-label="Navegação rápida">
+        <button type="button" id="bottom-nav-home" class="mbn-btn" aria-label="Voltar ao feed">
+            <i class="fas fa-home" aria-hidden="true"></i>
+        </button>
+        <button type="button" id="bottom-nav-quick" class="mbn-btn" aria-label="Ações rápidas">
+            <i class="fas fa-bolt" aria-hidden="true"></i>
+        </button>
+        <button type="button" id="bottom-nav-search" class="mbn-btn" aria-label="Pesquisar pessoas">
+            <i class="fas fa-search" aria-hidden="true"></i>
+        </button>
+        <button type="button" id="bottom-nav-notifications" class="mbn-btn" aria-label="Notificações">
+            <i class="fas fa-bell" aria-hidden="true"></i>
+        </button>
+        <button type="button" id="bottom-nav-settings" class="mbn-btn" aria-label="Configurações">
+            <i class="fas fa-cog" aria-hidden="true"></i>
+        </button>
+    </nav>
+    
+    <script src="/header-notificacoes.js"></script>
+    <script src="/configuracoes.js"></script>
+</body>
+</html>
+

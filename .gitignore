@@ -1,0 +1,19 @@
+# Variáveis de ambiente - MUITO IMPORTANTE!
+.env
+
+# Dependências do Node.js
+node_modules/
+
+# Logs e arquivos de debug
+npm-debug.log*
+yarn-debug.log*
+.log
+
+# Arquivos de sistema operacional (macOS, Windows)
+.DS_Store
+Thumbs.db
+
+# Arquivos de IDEs (opcional, se você usa alguma específica e quer ignorar)
+.vscode/ # Ignora configurações do VS Code específicas para o projeto
+.idea/   # Ignora configurações do IntelliJ/WebStorm
+.vercel

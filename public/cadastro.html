@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cadastro - Helpy</title>
+    <link rel="icon" href="icons/helpy.ico" type="image/x-icon">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css"/>
+    <link rel="stylesheet" href="/style.css"> <!-- Usando style.css base -->
+    <link rel="stylesheet" href="/cadastro.css">
+</head>
+<body>
+  <!-- 🧹 Silencia console.* em produção (ative com localStorage.DEBUG=1) -->
+  <script src="/console-silencer.js"></script>
+  <script>
+    // Esconde o ".html" da URL sem recarregar a página (limpa para /cadastro)
+    (function() {
+      if (window.location.pathname.endsWith('/cadastro.html')) {
+        const search = window.location.search || '';
+        const hash = window.location.hash || '';
+        window.history.replaceState(null, '', '/cadastro' + search + hash);
+      }
+    })();
+  </script>
+  <div class="container-cadastro">
+    <div class="header-content">
+      <img src="imagens/helpy-cadastro.png" alt="Logo Helpy Cadastro" class="header-logo">
+      <h1>Crie seu perfil no Helpy</h1>
+    </div>
+    <div id="form-message" class="form-message hidden"></div>
+
+    <!-- Etapa 1 - Dados do Cadastro -->
+    <form id="form-cadastro">
+      <div class="form-row">
+        <div class="form-group">
+          <label for="nome">Nome</label>
+          <input type="text" id="nome" name="nome" required placeholder="Seu primeiro nome">
+        </div>
+        <div class="form-group">
+          <label for="sobrenome">Sobrenome</label>
+          <input type="text" id="sobrenome" name="sobrenome" required placeholder="Seu sobrenome">
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group photo-upload-group full-width">
+          <label for="foto">Foto de perfil</label>
+          <input type="file" id="foto" name="fotoPerfil" accept="image/*" class="input-foto-perfil">
+          <div class="foto-preview-container" id="foto-preview-container">
+            <img id="foto-preview" src="imagens/default-user.png" alt="Pré-visualização da foto de perfil">
+            <div class="foto-mask"></div>
+            <button type="button" class="btn-remover-foto-perfil">&times;</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="idade">Idade</label>
+          <input type="number" id="idade" name="idade" min="18" required>
+        </div>
+        <!-- 🛑 ATUALIZAÇÃO: Campos de localização separados -->
+        <div class="form-group">
+          <label for="cidade">Cidade</label>
+          <input type="text" id="cidade" name="cidade" required placeholder="Ex: Juiz de Fora">
+        </div>
+      </div>
+      <div class="form-row">
+         <div class="form-group">
+          <label for="estado">Estado</label>
+          <select id="estado" name="estado" required>
+            <option value="">Selecione seu estado</option>
+            <option value="AC">Acre</option>
+            <option value="AL">Alagoas</option>
+            <option value="AP">Amapá</option>
+            <option value="AM">Amazonas</option>
+            <option value="BA">Bahia</option>
+            <option value="CE">Ceará</option>
+            <option value="DF">Distrito Federal</option>
+            <option value="ES">Espírito Santo</option>
+            <option value="GO">Goiás</option>
+            <option value="MA">Maranhão</option>
+            <option value="MT">Mato Grosso</option>
+            <option value="MS">Mato Grosso do Sul</option>
+            <option value="MG">Minas Gerais</option>
+            <option value="PA">Pará</option>
+            <option value="PB">Paraíba</option>
+            <option value="PR">Paraná</option>
+            <option value="PE">Pernambuco</option>
+            <option value="PI">Piauí</option>
+            <option value="RJ">Rio de Janeiro</option>
+            <option value="RN">Rio Grande do Norte</option>
+            <option value="RS">Rio Grande do Sul</option>
+            <option value="RO">Rondônia</option>
+            <option value="RR">Roraima</option>
+            <option value="SC">Santa Catarina</option>
+            <option value="SP">São Paulo</option>
+            <option value="SE">Sergipe</option>
+            <option value="TO">Tocantins</option>
+          </select>
+        </div>
+        <!-- Fim da Atualização -->
+
+        <div class="form-group">
+          <label for="tipo">Você é:</label>
+          <select id="tipo" name="tipo">
+            <option value="usuario">Usuário</option>
+            <option value="empresa">Empresa</option>
+          </select>
+        </div>
+      </div>
+      
+      <div class="form-row">
+        <div id="atuacao-group" class="form-group">
+          <label for="atuacao">Área de atuação</label>
+          <input type="text" id="atuacao" name="atuacao" placeholder="Ex: Eletricista">
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="telefone">Telefone / WhatsApp</label>
+          <input type="tel" id="telefone" name="telefone" placeholder="(XX) XXXXX-XXXX">
+        </div>
+        <div class="form-group">
+          <label for="email">Email</label>
+          <input type="email" id="email" name="email" required placeholder="seu@email.com">
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="senha">Senha</label>
+          <div style="position: relative;">
+            <input type="password" id="senha" name="senha" required style="padding-right: 45px;">
+            <button type="button" id="toggle-senha" class="toggle-password-btn" aria-label="Mostrar senha">
+              <i class="fas fa-eye"></i>
+            </button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="confirmar-senha">Confirmar Senha</label>
+          <div style="position: relative;">
+            <input type="password" id="confirmar-senha" name="confirmar_senha" required style="padding-right: 45px;">
+            <button type="button" id="toggle-confirmar-senha" class="toggle-password-btn" aria-label="Mostrar senha">
+              <i class="fas fa-eye"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group full-width">
+          <label for="descricao">Descrição</label>
+          <textarea id="descricao" name="descricao" placeholder="Fale um pouco sobre você..."></textarea>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group full-width">
+          <label style="margin-bottom: 15px; display: block;">Escolha o tema da interface</label>
+          <div class="tema-selecao-container">
+            <div class="tema-opcao" data-tema="light">
+              <div class="tema-preview light-preview">
+                <div class="preview-header">
+                  <div class="preview-avatar"></div>
+                  <div class="preview-lines">
+                    <div class="preview-line"></div>
+                    <div class="preview-line short"></div>
+                  </div>
+                </div>
+                <div class="preview-content">
+                  <div class="preview-card"></div>
+                  <div class="preview-card"></div>
+                </div>
+              </div>
+              <div class="tema-label">
+                <i class="fas fa-sun"></i>
+                <span>Claro</span>
+              </div>
+              <div class="tema-arrow">
+                <i class="fas fa-chevron-right"></i>
+              </div>
+            </div>
+            <div class="tema-opcao" data-tema="dark">
+              <div class="tema-preview dark-preview">
+                <div class="preview-header">
+                  <div class="preview-avatar"></div>
+                  <div class="preview-lines">
+                    <div class="preview-line"></div>
+                    <div class="preview-line short"></div>
+                  </div>
+                </div>
+                <div class="preview-content">
+                  <div class="preview-card"></div>
+                  <div class="preview-card"></div>
+                </div>
+              </div>
+              <div class="tema-label">
+                <i class="fas fa-moon"></i>
+                <span>Escuro</span>
+              </div>
+              <div class="tema-arrow">
+                <i class="fas fa-chevron-left"></i>
+              </div>
+            </div>
+          </div>
+          <input type="hidden" id="tema" name="tema" value="light" required>
+        </div>
+      </div>
+
+      <button type="submit" class="btn-submit-cadastro">Próximo</button>
+    </form>
+
+    <!-- Etapa 2 - Validar Código -->
+    <div id="etapa-validar-codigo" class="etapa-cadastro" style="display: none;">
+      <h2 style="text-align: center; margin-bottom: 20px;">Verificação de Email</h2>
+      <p style="text-align: center; color: #666; margin-bottom: 30px;">
+        Enviamos um código de 6 dígitos para <strong id="email-exibido"></strong><br>
+        Digite o código abaixo para finalizar seu cadastro.
+      </p>
+      <div class="form-row">
+        <div class="form-group full-width">
+          <label for="codigo-verificacao">Código de Verificação</label>
+          <input type="text" id="codigo-verificacao" name="codigo-verificacao" required placeholder="000000" maxlength="6" pattern="[0-9]{6}" style="text-align: center; font-size: 24px; letter-spacing: 8px; font-weight: bold;">
+        </div>
+      </div>
+      <div class="form-row" style="margin-top: 25px;">
+        <button type="button" id="btn-voltar-formulario" class="btn-submit-cadastro">
+          <i class="fas fa-arrow-left"></i> Voltar
+        </button>
+        <button type="button" id="btn-validar-codigo" class="btn-submit-cadastro">
+          <i class="fas fa-check-circle"></i> Validar e Criar Conta
+        </button>
+      </div>
+      <p style="text-align: center; margin-top: 20px;">
+        <a href="#" id="link-reenviar-codigo">
+          <i class="fas fa-redo"></i> Reenviar código
+        </a>
+      </p>
+    </div>
+
+      <div class="link-login-container">
+          <div class="link-login-divider">
+            <span class="divider-line"></span>
+            <span class="divider-text">ou</span>
+            <span class="divider-line"></span>
+          </div>
+          <div class="link-login">
+            <span class="login-text">Já tem uma conta?</span>
+            <a href="login.html" class="login-link">
+              <i class="fas fa-sign-in-alt"></i>
+              Faça login aqui
+            </a>
+          </div>
+      </div>
+  </div>
+  <script src="/cadastro.js"></script>
+</body>
+</html>
+

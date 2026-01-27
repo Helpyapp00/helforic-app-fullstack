@@ -1,0 +1,34 @@
+# Dependências locais
+node_modules/
+
+# Arquivos de ambiente local
+.env
+.env.local
+.env.*.local
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Arquivos do sistema
+.DS_Store
+Thumbs.db
+
+# Pasta de uploads local
+/uploads
+
+# Pasta .vercel
+.vercel
+
+# Arquivos de configuração local
+*.local
+
+# Arquivos de IDE
+.idea
+.vscode
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
