@@ -1721,6 +1721,25 @@ document.addEventListener('DOMContentLoaded', () => {
             `;
         }).join('');
     }
+
+    function aplicarFitaNivelTemaNoPerfil() {
+        const img = document.querySelector('.fita-nivel-img');
+        if (!img) return;
+        const isDark = document.documentElement.classList.contains('dark-mode');
+        const light = img.getAttribute('data-src-light') || img.getAttribute('src');
+        const dark = img.getAttribute('data-src-dark') || img.getAttribute('src');
+        img.src = isDark ? dark : light;
+    }
+
+    // Reage quando o tema muda (classe dark-mode adicionada/removida no <html>)
+    aplicarFitaNivelTemaNoPerfil();
+    try {
+        const themeObserver = new MutationObserver(() => {
+            aplicarFitaNivelTemaNoPerfil();
+        });
+        themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    } catch {}
+
     function aplicarIconeEnviarTemaNoPerfil() {
         if (!btnEnviarPostagemPerfil) return;
         const img = btnEnviarPostagemPerfil.querySelector('.publish-icon');
