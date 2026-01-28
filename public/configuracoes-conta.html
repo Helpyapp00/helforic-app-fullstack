@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Configurações - Helpy</title>
-    <link rel="icon" href="/icons/helpy.ico" type="image/x-icon">
+    <link rel="icon" href="/icons/logoicon.png" type="image/png">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="/style.css">
     <link rel="stylesheet" href="/perfil.css">
@@ -22,7 +22,7 @@
     </script>
     <header>
         <div class="logo-box">
-            <img src="imagens/helpy-feed.png" alt="Logo Helpy"> <h1>Helpy</h1>
+            <img src="/imagens/logohelpy.png" alt="Logo Helpy"> <h1>Helpy</h1>
         </div>
         <div class="header-actions">
             <!-- Botão de busca (mobile) -->
@@ -225,30 +225,73 @@
                     </div>
 
                     <!-- Seção: Preferências de anúncios -->
-                    <div id="sec-anuncios" class="config-section">
-                        <h3>Preferências de anúncios</h3>
-                        <div class="config-form">
-                            <div class="config-item-toggle">
-                                <div class="config-item-texto">
-                                    <strong>Anúncios personalizados</strong>
-                                    <p>Permitir que a Helpy use suas interações para sugerir anúncios mais relevantes.</p>
-                                </div>
-                                <label class="switch">
-                                    <input type="checkbox" id="cfg-anuncios-personalizados" checked>
-                                    <span class="slider round"></span>
-                                </label>
+                    <div id="sec-anuncios" class="config-section config-form">
+                        <div class="config-item-toggle">
+                            <div class="config-item-texto">
+                                <strong>E-mails promocionais</strong>
+                                <p>Receber novidades e oportunidades de serviços por e-mail.</p>
                             </div>
-                            <div class="config-item-toggle">
-                                <div class="config-item-texto">
-                                    <strong>E-mails promocionais</strong>
-                                    <p>Receber novidades e oportunidades de serviços por e-mail.</p>
-                                </div>
-                                <label class="switch">
-                                    <input type="checkbox" id="cfg-emails-promocionais">
-                                    <span class="slider round"></span>
-                                </label>
-                            </div>
+                            <label class="switch">
+                                <input type="checkbox" id="cfg-emails-promocionais">
+                                <span class="slider round"></span>
+                            </label>
                         </div>
+
+                        <hr class="config-divider">
+
+                        <form id="form-criar-anuncio">
+                            <div class="form-group">
+                                <label for="anuncio-titulo">Título</label>
+                                <input type="text" id="anuncio-titulo" class="input-edicao" placeholder="Ex: Minha Loja" required>
+                            </div>
+
+                                <div class="form-group">
+                                    <label for="anuncio-descricao">Descrição</label>
+                                    <input type="text" id="anuncio-descricao" class="input-edicao" placeholder="Ex: Promoção da semana">
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="anuncio-imagem-arquivo">Imagem de Fundo</label>
+                                    <input type="file" id="anuncio-imagem-arquivo" accept="image/*" required style="display:none;">
+                                    <div id="anuncio-imagem-picker" style="display:flex; align-items:center; gap: 12px;">
+                                        <button type="button" id="btn-anuncio-escolher-imagem" class="btn-ghost btn-ghost-icon">+</button>
+                                        <img id="anuncio-imagem-preview" src="" alt="Prévia da imagem" style="display:none; width: 260px; height: 160px; object-fit: cover; border-radius: 14px; border: 1px solid rgba(255,255,255,0.12); cursor: pointer;" />
+                                    </div>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="anuncio-link">URL do link</label>
+                                    <input type="text" id="anuncio-link" class="input-edicao" placeholder="https://...">
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="anuncio-cidade">Cidade (opcional)</label>
+                                    <input type="text" id="anuncio-cidade" class="input-edicao" placeholder="Ex: Palmas">
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="anuncio-estado">Estado/UF (opcional)</label>
+                                    <input type="text" id="anuncio-estado" class="input-edicao" placeholder="Ex: TO">
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="anuncio-plano">Plano do anúncio (30 dias)</label>
+                                    <select id="anuncio-plano" class="input-edicao">
+                                        <option value="basico" selected>Básico</option>
+                                        <option value="premium">Premium (aparece mais vezes)</option>
+                                    </select>
+                                </div>
+
+                                <button type="submit" class="salvar-btn btn-ghost" style="margin-top: 10px;">
+                                    <span class="btn-text">Criar anúncio</span>
+                                    <span class="btn-spinner"></span>
+                                </button>
+
+                                <p id="msg-anuncio" class="config-descricao" style="margin-top: 10px;"></p>
+                            </form>
+
+                        <hr class="config-divider">
+                        <div id="lista-meus-anuncios" class="config-descricao"></div>
                     </div>
 
                     <!-- Seção: Selo -->

@@ -354,9 +354,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (logoImg) {
             // Garante que o caminho está correto (tenta relativo e absoluto)
             const logoPaths = [
-                'imagens/helpy-feed.png',
-                '/imagens/helpy-feed.png',
-                './imagens/helpy-feed.png'
+                'imagens/logohelpy.png',
+                '/imagens/logohelpy.png',
+                './imagens/logohelpy.png'
             ];
             
             let currentPathIndex = 0;
@@ -1393,8 +1393,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.error('❌ Erro na resposta:', errorData);
                 throw new Error(errorData.message || 'Falha ao buscar dados do perfil.');
             }
-            const user = await response.json(); 
-            console.log('✅ Dados do usuário recebidos:', user); 
+            const payload = await response.json();
+            const user = payload?.usuario || payload;
+            console.log('✅ Dados do usuário recebidos:', user);
             
             if (isOwnProfile) {
                 localStorage.setItem('userName', user.nome);

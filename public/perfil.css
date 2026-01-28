@@ -974,6 +974,52 @@ textarea.input-edicao { min-height: 100px; resize: vertical; }
 .cancelar-btn { background-color: #dc3545; color: white; }
 .cancelar-btn:hover { background-color: #c82333; transform: translateY(-2px); }
 
+.btn-ghost {
+    background: transparent;
+    color: var(--text-primary);
+    border: 1px solid var(--text-primary);
+    box-shadow: none;
+}
+
+html.dark-mode .btn-ghost {
+    border-color: var(--text-primary);
+}
+
+.btn-ghost:hover {
+    background: var(--bg-hover);
+    transform: none;
+}
+
+.btn-ghost:active {
+    opacity: 0.9;
+    transform: none;
+}
+
+.salvar-btn.btn-ghost {
+    background: transparent;
+    color: var(--text-primary);
+    border: 1px solid var(--text-primary);
+    box-shadow: none;
+}
+
+.salvar-btn.btn-ghost:hover {
+    background: var(--bg-hover);
+    transform: none;
+}
+
+.btn-ghost-icon {
+    width: 60px;
+    height: 60px;
+    border-radius: 14px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 46px;
+    font-weight: 800;
+    line-height: 1;
+}
+
 /* 🛑 NOVO: Estilos para as abas de serviços e postagens */
 .perfil-acoes {
     display: flex;

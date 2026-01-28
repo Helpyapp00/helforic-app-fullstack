@@ -61,6 +61,42 @@ document.addEventListener('DOMContentLoaded', () => {
         return { 'Authorization': `Bearer ${t}` };
     }
 
+    async function carregarMeusAnuncios() {
+        const container = document.getElementById('lista-meus-anuncios');
+        if (!container) return;
+        container.innerHTML = 'Carregando...';
+        try {
+            const resp = await fetch('/api/anuncios?limit=50', { headers: getAuthHeaders() });
+            const data = await resp.json();
+            const anuncios = Array.isArray(data?.anuncios) ? data.anuncios : [];
+            if (!resp.ok) {
+                container.innerHTML = 'Não foi possível carregar seus anúncios.';
+                return;
+            }
+            if (anuncios.length === 0) {
+                container.innerHTML = 'Você ainda não criou nenhum anúncio.';
+                return;
+            }
+
+            container.innerHTML = anuncios.map((a) => {
+                const titulo = a?.titulo ? String(a.titulo) : 'Anúncio';
+                const cidadeEstado = [a?.cidade, a?.estado].filter(Boolean).join(' - ');
+                const status = a?.ativo ? 'Ativo' : 'Inativo';
+                const plano = a?.plano ? String(a.plano) : 'basico';
+                return `
+                    <div style="padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.08);">
+                        <div style="font-weight: 700;">${titulo}</div>
+                        <div style="opacity: 0.85;">${cidadeEstado || 'Geral'} • ${status} • ${plano}</div>
+                        <button class="salvar-btn btn-ghost" data-pay-anuncio="${a?._id}" style="margin-top: 8px; padding: 8px 12px;">Pagar / Impulsionar</button>
+                    </div>
+                `;
+            }).join('');
+        } catch (e) {
+            console.error('Erro ao carregar anúncios:', e);
+            container.innerHTML = 'Erro ao carregar seus anúncios.';
+        }
+    }
+
     const menuDisponibilidade = document.getElementById('menu-disponibilidade');
     const toggleDisponibilidade = document.getElementById('toggle-disponibilidade');
 
@@ -117,6 +153,147 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     initDisponibilidadeMenu();
+
+    const formCriarAnuncio = document.getElementById('form-criar-anuncio');
+    const msgAnuncio = document.getElementById('msg-anuncio');
+    const adFileInput = document.getElementById('anuncio-imagem-arquivo');
+    const adPickBtn = document.getElementById('btn-anuncio-escolher-imagem');
+    const adPreviewImg = document.getElementById('anuncio-imagem-preview');
+    let adPreviewObjectUrl = null;
+
+    function clearAdPreview() {
+        if (adPreviewObjectUrl) {
+            try { URL.revokeObjectURL(adPreviewObjectUrl); } catch (_) {}
+        }
+        adPreviewObjectUrl = null;
+        if (adPreviewImg) {
+            adPreviewImg.src = '';
+            adPreviewImg.style.display = 'none';
+        }
+    }
+
+    function openAdFilePicker() {
+        if (adFileInput) adFileInput.click();
+    }
+
+    if (adPickBtn) {
+        adPickBtn.addEventListener('click', openAdFilePicker);
+    }
+    if (adPreviewImg) {
+        adPreviewImg.addEventListener('click', openAdFilePicker);
+    }
+    if (adFileInput) {
+        adFileInput.addEventListener('change', () => {
+            if (msgAnuncio) msgAnuncio.textContent = '';
+            const file = adFileInput.files ? adFileInput.files[0] : null;
+            if (!file) {
+                clearAdPreview();
+                return;
+            }
+
+            const maxBytes = 5 * 1024 * 1024;
+            if (file.size > maxBytes) {
+                if (msgAnuncio) msgAnuncio.textContent = 'Imagem muito grande. O limite é 5MB.';
+                adFileInput.value = '';
+                clearAdPreview();
+                return;
+            }
+
+            if (!String(file.type || '').startsWith('image/')) {
+                if (msgAnuncio) msgAnuncio.textContent = 'Selecione apenas imagem.';
+                adFileInput.value = '';
+                clearAdPreview();
+                return;
+            }
+
+            clearAdPreview();
+            adPreviewObjectUrl = URL.createObjectURL(file);
+            if (adPreviewImg) {
+                adPreviewImg.src = adPreviewObjectUrl;
+                adPreviewImg.style.display = 'block';
+            }
+        });
+    }
+
+    if (formCriarAnuncio) {
+        formCriarAnuncio.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            if (msgAnuncio) msgAnuncio.textContent = '';
+
+            const titulo = document.getElementById('anuncio-titulo')?.value;
+            const descricao = document.getElementById('anuncio-descricao')?.value;
+            const linkUrl = document.getElementById('anuncio-link')?.value;
+            const cidade = document.getElementById('anuncio-cidade')?.value;
+            const estado = document.getElementById('anuncio-estado')?.value;
+            const plano = document.getElementById('anuncio-plano')?.value || 'basico';
+            const fileInput = document.getElementById('anuncio-imagem-arquivo');
+            const file = fileInput && fileInput.files ? fileInput.files[0] : null;
+
+            try {
+                if (!file) {
+                    if (msgAnuncio) msgAnuncio.textContent = 'Selecione uma imagem para o anúncio.';
+                    return;
+                }
+
+                const maxBytes = 5 * 1024 * 1024;
+                if (file.size > maxBytes) {
+                    if (msgAnuncio) msgAnuncio.textContent = 'Imagem muito grande. O limite é 5MB.';
+                    return;
+                }
+
+                const fd = new FormData();
+                fd.append('imagem', file);
+                const up = await fetch('/api/anuncios/upload-imagem', {
+                    method: 'POST',
+                    headers: {
+                        ...getAuthHeaders()
+                    },
+                    body: fd
+                });
+                const upJson = await up.json().catch(() => ({}));
+                if (!up.ok) {
+                    if (msgAnuncio) msgAnuncio.textContent = upJson?.message || 'Não foi possível enviar a imagem.';
+                    return;
+                }
+                const imagemUrl = upJson?.imagemUrl;
+                if (!imagemUrl) {
+                    if (msgAnuncio) msgAnuncio.textContent = 'Upload concluído, mas não retornou URL da imagem.';
+                    return;
+                }
+
+                const resp = await fetch('/api/anuncios', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...getAuthHeaders()
+                    },
+                    body: JSON.stringify({ titulo, descricao, imagemUrl, linkUrl, cidade, estado, plano, ativo: true })
+                });
+                const data = await resp.json().catch(() => ({}));
+                if (!resp.ok) {
+                    if (msgAnuncio) msgAnuncio.textContent = data?.message || 'Não foi possível criar o anúncio.';
+                    return;
+                }
+                if (msgAnuncio) msgAnuncio.textContent = 'Anúncio criado! Agora ele já pode aparecer no feed.';
+                formCriarAnuncio.reset();
+                clearAdPreview();
+                await carregarMeusAnuncios();
+            } catch (err) {
+                console.error('Erro ao criar anúncio:', err);
+                if (msgAnuncio) msgAnuncio.textContent = 'Erro ao criar anúncio.';
+            }
+        });
+    }
+
+    document.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-pay-anuncio]');
+        if (!btn) return;
+        const id = btn.getAttribute('data-pay-anuncio');
+        if (!id) return;
+        alert('Pagamento/impulsionamento ainda não foi implementado. Por enquanto, o anúncio é criado manualmente e pode aparecer no feed.');
+    });
+
+    carregarMeusAnuncios();
 
     // --- Modais de Logout ---
     const logoutConfirmModal = document.getElementById('logout-confirm-modal');

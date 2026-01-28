@@ -202,9 +202,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (logoImg) {
             // Garante que o caminho está correto (tenta relativo e absoluto)
             const logoPaths = [
-                'imagens/helpy-feed.png',
-                '/imagens/helpy-feed.png',
-                './imagens/helpy-feed.png'
+                'imagens/logohelpy.png',
+                '/imagens/logohelpy.png',
+                './imagens/logohelpy.png'
             ];
             
             let currentPathIndex = 0;
@@ -778,6 +778,386 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    let allPostsFeed = [];
+    let nextPostIndexFeed = 0;
+    let renderedPostsCountFeed = 0;
+    let isRenderingFeedChunk = false;
+    let feedChunkSize = 10;
+
+    let adsPoolFeed = [];
+    let adsSeenFeed = new Set();
+    let adsCursorFeed = 0;
+    let adsLoadedFeed = false;
+
+    async function fetchAdsFeed() {
+        if (adsLoadedFeed) return;
+        try {
+            const resp = await fetch('/api/anuncios-feed?limit=50', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (!resp.ok) throw new Error('Falha ao buscar anúncios.');
+            const json = await resp.json();
+            const anuncios = Array.isArray(json?.anuncios) ? json.anuncios : [];
+            adsPoolFeed = anuncios;
+            adsLoadedFeed = true;
+        } catch (e) {
+            console.warn('Não foi possível carregar anúncios do feed:', e);
+            adsPoolFeed = [];
+            adsLoadedFeed = true;
+        }
+    }
+
+    function pickNextAdFeed() {
+        if (!adsPoolFeed || adsPoolFeed.length === 0) return null;
+
+        for (let i = 0; i < adsPoolFeed.length; i += 1) {
+            const idx = (adsCursorFeed + i) % adsPoolFeed.length;
+            const item = adsPoolFeed[idx];
+            const id = item?._feedKey || item?._id || item?.id;
+            if (!id) continue;
+            if (adsSeenFeed.has(String(id))) continue;
+            adsSeenFeed.add(String(id));
+            adsCursorFeed = (idx + 1) % adsPoolFeed.length;
+            return item;
+        }
+
+        adsSeenFeed = new Set();
+        const item = adsPoolFeed[adsCursorFeed % adsPoolFeed.length];
+        adsCursorFeed = (adsCursorFeed + 1) % adsPoolFeed.length;
+        return item || null;
+    }
+
+    function buildAdElementFeed(destaque) {
+        const titulo = destaque?.titulo || destaque?.title || 'Anúncio';
+        const descricao = destaque?.descricao || destaque?.subtitle || destaque?.texto || '';
+        const imagem = destaque?.imagemUrl || destaque?.imageUrl || destaque?.imagem || 'https://placehold.co/600x320?text=Anuncio';
+        const link = destaque?.linkUrl || destaque?.url || destaque?.link;
+        const cidadeEstado = [destaque?.cidade, destaque?.estado].filter(Boolean).join(' - ');
+
+        const adEl = document.createElement('article');
+        adEl.className = 'post anuncio-nativo-feed';
+        adEl.innerHTML = `
+            <img src="${imagem}" alt="" class="anuncio-nativo-img">
+            <div class="anuncio-nativo-overlay feed">
+                <div class="anuncio-nativo-badge">Anúncio</div>
+                <div class="anuncio-nativo-titulo">${titulo}</div>
+                ${descricao ? `<div class="anuncio-nativo-loja">${descricao}</div>` : ''}
+                ${cidadeEstado ? `<div class="anuncio-nativo-endereco">${cidadeEstado}</div>` : ''}
+            </div>
+        `;
+        adEl.addEventListener('click', () => {
+            if (link) window.open(link, '_blank');
+        });
+        return adEl;
+    }
+
+    function renderSinglePostElement(post) {
+        if (!post?.userId) return null;
+
+        const postElement = document.createElement('article');
+        postElement.className = 'post';
+        postElement.dataset.postId = post._id;
+        postElement.dataset.userType = post.userId.tipo;
+
+        const isPostOwner = (post.userId._id === userId);
+        if (isPostOwner) {
+            postElement.classList.add('is-owner');
+        }
+
+        const postAuthorPhoto = (post.userId.foto && !post.userId.foto.includes('pixabay'))
+                                ? post.userId.foto
+                                : (post.userId.avatarUrl && !post.userId.avatarUrl.includes('pixabay')
+                                    ? post.userId.avatarUrl
+                                    : 'imagens/default-user.png');
+
+        const postAuthorName = post.userId.nome || 'Usuário Anônimo';
+        const postAuthorCity = post.userId.cidade || '';
+        const postAuthorState = post.userId.estado || '';
+
+        let deleteButton = '';
+        if (isPostOwner) {
+            deleteButton = `<button class="delete-post-btn" data-id="${post._id}"><i class="fas fa-trash"></i></button>`;
+        }
+
+        let mediaHTML = '';
+        if (post.mediaUrl) {
+            if (post.mediaType === 'video') {
+                mediaHTML = `<video src="${post.mediaUrl}" class="post-video" controls></video>`;
+            } else if (post.mediaType === 'image') {
+                mediaHTML = `<img src="${post.mediaUrl}" alt="Imagem da postagem" class="post-image">`;
+            }
+        }
+
+        const isLiked = post.likes.includes(userId);
+
+        const allComments = Array.isArray(post.comments)
+            ? post.comments.filter(c => c && c.userId)
+            : [];
+        const totalComments = allComments.length;
+        const initialComments = allComments.slice(0, 2);
+        const hasMoreComments = totalComments > 2;
+
+        let commentsHTML = initialComments.map(comment => {
+            if (!comment.userId) return '';
+
+            const isCommentOwner = comment.userId._id === userId;
+            const canEditComment = isCommentOwner;
+            const canDeleteComment = isPostOwner || isCommentOwner;
+
+            let repliesHTML = (comment.replies || []).map(reply => {
+                const isReplyOwner = reply.userId && reply.userId._id === userId;
+                const canEditReply = isReplyOwner;
+                const canDeleteReply = isPostOwner || isReplyOwner;
+                return renderReply(reply, comment._id, canEditReply, canDeleteReply);
+            }).join('');
+
+            const commentPhoto = comment.userId.foto || comment.userId.avatarUrl || 'imagens/default-user.png';
+            const isCommentLiked = comment.likes && comment.likes.includes(userId);
+            const replyCount = comment.replies?.length || 0;
+
+            return `
+            <div class="comment" data-comment-id="${comment._id}">
+                <a href="/perfil.html?id=${comment.userId._id}" style="text-decoration: none; color: inherit;">
+                    <img src="${commentPhoto.includes('pixabay') ? 'imagens/default-user.png' : commentPhoto}" alt="Avatar" class="comment-avatar" style="cursor: pointer;">
+                </a>
+                <div class="comment-body-container">
+                    <div class="comment-body">
+                        <a href="/perfil.html?id=${comment.userId._id}" style="text-decoration: none; color: inherit; font-weight: bold; cursor: pointer;">${comment.userId.nome}</a>
+                        <p class="comment-content">${comment.content}</p>
+                        ${(canEditComment || canDeleteComment) ? `
+                            <button class="btn-comment-options" data-comment-id="${comment._id}" title="Opções">⋯</button>
+                            <div class="comment-options-menu oculto" data-comment-id="${comment._id}">
+                                ${canEditComment ? `<button class="btn-edit-comment" data-comment-id="${comment._id}" title="Editar">✏️</button>` : ''}
+                                ${canDeleteComment ? `<button class="btn-delete-comment" data-comment-id="${comment._id}" title="Apagar">🗑️</button>` : ''}
+                            </div>
+                        ` : ''}
+                    </div>
+                    <div class="comment-actions">
+                        <button class="comment-action-btn btn-like-comment ${isCommentLiked ? 'liked' : ''}" data-comment-id="${comment._id}">
+                            <i class="fas fa-thumbs-up"></i>
+                            <span class="like-count">${comment.likes?.length || 0}</span>
+                        </button>
+                        <button class="comment-action-btn btn-show-reply-form" data-comment-id="${comment._id}">Responder</button>
+                        ${(replyCount > 0) ? `<button class="comment-action-btn btn-toggle-replies" data-comment-id="${comment._id}">Ver ${replyCount} Respostas</button>` : ''}
+                    </div>
+                    <div class="reply-list oculto">${repliesHTML}</div>
+                    <div class="reply-form oculto">
+                        <input type="text" class="reply-input" placeholder="Responda a ${comment.userId.nome}...">
+                        <button class="btn-send-reply" data-comment-id="${comment._id}" aria-label="Enviar resposta" title="Enviar resposta">
+                            <img
+                                class="send-reply-icon"
+                                alt=""
+                                src="${document.documentElement.classList.contains('dark-mode') ? '/imagens/enviar.tema.escuro.png' : '/imagens/enviar.tema.claro.png'}"
+                                data-src-light="/imagens/enviar.tema.claro.png"
+                                data-src-dark="/imagens/enviar.tema.escuro.png"
+                            >
+                        </button>
+                    </div>
+                </div>
+            </div>
+            `;
+        }).join('');
+
+        const remainingComments = allComments.slice(2);
+        let hiddenCommentsHTML = remainingComments.map((comment, index) => {
+            if (!comment.userId) return '';
+
+            const isCommentOwner = comment.userId._id === userId;
+            const canEditComment = isCommentOwner;
+            const canDeleteComment = isPostOwner || isCommentOwner;
+
+            let repliesHTML = (comment.replies || []).map(reply => {
+                const isReplyOwner = reply.userId && reply.userId._id === userId;
+                const canEditReply = isReplyOwner;
+                const canDeleteReply = isPostOwner || isReplyOwner;
+                return renderReply(reply, comment._id, canEditReply, canDeleteReply);
+            }).join('');
+
+            const commentPhoto = comment.userId.foto || comment.userId.avatarUrl || 'imagens/default-user.png';
+            const isCommentLiked = comment.likes && comment.likes.includes(userId);
+            const replyCount = comment.replies?.length || 0;
+
+            return `
+            <div class="comment comment-hidden" data-comment-id="${comment._id}" data-comment-index="${index + 2}">
+                <a href="/perfil.html?id=${comment.userId._id}" style="text-decoration: none; color: inherit;">
+                    <img src="${commentPhoto.includes('pixabay') ? 'imagens/default-user.png' : commentPhoto}" alt="Avatar" class="comment-avatar" style="cursor: pointer;">
+                </a>
+                <div class="comment-body-container">
+                    <div class="comment-body">
+                        <a href="/perfil.html?id=${comment.userId._id}" style="text-decoration: none; color: inherit; font-weight: bold; cursor: pointer;">${comment.userId.nome}</a>
+                        <p class="comment-content">${comment.content}</p>
+                        ${(canEditComment || canDeleteComment) ? `
+                            <button class="btn-comment-options" data-comment-id="${comment._id}" title="Opções">⋯</button>
+                            <div class="comment-options-menu oculto" data-comment-id="${comment._id}">
+                                ${canEditComment ? `<button class="btn-edit-comment" data-comment-id="${comment._id}" title="Editar">✏️</button>` : ''}
+                                ${canDeleteComment ? `<button class="btn-delete-comment" data-comment-id="${comment._id}" title="Apagar">🗑️</button>` : ''}
+                            </div>
+                        ` : ''}
+                    </div>
+                    <div class="comment-actions">
+                        <button class="comment-action-btn btn-like-comment ${isCommentLiked ? 'liked' : ''}" data-comment-id="${comment._id}">
+                            <i class="fas fa-thumbs-up"></i>
+                            <span class="like-count">${comment.likes?.length || 0}</span>
+                        </button>
+                        <button class="comment-action-btn btn-show-reply-form" data-comment-id="${comment._id}">Responder</button>
+                        ${(replyCount > 0) ? `<button class="comment-action-btn btn-toggle-replies" data-comment-id="${comment._id}">Ver ${replyCount} Respostas</button>` : ''}
+                    </div>
+                    <div class="reply-list oculto">${repliesHTML}</div>
+                    <div class="reply-form oculto">
+                        <input type="text" class="reply-input" placeholder="Responda a ${comment.userId.nome}...">
+                        <button class="btn-send-reply" data-comment-id="${comment._id}" aria-label="Enviar resposta" title="Enviar resposta">
+                            <img
+                                class="send-reply-icon"
+                                alt=""
+                                src="${document.documentElement.classList.contains('dark-mode') ? '/imagens/enviar.tema.escuro.png' : '/imagens/enviar.tema.claro.png'}"
+                                data-src-light="/imagens/enviar.tema.claro.png"
+                                data-src-dark="/imagens/enviar.tema.escuro.png"
+                            >
+                        </button>
+                    </div>
+                </div>
+            </div>
+            `;
+        }).join('');
+
+        const loadMoreHTML = hasMoreComments ? `<div class="load-more-comments" data-post-id="${post._id}" data-loaded="2" data-total="${totalComments}">Carregar mais</div>` : '';
+
+        const postDate = new Date(post.createdAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        const cityDisplay = [postAuthorCity, postAuthorState].filter(Boolean).join(', ');
+        const citySeparator = cityDisplay ? ` &bull; ${cityDisplay}` : '';
+
+        const visibleCommentsCount = Array.isArray(post.comments)
+            ? post.comments.filter(c => c && c.userId).length
+            : 0;
+
+        const comentariosVisiveis = '';
+
+        postElement.innerHTML = `
+            <div class="post-header">
+                <img src="${postAuthorPhoto}" alt="Avatar" class="post-avatar" data-userid="${post.userId._id}">
+                <div class="post-meta">
+                    <span class="user-name" data-userid="${post.userId._id}">${postAuthorName}</span>
+                    <div>
+                       <span class="post-date-display">${postDate}</span>
+                       <span class="post-author-city">${citySeparator}</span>
+                    </div>
+                </div>
+                ${deleteButton}
+            </div>
+            <div class="post-content">
+                <p>${post.content}</p>
+                ${mediaHTML}
+            </div>
+            <div class="post-actions">
+                <button class="action-btn btn-like ${isLiked ? 'liked' : ''}" data-post-id="${post._id}">
+                    <i class="fas fa-thumbs-up"></i> 
+                    <span class="like-count">${post.likes.length}</span> Curtir
+                </button>
+                <button class="action-btn btn-comment ${comentariosVisiveis ? 'active' : ''}" data-post-id="${post._id}">
+                    <i class="fas fa-comment"></i> ${visibleCommentsCount} Comentários
+                </button>
+            </div>
+            <div class="post-comments ${comentariosVisiveis}">
+                <div class="comment-list">
+                    ${commentsHTML}
+                    ${hiddenCommentsHTML}
+                    ${loadMoreHTML}
+                </div>
+                <div class="comment-form">
+                    <textarea class="comment-input" placeholder="Escreva um comentário..." rows="1"></textarea>
+                    <button class="btn-send-comment" data-post-id="${post._id}" aria-label="Enviar comentário" title="Enviar comentário">
+                        <img
+                            class="send-comment-icon"
+                            alt=""
+                            src="${document.documentElement.classList.contains('dark-mode') ? '/imagens/enviar.tema.escuro.png' : '/imagens/enviar.tema.claro.png'}"
+                            data-src-light="/imagens/enviar.tema.claro.png"
+                            data-src-dark="/imagens/enviar.tema.escuro.png"
+                        >
+                    </button>
+                </div>
+            </div>
+        `;
+
+        return postElement;
+    }
+
+    async function renderNextFeedChunk() {
+        if (!postsContainer) return;
+        if (isRenderingFeedChunk) return;
+        if (!allPostsFeed || nextPostIndexFeed >= allPostsFeed.length) return;
+
+        isRenderingFeedChunk = true;
+        try {
+            await fetchAdsFeed();
+            const isMobileAds = window.innerWidth <= 992;
+
+            const end = Math.min(nextPostIndexFeed + feedChunkSize, allPostsFeed.length);
+            for (let i = nextPostIndexFeed; i < end; i += 1) {
+                const p = allPostsFeed[i];
+                const postEl = renderSinglePostElement(p);
+                if (!postEl) continue;
+                postsContainer.appendChild(postEl);
+                renderedPostsCountFeed += 1;
+
+                if (isMobileAds && renderedPostsCountFeed % 4 === 0) {
+                    const ad = pickNextAdFeed();
+                    if (ad) {
+                        const adEl = buildAdElementFeed(ad);
+                        postsContainer.appendChild(adEl);
+                    }
+                }
+            }
+            nextPostIndexFeed = end;
+
+            setupPostListeners();
+            setupAutoCloseCommentsOnScroll();
+
+            setTimeout(() => {
+                document.querySelectorAll('.comment').forEach(comment => {
+                    const buttons = comment.querySelectorAll('.btn-comment-options');
+                    if (buttons.length > 1) {
+                        for (let i = 1; i < buttons.length; i++) {
+                            buttons[i].remove();
+                        }
+                    }
+                    const menu = comment.querySelector('.comment-options-menu');
+                    if (menu && checkCommentHasMultipleLines(comment)) {
+                        menu.classList.add('comentario-multiplas-linhas');
+                    }
+                });
+                document.querySelectorAll('.reply').forEach(reply => {
+                    const buttons = reply.querySelectorAll('.btn-reply-options');
+                    if (buttons.length > 1) {
+                        for (let i = 1; i < buttons.length; i++) {
+                            buttons[i].remove();
+                        }
+                    }
+                    const menu = reply.querySelector('.reply-options-menu');
+                    if (menu && checkCommentHasMultipleLines(reply)) {
+                        menu.classList.add('comentario-multiplas-linhas');
+                    }
+                });
+            }, 100);
+
+            if (typeof filterFeed === 'function') {
+                filterFeed(currentTipoFeed);
+            }
+        } finally {
+            isRenderingFeedChunk = false;
+        }
+    }
+
+    function setupInfiniteFeedScroll() {
+        if (window.__feedInfiniteScrollSetup) return;
+        window.__feedInfiniteScrollSetup = true;
+
+        window.addEventListener('scroll', () => {
+            const nearBottom = (window.innerHeight + window.scrollY) >= (document.body.offsetHeight - 900);
+            if (!nearBottom) return;
+            renderNextFeedChunk();
+        }, { passive: true });
+    }
+
     function atualizarSugestoesCidades(posts) {
         if (!datalistCidades) return;
         datalistCidades.innerHTML = '';
@@ -806,437 +1186,97 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderPosts(posts) {
         if (!postsContainer) return;
-        postsContainer.innerHTML = ''; 
+        postsContainer.innerHTML = '';
 
-        if (!posts || posts.length === 0) {
+        allPostsFeed = Array.isArray(posts) ? posts : [];
+        nextPostIndexFeed = 0;
+        renderedPostsCountFeed = 0;
+        isRenderingFeedChunk = false;
+
+        adsPoolFeed = [];
+        adsSeenFeed = new Set();
+        adsCursorFeed = 0;
+        adsLoadedFeed = false;
+
+        if (!allPostsFeed || allPostsFeed.length === 0) {
             postsContainer.innerHTML = '<p class="mensagem-vazia">Nenhuma postagem encontrada.</p>';
             return;
         }
 
-        const isMobileAds = window.innerWidth <= 992;
-        const anunciosFeed = [
-            {
-                titulo: 'Oferta para sua obra',
-                loja: 'Loja de Tintas ColorMix',
-                endereco: 'Av. Central, 123 - Centro',
-                linkPerfil: '/perfil.html?id=empresa-demo',
-                imagem: 'https://placehold.co/600x320?text=Tintas+ColorMix',
-                linkMapa: 'https://www.google.com/maps/search/Loja+de+Tintas+ColorMix+Av+Central+123'
-            },
-            {
-                titulo: 'Ferramentas em Promoção',
-                loja: 'Casa do Construtor',
-                endereco: 'Rua das Ferramentas, 50 - Centro',
-                linkPerfil: '/perfil.html?id=empresa-ferramentas',
-                imagem: 'https://placehold.co/600x320?text=Ferramentas',
-                linkMapa: 'https://www.google.com/maps/search/Casa+do+Construtor+Rua+das+Ferramentas+50'
-            },
-            {
-                titulo: 'Entrega de Material Rápida',
-                loja: 'Depósito Constrular',
-                endereco: 'Av. das Indústrias, 200',
-                linkPerfil: '/perfil.html?id=empresa-material',
-                imagem: 'https://placehold.co/600x320?text=Material+de+Obra',
-                linkMapa: 'https://www.google.com/maps/search/Deposito+Constrular+Av+das+Industrias+200'
-            }
-        ];
-
-        // Constrói feed e insere no máx. 1 anúncio a cada intervalo aleatório (5-10)
-        const feedItems = [];
-        const pool = isMobileAds ? [...anunciosFeed].sort(() => Math.random() - 0.5) : [];
-        let idxAd = 0;
-        let distancia = 0;
-        let intervalo = 5 + Math.floor(Math.random() * 6); // 5..10
-
-        posts.forEach((p) => {
-            feedItems.push({ tipo: 'post', data: p });
-            distancia += 1;
-
-            if (isMobileAds && idxAd < pool.length && distancia >= intervalo) {
-                feedItems.push({ tipo: 'ad', data: pool[idxAd] });
-                idxAd += 1;
-                distancia = 0;
-                intervalo = 5 + Math.floor(Math.random() * 6);
-            }
-        });
-
-        feedItems.forEach(entry => {
-            if (entry.tipo === 'ad') {
-                const ad = entry.data;
-                const adEl = document.createElement('article');
-                adEl.className = 'post anuncio-nativo-feed';
-                adEl.innerHTML = `
-                    <img src="${ad.imagem}" alt="" class="anuncio-nativo-img">
-                    <div class="anuncio-nativo-overlay feed">
-                        <div class="anuncio-nativo-badge">Anúncio</div>
-                        <div class="anuncio-nativo-titulo">${ad.titulo}</div>
-                        <div class="anuncio-nativo-loja">${ad.loja}</div>
-                        <div class="anuncio-nativo-endereco">${ad.endereco}</div>
-                        ${ad.linkMapa ? `<button class="btn-como-chegar" onclick="event.stopPropagation(); window.open('${ad.linkMapa}', '_blank')"><i class="fas fa-map-marker-alt"></i> Como chegar</button>` : ''}
-                    </div>
-                `;
-                adEl.addEventListener('click', () => {
-                    if (ad.linkPerfil) window.location.href = ad.linkPerfil;
-                });
-                postsContainer.appendChild(adEl);
-                return;
-            }
-
-            const post = entry.data;
-            if (!post.userId) return; 
-
-            const postElement = document.createElement('article');
-            postElement.className = 'post';
-            postElement.dataset.postId = post._id;
-            postElement.dataset.userType = post.userId.tipo; 
-            
-            // 🛑 NOVO: Verifica se o usuário logado é o dono do post
-            const isPostOwner = (post.userId._id === userId);
-            if (isPostOwner) {
-                postElement.classList.add('is-owner');
-            }
-
-            const postAuthorPhoto = (post.userId.foto && !post.userId.foto.includes('pixabay')) 
-                                    ? post.userId.foto 
-                                    : (post.userId.avatarUrl && !post.userId.avatarUrl.includes('pixabay')
-                                        ? post.userId.avatarUrl
-                                        : 'imagens/default-user.png');
-                                        
-            const postAuthorName = post.userId.nome || 'Usuário Anônimo';
-            const postAuthorCity = post.userId.cidade || '';
-            const postAuthorState = post.userId.estado || '';
-
-            let deleteButton = '';
-            if (isPostOwner) {
-                deleteButton = `<button class="delete-post-btn" data-id="${post._id}"><i class="fas fa-trash"></i></button>`;
-            }
-
-            let mediaHTML = '';
-            if (post.mediaUrl) {
-                if (post.mediaType === 'video') {
-                    mediaHTML = `<video src="${post.mediaUrl}" class="post-video" controls></video>`;
-                } else if (post.mediaType === 'image') {
-                    mediaHTML = `<img src="${post.mediaUrl}" alt="Imagem da postagem" class="post-image">`;
-                }
-            }
-            
-            const isLiked = post.likes.includes(userId);
-            
-            // 🛑 ATUALIZAÇÃO: Renderização dos Comentários e Respostas
-            // Filtra comentários órfãos (ex: usuário deletado -> userId null)
-            const allComments = Array.isArray(post.comments)
-                ? post.comments.filter(c => c && c.userId)
-                : [];
-            const totalComments = allComments.length;
-            const initialComments = allComments.slice(0, 2); // Mostra apenas os 2 primeiros
-            const hasMoreComments = totalComments > 2;
-            
-            let commentsHTML = initialComments.map(comment => {
-                if (!comment.userId) return '';
-                
-                // Verifica permissões: editar só dono, apagar dono OU dono da foto
-                const isCommentOwner = comment.userId._id === userId;
-                const canEditComment = isCommentOwner; // Só dono pode editar
-                const canDeleteComment = isPostOwner || isCommentOwner; // Dono OU dono da foto pode apagar
-                
-                // Renderiza Respostas primeiro
-                let repliesHTML = (comment.replies || []).map(reply => {
-                    const isReplyOwner = reply.userId && reply.userId._id === userId;
-                    const canEditReply = isReplyOwner; // Só dono pode editar
-                    const canDeleteReply = isPostOwner || isReplyOwner; // Dono OU dono da foto pode apagar
-                    return renderReply(reply, comment._id, canEditReply, canDeleteReply);
-                }).join('');
-
-                const commentPhoto = comment.userId.foto || comment.userId.avatarUrl || 'imagens/default-user.png';
-                const isCommentLiked = comment.likes && comment.likes.includes(userId);
-                const replyCount = comment.replies?.length || 0;
-                
-                return `
-                <div class="comment" data-comment-id="${comment._id}">
-                    <a href="/perfil.html?id=${comment.userId._id}" style="text-decoration: none; color: inherit;">
-                        <img src="${commentPhoto.includes('pixabay') ? 'imagens/default-user.png' : commentPhoto}" alt="Avatar" class="comment-avatar" style="cursor: pointer;">
-                    </a>
-                    <div class="comment-body-container">
-                        <div class="comment-body">
-                            <a href="/perfil.html?id=${comment.userId._id}" style="text-decoration: none; color: inherit; font-weight: bold; cursor: pointer;">${comment.userId.nome}</a>
-                            <p class="comment-content">${comment.content}</p>
-                            ${(canEditComment || canDeleteComment) ? `
-                                <button class="btn-comment-options" data-comment-id="${comment._id}" title="Opções">⋯</button>
-                                <div class="comment-options-menu oculto" data-comment-id="${comment._id}">
-                                    ${canEditComment ? `<button class="btn-edit-comment" data-comment-id="${comment._id}" title="Editar">✏️</button>` : ''}
-                                    ${canDeleteComment ? `<button class="btn-delete-comment" data-comment-id="${comment._id}" title="Apagar">🗑️</button>` : ''}
-                                </div>
-                            ` : ''}
-                        </div>
-                        <div class="comment-actions">
-                            <button class="comment-action-btn btn-like-comment ${isCommentLiked ? 'liked' : ''}" data-comment-id="${comment._id}">
-                                <i class="fas fa-thumbs-up"></i>
-                                <span class="like-count">${comment.likes?.length || 0}</span>
-                            </button>
-                            <button class="comment-action-btn btn-show-reply-form" data-comment-id="${comment._id}">Responder</button>
-                            ${(replyCount > 0) ? `<button class="comment-action-btn btn-toggle-replies" data-comment-id="${comment._id}">Ver ${replyCount} Respostas</button>` : ''}
-                        </div>
-                        <div class="reply-list oculto">${repliesHTML}</div>
-                        <div class="reply-form oculto">
-                            <input type="text" class="reply-input" placeholder="Responda a ${comment.userId.nome}...">
-                            <button class="btn-send-reply" data-comment-id="${comment._id}" aria-label="Enviar resposta" title="Enviar resposta">
-                                <img
-                                    class="send-reply-icon"
-                                    alt=""
-                                    src="${document.documentElement.classList.contains('dark-mode') ? '/imagens/enviar.tema.escuro.png' : '/imagens/enviar.tema.claro.png'}"
-                                    data-src-light="/imagens/enviar.tema.claro.png"
-                                    data-src-dark="/imagens/enviar.tema.escuro.png"
-                                >
-                            </button>
-                        </div>
-                    </div>
-                </div>
-                `;
-            }).join('');
-            
-            // Comentários adicionais (ocultos inicialmente)
-            const remainingComments = allComments.slice(2);
-            let hiddenCommentsHTML = remainingComments.map((comment, index) => {
-                if (!comment.userId) return '';
-                
-                const isCommentOwner = comment.userId._id === userId;
-                const canEditComment = isCommentOwner; // Só dono pode editar
-                const canDeleteComment = isPostOwner || isCommentOwner; // Dono OU dono da foto pode apagar
-
-                let repliesHTML = (comment.replies || []).map(reply => {
-                    const isReplyOwner = reply.userId && reply.userId._id === userId;
-                    const canEditReply = isReplyOwner; // Só dono pode editar
-                    const canDeleteReply = isPostOwner || isReplyOwner; // Dono OU dono da foto pode apagar
-                    return renderReply(reply, comment._id, canEditReply, canDeleteReply);
-                }).join('');
-
-                const commentPhoto = comment.userId.foto || comment.userId.avatarUrl || 'imagens/default-user.png';
-                const isCommentLiked = comment.likes && comment.likes.includes(userId);
-                const replyCount = comment.replies?.length || 0;
-                
-                return `
-                <div class="comment comment-hidden" data-comment-id="${comment._id}" data-comment-index="${index + 2}">
-                    <a href="/perfil.html?id=${comment.userId._id}" style="text-decoration: none; color: inherit;">
-                        <img src="${commentPhoto.includes('pixabay') ? 'imagens/default-user.png' : commentPhoto}" alt="Avatar" class="comment-avatar" style="cursor: pointer;">
-                    </a>
-                    <div class="comment-body-container">
-                        <div class="comment-body">
-                            <a href="/perfil.html?id=${comment.userId._id}" style="text-decoration: none; color: inherit; font-weight: bold; cursor: pointer;">${comment.userId.nome}</a>
-                            <p class="comment-content">${comment.content}</p>
-                            ${(canEditComment || canDeleteComment) ? `
-                                <button class="btn-comment-options" data-comment-id="${comment._id}" title="Opções">⋯</button>
-                                <div class="comment-options-menu oculto" data-comment-id="${comment._id}">
-                                    ${canEditComment ? `<button class="btn-edit-comment" data-comment-id="${comment._id}" title="Editar">✏️</button>` : ''}
-                                    ${canDeleteComment ? `<button class="btn-delete-comment" data-comment-id="${comment._id}" title="Apagar">🗑️</button>` : ''}
-                                </div>
-                            ` : ''}
-                        </div>
-                        <div class="comment-actions">
-                            <button class="comment-action-btn btn-like-comment ${isCommentLiked ? 'liked' : ''}" data-comment-id="${comment._id}">
-                                <i class="fas fa-thumbs-up"></i>
-                                <span class="like-count">${comment.likes?.length || 0}</span>
-                            </button>
-                            <button class="comment-action-btn btn-show-reply-form" data-comment-id="${comment._id}">Responder</button>
-                            ${(replyCount > 0) ? `<button class="comment-action-btn btn-toggle-replies" data-comment-id="${comment._id}">Ver ${replyCount} Respostas</button>` : ''}
-                        </div>
-                        <div class="reply-list oculto">${repliesHTML}</div>
-                        <div class="reply-form oculto">
-                            <input type="text" class="reply-input" placeholder="Responda a ${comment.userId.nome}...">
-                            <button class="btn-send-reply" data-comment-id="${comment._id}" aria-label="Enviar resposta" title="Enviar resposta">
-                                <img
-                                    class="send-reply-icon"
-                                    alt=""
-                                    src="${document.documentElement.classList.contains('dark-mode') ? '/imagens/enviar.tema.escuro.png' : '/imagens/enviar.tema.claro.png'}"
-                                    data-src-light="/imagens/enviar.tema.claro.png"
-                                    data-src-dark="/imagens/enviar.tema.escuro.png"
-                                >
-                            </button>
-                        </div>
-                    </div>
-                </div>
-                `;
-            }).join('');
-            
-            // Botão "Carregar mais" se houver mais comentários
-            const loadMoreHTML = hasMoreComments ? `<div class="load-more-comments" data-post-id="${post._id}" data-loaded="2" data-total="${totalComments}">Carregar mais</div>` : '';
-            
-            const postDate = new Date(post.createdAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
-            // 🛑 ATUALIZAÇÃO: Mostra Cidade e Estado
-            const cityDisplay = [postAuthorCity, postAuthorState].filter(Boolean).join(', ');
-            const citySeparator = cityDisplay ? ` &bull; ${cityDisplay}` : '';
-            
-            // Conta só comentários válidos (ex: se o usuário do comentário foi deletado, ele não entra na contagem)
-            const visibleCommentsCount = Array.isArray(post.comments)
-                ? post.comments.filter(c => c && c.userId).length
-                : 0;
-
-            // Comentários começam SEMPRE fechados (caixa + botão de enviar só aparecem ao clicar em "Comentários")
-            const comentariosVisiveis = '';
-            
-            postElement.innerHTML = `
-                <div class="post-header">
-                    <img src="${postAuthorPhoto}" alt="Avatar" class="post-avatar" data-userid="${post.userId._id}">
-                    <div class="post-meta">
-                        <span class="user-name" data-userid="${post.userId._id}">${postAuthorName}</span>
-                        <div>
-                           <span class="post-date-display">${postDate}</span>
-                           <span class="post-author-city">${citySeparator}</span>
-                        </div>
-                    </div>
-                    ${deleteButton}
-                </div>
-                <div class="post-content">
-                    <p>${post.content}</p>
-                    ${mediaHTML}
-                </div>
-                <div class="post-actions">
-                    <button class="action-btn btn-like ${isLiked ? 'liked' : ''}" data-post-id="${post._id}">
-                        <i class="fas fa-thumbs-up"></i> 
-                        <span class="like-count">${post.likes.length}</span> Curtir
-                    </button>
-                    <button class="action-btn btn-comment ${comentariosVisiveis ? 'active' : ''}" data-post-id="${post._id}">
-                        <i class="fas fa-comment"></i> ${visibleCommentsCount} Comentários
-                    </button>
-                </div>
-                <div class="post-comments ${comentariosVisiveis}">
-                    <div class="comment-list">
-                        ${commentsHTML}
-                        ${hiddenCommentsHTML}
-                        ${loadMoreHTML}
-                    </div>
-                    <div class="comment-form">
-                        <textarea class="comment-input" placeholder="Escreva um comentário..." rows="1"></textarea>
-                        <button class="btn-send-comment" data-post-id="${post._id}" aria-label="Enviar comentário" title="Enviar comentário">
-                            <img
-                                class="send-comment-icon"
-                                alt=""
-                                src="${document.documentElement.classList.contains('dark-mode') ? '/imagens/enviar.tema.escuro.png' : '/imagens/enviar.tema.claro.png'}"
-                                data-src-light="/imagens/enviar.tema.claro.png"
-                                data-src-dark="/imagens/enviar.tema.escuro.png"
-                            >
-                        </button>
-                    </div>
-                </div>
-            `;
-            postsContainer.appendChild(postElement);
-        });
-
-        setupPostListeners();
-        setupAutoCloseCommentsOnScroll();
-        
-        // Remove botões duplicados de todos os comentários e verifica múltiplas linhas
-        setTimeout(() => {
-            document.querySelectorAll('.comment').forEach(comment => {
-                const buttons = comment.querySelectorAll('.btn-comment-options');
-                if (buttons.length > 1) {
-                    // Mantém apenas o primeiro botão
-                    for (let i = 1; i < buttons.length; i++) {
-                        buttons[i].remove();
-                    }
-                }
-                // Verifica se tem múltiplas linhas e aplica classe no menu
-                const menu = comment.querySelector('.comment-options-menu');
-                if (menu && checkCommentHasMultipleLines(comment)) {
-                    menu.classList.add('comentario-multiplas-linhas');
-                }
-            });
-            document.querySelectorAll('.reply').forEach(reply => {
-                const buttons = reply.querySelectorAll('.btn-reply-options');
-                if (buttons.length > 1) {
-                    // Mantém apenas o primeiro botão
-                    for (let i = 1; i < buttons.length; i++) {
-                        buttons[i].remove();
-                    }
-                }
-                // Verifica se tem múltiplas linhas e aplica classe no menu
-                const menu = reply.querySelector('.reply-options-menu');
-                if (menu && checkCommentHasMultipleLines(reply)) {
-                    menu.classList.add('comentario-multiplas-linhas');
-                }
-            });
-        }, 100);
-
-        // Fecha menus de opções ao clicar fora
-        document.addEventListener('click', (e) => {
-            if (!e.target.closest('.btn-comment-options') && !e.target.closest('.comment-options-menu')) {
-                document.querySelectorAll('.comment-options-menu').forEach(m => {
-                    m.classList.add('oculto');
-                    // Retorna menu para o lugar original se estiver no body
-                    if (m.parentElement === document.body) {
-                        const commentId = m.dataset.commentId;
-                        const commentElement = document.querySelector(`.comment[data-comment-id="${commentId}"]`);
-                        if (commentElement) {
-                            const commentBody = commentElement.querySelector('.comment-body-container');
-                            if (commentBody) {
-                                commentBody.appendChild(m);
-                            }
-                        }
-                    }
-                });
-            }
-            if (!e.target.closest('.btn-reply-options') && !e.target.closest('.reply-options-menu')) {
-                document.querySelectorAll('.reply-options-menu').forEach(m => {
-                    m.classList.add('oculto');
-                    // Retorna menu para o lugar original se estiver no body
-                    if (m.parentElement === document.body) {
-                        const replyId = m.dataset.replyId;
-                        const replyElement = document.querySelector(`.reply[data-reply-id="${replyId}"]`);
-                        if (replyElement) {
-                            const replyBody = replyElement.querySelector('.reply-body-container');
-                            if (replyBody) {
-                                replyBody.appendChild(m);
-                            }
-                        }
-                    }
-                });
-            }
-        });
-        
-        // Fecha menus de opções ao rolar a página
-        let scrollTimeout;
-        window.addEventListener('scroll', () => {
-            clearTimeout(scrollTimeout);
-            scrollTimeout = setTimeout(() => {
-                document.querySelectorAll('.comment-options-menu:not(.oculto)').forEach(m => {
-                    m.classList.add('oculto');
-                    // Retorna menu para o lugar original se estiver no body
-                    if (m.parentElement === document.body) {
-                        const commentId = m.dataset.commentId;
-                        const commentElement = document.querySelector(`.comment[data-comment-id="${commentId}"]`);
-                        if (commentElement) {
-                            const commentBody = commentElement.querySelector('.comment-body-container');
-                            if (commentBody) {
-                                commentBody.appendChild(m);
-                            }
-                        }
-                    }
-                });
-                document.querySelectorAll('.reply-options-menu:not(.oculto)').forEach(m => {
-                    m.classList.add('oculto');
-                    // Retorna menu para o lugar original se estiver no body
-                    if (m.parentElement === document.body) {
-                        const replyId = m.dataset.replyId;
-                        const replyElement = document.querySelector(`.reply[data-reply-id="${replyId}"]`);
-                        if (replyElement) {
-                            const replyBody = replyElement.querySelector('.reply-body-container');
-                            if (replyBody) {
-                                replyBody.appendChild(m);
-                            }
-                        }
-                    }
-                });
-            }, 50);
-        }, { passive: true });
-
-        // Verifica comentários longos após carregar posts
-        setTimeout(() => {
-            document.querySelectorAll('.comment').forEach(comment => {
-                if (comment.offsetParent !== null) {
-                    checkLongComment(comment);
-                }
-            });
-        }, 500);
+        setupInfiniteFeedScroll();
+        renderNextFeedChunk();
     }
+
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.btn-comment-options') && !e.target.closest('.comment-options-menu')) {
+            document.querySelectorAll('.comment-options-menu').forEach(m => {
+                m.classList.add('oculto');
+                // Retorna menu para o lugar original se estiver no body
+                if (m.parentElement === document.body) {
+                    const commentId = m.dataset.commentId;
+                    const commentElement = document.querySelector(`.comment[data-comment-id="${commentId}"]`);
+                    if (commentElement) {
+                        const commentBody = commentElement.querySelector('.comment-body-container');
+                        if (commentBody) {
+                            commentBody.appendChild(m);
+                        }
+                    }
+                }
+            });
+        }
+        if (!e.target.closest('.btn-reply-options') && !e.target.closest('.reply-options-menu')) {
+            document.querySelectorAll('.reply-options-menu').forEach(m => {
+                m.classList.add('oculto');
+                // Retorna menu para o lugar original se estiver no body
+                if (m.parentElement === document.body) {
+                    const replyId = m.dataset.replyId;
+                    const replyElement = document.querySelector(`.reply[data-reply-id="${replyId}"]`);
+                    if (replyElement) {
+                        const replyBody = replyElement.querySelector('.reply-body-container');
+                        if (replyBody) {
+                            replyBody.appendChild(m);
+                        }
+                    }
+                }
+            });
+        }
+    });
+    
+    // Fecha menus de opções ao rolar a página
+    let scrollTimeout;
+    window.addEventListener('scroll', () => {
+        clearTimeout(scrollTimeout);
+        scrollTimeout = setTimeout(() => {
+            document.querySelectorAll('.comment-options-menu:not(.oculto)').forEach(m => {
+                m.classList.add('oculto');
+                // Retorna menu para o lugar original se estiver no body
+                if (m.parentElement === document.body) {
+                    const commentId = m.dataset.commentId;
+                    const commentElement = document.querySelector(`.comment[data-comment-id="${commentId}"]`);
+                    if (commentElement) {
+                        const commentBody = commentElement.querySelector('.comment-body-container');
+                        if (commentBody) {
+                            commentBody.appendChild(m);
+                        }
+                    }
+                }
+            });
+            document.querySelectorAll('.reply-options-menu:not(.oculto)').forEach(m => {
+                m.classList.add('oculto');
+                // Retorna menu para o lugar original se estiver no body
+                if (m.parentElement === document.body) {
+                    const replyId = m.dataset.replyId;
+                    const replyElement = document.querySelector(`.reply[data-reply-id="${replyId}"]`);
+                    if (replyElement) {
+                        const replyBody = replyElement.querySelector('.reply-body-container');
+                        if (replyBody) {
+                            replyBody.appendChild(m);
+                        }
+                    }
+                }
+            });
+        }, 50);
+    }, { passive: true });
 
     // Fecha automaticamente comentários abertos quando o post sai totalmente da tela (mobile/desktop)
     let autoCloseCommentsObserver = null;

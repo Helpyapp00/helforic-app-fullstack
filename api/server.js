@@ -153,6 +153,21 @@ const replySchema = new mongoose.Schema({ userId: { type: mongoose.Schema.Types.
 const commentSchema = new mongoose.Schema({ userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }, content: { type: String, required: true }, likes: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }], replies: [replySchema], createdAt: { type: Date, default: Date.now } });
 const postagemSchema = new mongoose.Schema({ userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }, content: { type: String, trim: true }, mediaUrl: { type: String }, mediaType: { type: String, enum: ['image', 'video'] }, likes: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }], comments: [commentSchema], createdAt: { type: Date, default: Date.now }, });
 
+const anuncioPagoSchema = new mongoose.Schema({
+    ownerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    titulo: { type: String, required: true, trim: true },
+    descricao: { type: String, trim: true },
+    imagemUrl: { type: String, trim: true },
+    linkUrl: { type: String, trim: true },
+    cidade: { type: String, trim: true },
+    estado: { type: String, trim: true },
+    plano: { type: String, enum: ['basico', 'premium'], default: 'basico' },
+    ativo: { type: Boolean, default: true },
+    inicioEm: { type: Date },
+    fimEm: { type: Date },
+    prioridade: { type: Number, default: 0 }
+}, { timestamps: true });
+
 // 🆕 NOVO: Schema de Time de Projeto
 const timeProjetoSchema = new mongoose.Schema({
     clienteId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
@@ -238,10 +253,7 @@ const Agendamento = mongoose.models.Agendamento || mongoose.model('Agendamento',
 const HorarioDisponivel = mongoose.models.HorarioDisponivel || mongoose.model('HorarioDisponivel', horarioDisponivelSchema);
 const EquipeVerificada = mongoose.models.EquipeVerificada || mongoose.model('EquipeVerificada', equipeVerificadaSchema);
 
-// 🆕 NOVO: Schema de Pagamento Seguro (Escrow) - EXPANDIDO
 const pagamentoSeguroSchema = new mongoose.Schema({
-    // Referências flexíveis para diferentes tipos de serviços
-    agendamentoId: { type: mongoose.Schema.Types.ObjectId, ref: 'Agendamento' },
     pedidoUrgenteId: { type: mongoose.Schema.Types.ObjectId, ref: 'PedidoUrgente' },
     projetoTimeId: { type: mongoose.Schema.Types.ObjectId, ref: 'ProjetoTime' },
     
@@ -270,7 +282,11 @@ const pagamentoSeguroSchema = new mongoose.Schema({
     temGarantiaHelpy: { type: Boolean, default: true }
 }, { timestamps: true });
 
-// 🆕 NOVO: Schema de Oportunidade (Mural)
+const PagamentoSeguro = mongoose.models.PagamentoSeguro || mongoose.model('PagamentoSeguro', pagamentoSeguroSchema);
+
+const AnuncioPago = mongoose.models.AnuncioPago || mongoose.model('AnuncioPago', anuncioPagoSchema);
+
+// NOVO: Schema de Oportunidade (Mural)
 const oportunidadeSchema = new mongoose.Schema({
     clienteId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     titulo: { type: String, required: true },
@@ -298,10 +314,9 @@ const oportunidadeSchema = new mongoose.Schema({
     propostaSelecionada: { type: mongoose.Schema.Types.ObjectId, ref: 'oportunidadeSchema.propostas' }
 }, { timestamps: true });
 
-const PagamentoSeguro = mongoose.models.PagamentoSeguro || mongoose.model('PagamentoSeguro', pagamentoSeguroSchema);
 const Oportunidade = mongoose.models.Oportunidade || mongoose.model('Oportunidade', oportunidadeSchema);
 
-// 🔔 NOVO: Schema de Notificações
+// NOVO: Schema de Notificações
 const notificacaoSchema = new mongoose.Schema({
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     tipo: { 
@@ -829,7 +844,19 @@ function authMiddleware(req, res, next) {
 }
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage, limits: { fileSize: 10 * 1024 * 1024 }, fileFilter: (req, file, cb) => { const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'video/mp4', 'video/quicktime', 'video/webm']; if (allowedTypes.includes(file.mimetype)) { cb(null, true); } else { cb(new Error('Tipo de arquivo não suportado.'), false); } } });
-// ----------------------------------------------------------------------
+
+const uploadAdImage = multer({
+    storage: storage,
+    limits: { fileSize: 5 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+        const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+        if (allowedTypes.includes(file.mimetype)) {
+            cb(null, true);
+        } else {
+            cb(new Error('Tipo de arquivo não suportado. Envie apenas imagem.'), false);
+        }
+    }
+});
 
 // ----------------------------------------------------------------------
 // FUNÇÕES DE VERIFICAÇÃO DE EMAIL
@@ -1865,356 +1892,268 @@ app.get('/api/user/me', authMiddleware, async (req, res) => {
     try {
         const userId = req.user.id;
         const user = await User.findById(userId).select('-senha');
-        
         if (!user) {
             return res.status(404).json({ success: false, message: 'Usuário não encontrado.' });
-        }
-        
-        res.json(user);
-    } catch (error) {
-        console.error('Erro ao buscar usuário:', error);
-        res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
-    }
-});
-
-// Rota para salvar o Tema
-app.put('/api/user/theme', authMiddleware, async (req, res) => {
-    try {
-        const { tema } = req.body;
-        const userId = req.user.id;
-
-        if (!tema || (tema !== 'light' && tema !== 'dark')) {
-            return res.status(400).json({ success: false, message: 'Tema inválido.' });
-        }
-
-        // Atualiza o tema e retorna o usuário atualizado
-        const updatedUser = await User.findByIdAndUpdate(
-            userId, 
-            { tema: tema },
-            { new: true, select: '-senha' } // Retorna o usuário atualizado sem a senha
-        );
-        
-        if (!updatedUser) {
-            return res.status(404).json({ success: false, message: 'Usuário não encontrado.' });
-        }
-        
-        res.json({ 
-            success: true, 
-            message: 'Tema atualizado com sucesso.',
-            tema: updatedUser.tema
-        });
-    } catch (error) {
-        console.error('Erro ao salvar tema:', error);
-        res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
-    }
-});
-
-// Rota de Editar Perfil
-app.put('/api/editar-perfil/:id', authMiddleware, upload.single('avatar'), async (req, res) => {
-    try {
-        const { id } = req.params;
-        // 🛑 ATUALIZAÇÃO: Recebe 'cidade' e 'estado', remove 'endereco'
-        // 🆕 Inclui campo 'tipo' (cliente / trabalhador / empresa)
-        const { nome, idade, cidade, estado, telefone, atuacao, descricao, tipo } = req.body;
-        const avatarFile = req.file;
-
-        if (req.user.id !== id) {
-            return res.status(403).json({ success: false, message: 'Acesso negado.' });
-        }
-        
-        let fotoUrl = null;
-        if (avatarFile) {
-            try {
-                const sharp = getSharp();
-                let imageBuffer;
-                const mimeType = avatarFile.mimetype || '';
-                
-                if (sharp) {
-                    // Processa a imagem com Sharp com máxima qualidade
-                    // Usa tamanho 1000x1000 para melhor qualidade quando redimensionada pelo navegador
-                    let pipeline = sharp(avatarFile.buffer)
-                        .resize(1000, 1000, { 
-                            fit: 'cover',
-                            withoutEnlargement: true, // Não aumenta imagens menores
-                            kernel: 'lanczos3' // Melhor algoritmo de redimensionamento
-                        });
-
-                    // Mantém PNG/WebP praticamente sem perda, e JPEG com qualidade muito alta
-                    if (mimeType.includes('png')) {
-                        imageBuffer = await pipeline
-                            .png({
-                                compressionLevel: 6,
-                                adaptiveFiltering: true
-                            })
-                            .toBuffer();
-                    } else if (mimeType.includes('webp')) {
-                        imageBuffer = await pipeline
-                            .webp({
-                                quality: 98,
-                                lossless: true
-                            })
-                            .toBuffer();
-                    } else {
-                        imageBuffer = await pipeline
-                        .jpeg({ 
-                            quality: 98, 
-                            mozjpeg: true,
-                            progressive: true,
-                            optimizeScans: true,
-                            trellisQuantisation: true,
-                            overshootDeringing: true
-                        })
-                        .toBuffer();
-                    }
-                } else {
-                    // Se Sharp não estiver disponível, usa o buffer original
-                    imageBuffer = avatarFile.buffer;
-                    console.warn('Sharp não disponível, usando imagem original sem redimensionamento');
-                }
-
-                if (s3Client) {
-                    // Upload para S3
-                    try {
-                        const key = `avatars/${Date.now()}_${path.basename(avatarFile.originalname || 'avatar')}`;
-                        const uploadCommand = new PutObjectCommand({ 
-                            Bucket: bucketName, 
-                            Key: key, 
-                            Body: imageBuffer, 
-                            ContentType: 'image/jpeg' 
-                        });
-                        await s3Client.send(uploadCommand);
-                        fotoUrl = `https://${bucketName}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`;
-                        console.log('✅ Foto enviada para S3:', fotoUrl);
-                    } catch (s3Error) {
-                        console.warn("Falha no upload da foto de perfil para o S3:", s3Error);
-                        // Continua para o fallback local
-                    }
-                }
-                
-                // Fallback: Salvar localmente se S3 não estiver configurado ou falhou
-                if (!s3Client || !fotoUrl) {
-                    const uploadsDir = path.join(__dirname, '../public/uploads/avatars');
-                    
-                    // Cria o diretório se não existir
-                    if (!fs.existsSync(uploadsDir)) {
-                        fs.mkdirSync(uploadsDir, { recursive: true });
-                    }
-                    
-                    const fileName = `${Date.now()}_${path.basename(avatarFile.originalname || 'avatar.jpg')}`;
-                    const filePath = path.join(uploadsDir, fileName);
-                    
-                    // Salva o arquivo
-                    fs.writeFileSync(filePath, imageBuffer);
-                    
-                    // URL relativa para servir via express.static
-                    fotoUrl = `/uploads/avatars/${fileName}`;
-                    console.log('✅ Foto salva localmente:', fotoUrl);
-                }
-            } catch (uploadError) {
-                console.error('Erro ao processar upload da foto:', uploadError);
-                // Mantém fotoUrl como null em caso de erro
-            }
-        }
-        
-        // 🛑 ATUALIZAÇÃO: Objeto de updates
-        const updates = { nome, idade, cidade, estado, telefone, atuacao, descricao, tipo };
-        if (fotoUrl) {
-            updates.foto = fotoUrl;
-            updates.avatarUrl = fotoUrl;
-        }
-        
-        // Remove campos indefinidos para não sobrescrever com 'null'
-        Object.keys(updates).forEach(key => updates[key] === undefined && delete updates[key]);
-        
-        const updatedUser = await User.findByIdAndUpdate(id, { $set: updates }, { new: true, runValidators: true }).select('-senha');
-        
-        if (!updatedUser) {
-            return res.status(404).json({ success: false, message: 'Usuário não encontrado.' });
-        }
-        
-        res.json({ success: true, message: 'Perfil atualizado com sucesso!', user: updatedUser.toObject() });
-    } catch (error) {
-        console.error('Erro ao editar perfil:', error);
-        res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
-    }
-});
-
-// Rota para obter dados do usuário logado
-app.get('/api/usuario/me', authMiddleware, async (req, res) => {
-    try {
-        const userId = req.user.id;
-        const user = await User.findById(userId).select('-senha').exec();
-        
-        if (!user) {
-            return res.status(404).json({ message: 'Usuário não encontrado.' });
-        }
-        
-        res.json({
-            ...user.toObject(),
-            isAdmin: user.isAdmin || false
-        });
-    } catch (error) {
-        console.error('Erro ao buscar usuário:', error);
-        res.status(500).json({ message: 'Erro interno do servidor.' });
-    }
-});
-
-// Rota de Buscar Usuário (Genérica) - 🆕 ATUALIZADO: Inclui gamificação
-app.get('/api/usuario/:id', authMiddleware, async (req, res) => {
-    try {
-        const { id } = req.params;
-        if (!mongoose.Types.ObjectId.isValid(id)) {
-            return res.status(400).json({ message: 'ID de usuário inválido.' });
-        }
-        const user = await User.findById(id).select('-senha')
-            .populate('servicosImagens')
-            .populate({
-                path: 'avaliacoes', 
-                populate: { path: 'usuarioId', select: 'nome foto avatarUrl' } 
-            })
-            .exec();
-        if (!user) {
-            return res.status(404).json({ message: 'Usuário não encontrado.' });
-        }
-        // Garante que gamificacao existe mesmo se não foi inicializada
-        if (!user.gamificacao) {
-            user.gamificacao = {
-                nivel: 1,
-                xp: 0,
-                xpProximoNivel: 100,
-                desafiosCompletos: [],
-                portfolioValidado: false
-            };
         }
         res.json(user.toObject());
     } catch (error) {
-        console.error('Erro ao buscar perfil:', error);
-        res.status(500).json({ message: 'Erro interno do servidor.' });
+        console.error('Erro ao buscar usuário atual:', error);
+        res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
     }
 });
 
-// ----------------------------------------------------------------------
-// ROTAS DE POSTAGEM E FEED
-// ----------------------------------------------------------------------
-
-// Criar Postagem
-app.post('/api/posts', authMiddleware, upload.single('media'), async (req, res) => {
+// Atualizar preferência de tema do usuário
+app.put('/api/user/theme', authMiddleware, async (req, res) => {
     try {
-        const { content } = req.body;
-        const mediaFile = req.file;
         const userId = req.user.id;
+        const tema = String(req.body?.tema || 'light').toLowerCase();
+        const temaFinal = tema === 'dark' ? 'dark' : 'light';
 
-        if (!content && !mediaFile) {
-            return res.status(400).json({ success: false, message: 'Postagem deve ter conteúdo ou mídia.' });
+        const user = await User.findByIdAndUpdate(
+            userId,
+            { $set: { tema: temaFinal } },
+            { new: true, runValidators: true }
+        ).select('tema');
+
+        if (!user) {
+            return res.status(404).json({ success: false, message: 'Usuário não encontrado.' });
         }
 
-        let mediaUrl = null;
-        let mediaType = null;
-        
-        if (mediaFile && s3Client) {
-            const key = `media/${Date.now()}_${path.basename(mediaFile.originalname || 'media')}`;
-            const uploadCommand = new PutObjectCommand({ Bucket: bucketName, Key: key, Body: mediaFile.buffer, ContentType: mediaFile.mimetype });
-            await s3Client.send(uploadCommand);
-            mediaUrl = `https://${bucketName}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`;
-            
-            if (mediaFile.mimetype.startsWith('image')) {
-                mediaType = 'image';
-            } else if (mediaFile.mimetype.startsWith('video')) {
-                mediaType = 'video';
+        res.json({ success: true, tema: user.tema });
+    } catch (error) {
+        console.error('Erro ao atualizar tema do usuário:', error);
+        res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
+    }
+});
+
+app.get('/api/usuario/me', authMiddleware, async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const user = await User.findById(userId).select('-senha');
+        if (!user) {
+            return res.status(404).json({ success: false, message: 'Usuário não encontrado.' });
+        }
+        res.json(user.toObject());
+    } catch (error) {
+        console.error('Erro ao buscar usuário atual:', error);
+        res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
+    }
+});
+
+app.get('/api/usuario/:userId', authMiddleware, async (req, res) => {
+    try {
+        const { userId } = req.params;
+        const user = await User.findById(userId).select('-senha');
+        if (!user) {
+            return res.status(404).json({ success: false, message: 'Usuário não encontrado.' });
+        }
+        res.json({ success: true, usuario: user.toObject() });
+    } catch (error) {
+        console.error('Erro ao buscar usuário:', error);
+        res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
+    }
+});
+
+// Upload da imagem do anúncio (logo/cartaz). Retorna imagemUrl.
+app.post('/api/anuncios/upload-imagem', authMiddleware, uploadAdImage.single('imagem'), async (req, res) => {
+    try {
+        const file = req.file;
+        if (!file) {
+            return res.status(400).json({ success: false, message: 'Nenhuma imagem enviada.' });
+        }
+
+        const sharp = getSharp();
+        let imageBuffer = file.buffer;
+        if (sharp) {
+            imageBuffer = await sharp(file.buffer)
+                .resize(1200, 700, { fit: 'cover', withoutEnlargement: true })
+                .jpeg({ quality: 90, mozjpeg: true, progressive: true })
+                .toBuffer();
+        }
+
+        let imagemUrl = '';
+        if (s3Client && bucketName && process.env.AWS_REGION) {
+            try {
+                const safeBase = path.basename(file.originalname || 'anuncio.jpg').replace(/[^a-zA-Z0-9.\-_]/g, '_');
+                const key = `anuncios/${req.user.id}/${Date.now()}_${safeBase}`;
+                const uploadCommand = new PutObjectCommand({
+                    Bucket: bucketName,
+                    Key: key,
+                    Body: imageBuffer,
+                    ContentType: 'image/jpeg'
+                });
+                await s3Client.send(uploadCommand);
+                imagemUrl = `https://${bucketName}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`;
+            } catch (s3Error) {
+                console.warn('Falha no upload da imagem do anúncio para o S3:', s3Error.message);
             }
         }
 
-        const newPost = new Postagem({
-            userId,
-            content,
-            mediaUrl,
-            mediaType,
-            likes: [],
-            comments: []
+        if (!imagemUrl) {
+            const uploadsDir = path.join(__dirname, '../public/uploads/anuncios');
+            if (!fs.existsSync(uploadsDir)) {
+                fs.mkdirSync(uploadsDir, { recursive: true });
+            }
+            const fileName = `${Date.now()}_${path.basename(file.originalname || 'anuncio.jpg')}`;
+            const filePath = path.join(uploadsDir, fileName);
+            fs.writeFileSync(filePath, imageBuffer);
+            imagemUrl = `/uploads/anuncios/${fileName}`;
+        }
+
+        res.json({ success: true, imagemUrl });
+    } catch (error) {
+        console.error('Erro ao fazer upload da imagem do anúncio:', error);
+        res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
+    }
+});
+
+// Criar Anúncio (manual, sem pagamento integrado ainda)
+app.post('/api/anuncios', authMiddleware, async (req, res) => {
+    try {
+        const { titulo, descricao, imagemUrl, linkUrl, cidade, estado, ativo, plano } = req.body;
+        if (!titulo || String(titulo).trim().length === 0) {
+            return res.status(400).json({ success: false, message: 'Título do anúncio é obrigatório.' });
+        }
+
+        if (!imagemUrl || String(imagemUrl).trim().length === 0) {
+            return res.status(400).json({ success: false, message: 'Imagem do anúncio é obrigatória.' });
+        }
+
+        const planoFinal = (String(plano || 'basico').toLowerCase() === 'premium') ? 'premium' : 'basico';
+        const prioridadeFinal = planoFinal === 'premium' ? 10 : 0;
+        const inicioFinal = new Date();
+        const fimFinal = new Date(inicioFinal.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+        const anuncio = new AnuncioPago({
+            ownerId: req.user.id,
+            titulo: String(titulo).trim(),
+            descricao: descricao ? String(descricao).trim() : '',
+            imagemUrl: imagemUrl ? String(imagemUrl).trim() : '',
+            linkUrl: linkUrl ? String(linkUrl).trim() : '',
+            cidade: cidade ? String(cidade).trim() : '',
+            estado: estado ? String(estado).trim() : '',
+            plano: planoFinal,
+            ativo: typeof ativo === 'boolean' ? ativo : true,
+            inicioEm: inicioFinal,
+            fimEm: fimFinal,
+            prioridade: prioridadeFinal
         });
 
-        await newPost.save();
-        res.status(201).json({ success: true, message: 'Postagem criada com sucesso!', post: newPost });
+        await anuncio.save();
+        res.status(201).json({ success: true, anuncio });
     } catch (error) {
-        console.error('Erro ao criar postagem:', error);
+        console.error('Erro ao criar anúncio:', error);
         res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
     }
 });
 
-// Deletar Postagem
-app.delete('/api/posts/:postId', authMiddleware, async (req, res) => {
+app.get('/api/anuncios', authMiddleware, async (req, res) => {
     try {
-        const { postId } = req.params;
-        const userId = req.user.id;
-        const post = await Postagem.findById(postId);
-        if (!post) {
-            return res.status(404).json({ success: false, message: 'Postagem não encontrada.' });
+        const limitRaw = Number(req.query.limit);
+        const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 100) : 50;
+
+        const anuncios = await AnuncioPago.find({ ownerId: req.user.id })
+            .sort({ createdAt: -1 })
+            .limit(limit)
+            .lean();
+
+        res.json({ success: true, anuncios });
+    } catch (error) {
+        console.error('Erro ao listar anúncios:', error);
+        res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
+    }
+});
+
+// Buscar anúncios do feed (prioridade: cidade+estado -> estado -> geral)
+app.get('/api/anuncios-feed', authMiddleware, async (req, res) => {
+    try {
+        const user = await User.findById(req.user.id).select('cidade estado');
+
+        const limitRaw = Number(req.query.limit);
+        const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 50) : 30;
+
+        const now = new Date();
+        const baseFilter = {
+            ativo: true,
+            $and: [
+                { $or: [{ inicioEm: null }, { inicioEm: { $lte: now } }] },
+                { $or: [{ fimEm: null }, { fimEm: { $gte: now } }] }
+            ]
+        };
+
+        const selected = [];
+        const selectedIds = new Set();
+        const pushUnique = (items) => {
+            (items || []).forEach((it) => {
+                const id = String(it._id);
+                if (selectedIds.has(id)) return;
+                selectedIds.add(id);
+                selected.push(it);
+            });
+        };
+
+        const sortOrder = { prioridade: -1, createdAt: -1 };
+
+        if (user?.cidade && user?.estado) {
+            const cidadeRegex = new RegExp(`^${user.cidade}$`, 'i');
+            const estadoRegex = new RegExp(`^${user.estado}$`, 'i');
+
+            const locais = await AnuncioPago.find({ ...baseFilter, cidade: cidadeRegex, estado: estadoRegex })
+                .sort(sortOrder)
+                .limit(limit);
+            pushUnique(locais);
+
+            if (selected.length < limit) {
+                const estaduais = await AnuncioPago.find({ ...baseFilter, estado: estadoRegex })
+                    .sort(sortOrder)
+                    .limit(limit);
+                pushUnique(estaduais);
+            }
+        } else if (user?.estado) {
+            const estadoRegex = new RegExp(`^${user.estado}$`, 'i');
+            const estaduais = await AnuncioPago.find({ ...baseFilter, estado: estadoRegex })
+                .sort(sortOrder)
+                .limit(limit);
+            pushUnique(estaduais);
+        } else if (user?.cidade) {
+            const cidadeRegex = new RegExp(`^${user.cidade}$`, 'i');
+            const locais = await AnuncioPago.find({ ...baseFilter, cidade: cidadeRegex })
+                .sort(sortOrder)
+                .limit(limit);
+            pushUnique(locais);
         }
-        if (post.userId.toString() !== userId) {
-            return res.status(403).json({ success: false, message: 'Acesso negado.' });
+
+        if (selected.length < limit) {
+            const gerais = await AnuncioPago.find({ ...baseFilter })
+                .sort(sortOrder)
+                .limit(limit);
+            pushUnique(gerais);
         }
-        
-        if (post.mediaUrl && s3Client) {
-            try {
-                const url = new URL(post.mediaUrl);
-                const key = url.pathname.substring(1); 
-                const deleteCommand = new DeleteObjectCommand({ Bucket: bucketName, Key: key });
-                await s3Client.send(deleteCommand);
-            } catch (s3Error) {
-                console.warn("Falha ao deletar mídia do S3:", s3Error);
+
+        const expanded = [];
+        for (const a of selected) {
+            const slots = a?.plano === 'premium' ? 3 : 1;
+            for (let i = 0; i < slots; i += 1) {
+                expanded.push({
+                    _id: a._id,
+                    _feedKey: `${String(a._id)}:${i}`,
+                    titulo: a.titulo,
+                    descricao: a.descricao,
+                    imagemUrl: a.imagemUrl,
+                    linkUrl: a.linkUrl,
+                    cidade: a.cidade,
+                    estado: a.estado,
+                    plano: a.plano
+                });
             }
         }
-        
-        await Postagem.findByIdAndDelete(postId);
-        res.json({ success: true, message: 'Postagem deletada com sucesso.' });
-    } catch (error) {
-        console.error('Erro ao deletar postagem:', error);
-        res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
-    }
-});
 
-// Buscar Postagens (Feed) - Exibe todas as postagens ou filtra por cidade quando especificado
-app.get('/api/posts', authMiddleware, async (req, res) => {
-    try {
-        const { cidade } = req.query;
-        let query = Postagem.find();
-        
-        // Aplica filtro de cidade apenas se o parâmetro 'cidade' for fornecido
-        if (cidade) {
-            // Remove acentos e converte para minúsculas para busca flexível
-            const normalizeString = (str) => {
-                return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
-            };
-            const cidadeNormalizada = normalizeString(cidade);
-            
-            // Busca todos os usuários e filtra por cidade
-            const todosUsuarios = await User.find({}).select('_id cidade');
-            const usuariosCidade = todosUsuarios.filter(u => {
-                if (!u.cidade) return false;
-                return normalizeString(u.cidade).includes(cidadeNormalizada) || 
-                       cidadeNormalizada.includes(normalizeString(u.cidade));
-            });
-            const idsUsuarios = usuariosCidade.map(u => u._id);
-            query = query.where('userId').in(idsUsuarios);
-        }
-        
-        const posts = await query
-            .sort({ createdAt: -1 })
-            .populate('userId', 'nome foto avatarUrl tipo cidade estado') 
-            .populate({
-                path: 'comments.userId',
-                select: 'nome foto avatarUrl'
-            })
-            .populate({
-                path: 'comments.replies.userId',
-                select: 'nome foto avatarUrl'
-            })
-            .exec();
-            
-        res.json(posts);
+        const anuncios = expanded.slice(0, limit);
+
+        res.json({ success: true, anuncios });
     } catch (error) {
-        console.error('Erro ao buscar postagens:', error);
-        res.status(500).json({ message: 'Erro interno do servidor.' });
+        console.error('Erro ao buscar anúncios do feed:', error);
+        res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
     }
 });
 
@@ -2274,6 +2213,28 @@ app.get('/api/cidades', authMiddleware, async (req, res) => {
         res.json({ success: true, cidades });
     } catch (error) {
         console.error('Erro ao buscar sugestões de cidades:', error);
+        res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
+    }
+});
+
+app.get('/api/posts', authMiddleware, async (req, res) => {
+    try {
+        const posts = await Postagem.find()
+            .sort({ createdAt: -1 })
+            .populate('userId', 'nome foto avatarUrl tipo cidade estado')
+            .populate({
+                path: 'comments.userId',
+                select: 'nome foto avatarUrl'
+            })
+            .populate({
+                path: 'comments.replies.userId',
+                select: 'nome foto avatarUrl'
+            })
+            .exec();
+
+        res.json(posts);
+    } catch (error) {
+        console.error('Erro ao buscar postagens:', error);
         res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
     }
 });
@@ -2911,7 +2872,9 @@ app.get('/api/destaques-servicos', authMiddleware, async (req, res) => {
     try {
         const user = await User.findById(req.user.id).select('cidade estado');
 
-        // Filtro base: profissionais com avaliação >= 4.5 e pelo menos 50 avaliações
+        const limitRaw = Number(req.query.limit);
+        const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 50) : 30;
+
         const filter = {
             tipo: 'trabalhador',
             mediaAvaliacao: { $gte: 4.5 },
@@ -2920,65 +2883,84 @@ app.get('/api/destaques-servicos', authMiddleware, async (req, res) => {
 
         console.log('🔍 Buscando destaques com filtro:', JSON.stringify(filter, null, 2));
 
-        // Filtro restritivo: APENAS profissionais da mesma cidade E estado do usuário
-        let destaques = [];
-        
+        const selected = [];
+        const selectedIds = new Set();
+
+        const pushUnique = (items) => {
+            (items || []).forEach((it) => {
+                const id = String(it._id);
+                if (selectedIds.has(id)) return;
+                selectedIds.add(id);
+                selected.push(it);
+            });
+        };
+
+        const baseSelect = 'nome cidade estado foto avatarUrl mediaAvaliacao totalAvaliacoes tipo atuacao createdAt avaliacoes';
+        const baseSort = { mediaAvaliacao: -1, totalAvaliacoes: -1, createdAt: -1 };
+
         if (user?.cidade && user?.estado) {
-            // Busca APENAS profissionais da mesma cidade E estado
-            const cidadeRegex = new RegExp(`^${user.cidade}$`, 'i'); // Exato (case-insensitive)
-            const estadoRegex = new RegExp(`^${user.estado}$`, 'i'); // Exato (case-insensitive)
-
-            const filterLocal = {
-                ...filter,
-                cidade: cidadeRegex,
-                estado: estadoRegex
-            };
-
-            console.log(`📍 Buscando profissionais APENAS em ${user.cidade}-${user.estado}`);
-            destaques = await User.find(filterLocal)
-                .select('nome cidade estado foto avatarUrl mediaAvaliacao totalAvaliacoes tipo atuacao')
-                .sort({ mediaAvaliacao: -1, totalAvaliacoes: -1, createdAt: -1 })
-                .limit(30);
-
-            console.log(`✅ Encontrados ${destaques.length} profissionais em ${user.cidade}-${user.estado}`);
-        } else if (user?.cidade) {
-            // Se só tem cidade, busca apenas na cidade (sem filtro de estado)
             const cidadeRegex = new RegExp(`^${user.cidade}$`, 'i');
-            
-            const filterLocal = {
-                ...filter,
-                cidade: cidadeRegex
-            };
+            const estadoRegex = new RegExp(`^${user.estado}$`, 'i');
 
-            console.log(`📍 Buscando profissionais APENAS em ${user.cidade}`);
-            destaques = await User.find(filterLocal)
-                .select('nome cidade estado foto avatarUrl mediaAvaliacao totalAvaliacoes tipo atuacao')
-                .sort({ mediaAvaliacao: -1, totalAvaliacoes: -1, createdAt: -1 })
-                .limit(30);
+            console.log(`📍 Buscando profissionais em ${user.cidade}-${user.estado}`);
+            const locais = await User.find({ ...filter, cidade: cidadeRegex, estado: estadoRegex })
+                .select(baseSelect)
+                .sort(baseSort)
+                .limit(limit);
+            pushUnique(locais);
 
-            console.log(`✅ Encontrados ${destaques.length} profissionais em ${user.cidade}`);
-        } else {
-            // Se não tem cidade cadastrada, não mostra destaques
-            console.log('⚠️ Usuário não tem cidade cadastrada, não será exibido nenhum destaque');
-            destaques = [];
+            if (selected.length < limit) {
+                console.log(`📍 Buscando profissionais no estado ${user.estado}`);
+                const estaduais = await User.find({ ...filter, estado: estadoRegex })
+                    .select(baseSelect)
+                    .sort(baseSort)
+                    .limit(limit);
+                pushUnique(estaduais);
+            }
+        } else if (user?.estado) {
+            const estadoRegex = new RegExp(`^${user.estado}$`, 'i');
+            console.log(`📍 Buscando profissionais no estado ${user.estado}`);
+            const estaduais = await User.find({ ...filter, estado: estadoRegex })
+                .select(baseSelect)
+                .sort(baseSort)
+                .limit(limit);
+            pushUnique(estaduais);
+        } else if (user?.cidade) {
+            const cidadeRegex = new RegExp(`^${user.cidade}$`, 'i');
+            console.log(`📍 Buscando profissionais em ${user.cidade}`);
+            const locais = await User.find({ ...filter, cidade: cidadeRegex })
+                .select(baseSelect)
+                .sort(baseSort)
+                .limit(limit);
+            pushUnique(locais);
         }
 
-        // Verifica se o próprio usuário atende aos critérios e adiciona se não estiver na lista
+        if (selected.length < limit) {
+            console.log('🌎 Buscando profissionais gerais (fallback)');
+            const gerais = await User.find({ ...filter })
+                .select(baseSelect)
+                .sort(baseSort)
+                .limit(limit);
+            pushUnique(gerais);
+        }
+
+        let destaques = selected.slice(0, limit);
+
         const usuarioCompleto = await User.findById(req.user.id).select('avaliacoes mediaAvaliacao totalAvaliacoes tipo');
         if (usuarioCompleto) {
             const totalAvaliacoesUsuario = usuarioCompleto.avaliacoes?.length || usuarioCompleto.totalAvaliacoes || 0;
             const mediaAvaliacaoUsuario = usuarioCompleto.mediaAvaliacao || 0;
-            
             console.log(`👤 Verificando perfil do usuário logado: ${mediaAvaliacaoUsuario} estrelas, ${totalAvaliacoesUsuario} avaliações`);
-            
+
             if (mediaAvaliacaoUsuario >= 4.5 && totalAvaliacoesUsuario >= 50) {
-                const jaEstaNaLista = destaques.some(d => d._id.toString() === usuarioCompleto._id.toString());
+                const userIdStr = usuarioCompleto._id.toString();
+                const jaEstaNaLista = destaques.some(d => d._id.toString() === userIdStr);
                 if (!jaEstaNaLista) {
-                    console.log('✅ Adicionando perfil do usuário logado aos destaques');
                     const usuarioDestaque = await User.findById(req.user.id)
-                        .select('nome cidade estado foto avatarUrl mediaAvaliacao totalAvaliacoes tipo atuacao');
+                        .select(baseSelect);
                     if (usuarioDestaque) {
-                        destaques.unshift(usuarioDestaque); // Adiciona no início
+                        destaques.unshift(usuarioDestaque);
+                        destaques = destaques.slice(0, limit);
                     }
                 }
             } else {
@@ -2986,32 +2968,23 @@ app.get('/api/destaques-servicos', authMiddleware, async (req, res) => {
             }
         }
 
-        // Log dos profissionais encontrados para debug
         destaques.forEach(prof => {
             console.log(`  - ${prof.nome}: ${prof.mediaAvaliacao} estrelas, ${prof.totalAvaliacoes} avaliações, ${prof.cidade}/${prof.estado}`);
         });
 
-        // Busca os profissionais completos para verificar o array de avaliações
-        const profissionaisCompletos = await User.find({
-            _id: { $in: destaques.map(d => d._id) }
-        }).select('avaliacoes mediaAvaliacao totalAvaliacoes');
-
         const resposta = destaques.map(profissional => {
-            // Verifica se o totalAvaliacoes está correto comparando com o array
-            const profissionalCompleto = profissionaisCompletos.find(p => p._id.toString() === profissional._id.toString());
-            const totalAvaliacoesReal = profissionalCompleto?.avaliacoes?.length || profissional.totalAvaliacoes || 0;
+            const avaliacoes = profissional?.avaliacoes || [];
+            const totalAvaliacoesReal = Array.isArray(avaliacoes) ? avaliacoes.length : (profissional.totalAvaliacoes || 0);
             const mediaAvaliacaoReal = profissional.mediaAvaliacao || 0;
 
-            // Se o totalAvaliacoes não está atualizado, recalcula
-            if (profissionalCompleto && profissionalCompleto.avaliacoes && profissionalCompleto.avaliacoes.length > 0) {
-                const totalEstrelas = profissionalCompleto.avaliacoes.reduce((acc, av) => acc + (av.estrelas || 0), 0);
-                const mediaCalculada = totalEstrelas / profissionalCompleto.avaliacoes.length;
-                
-                // Atualiza no banco se estiver desatualizado
+            if (Array.isArray(avaliacoes) && avaliacoes.length > 0) {
+                const totalEstrelas = avaliacoes.reduce((acc, av) => acc + (av.estrelas || 0), 0);
+                const mediaCalculada = totalEstrelas / avaliacoes.length;
                 if (Math.abs(mediaCalculada - mediaAvaliacaoReal) > 0.01 || totalAvaliacoesReal !== profissional.totalAvaliacoes) {
-                    profissionalCompleto.mediaAvaliacao = mediaCalculada;
-                    profissionalCompleto.totalAvaliacoes = profissionalCompleto.avaliacoes.length;
-                    profissionalCompleto.save().catch(err => console.error('Erro ao atualizar avaliações:', err));
+                    User.updateOne(
+                        { _id: profissional._id },
+                        { $set: { mediaAvaliacao: mediaCalculada, totalAvaliacoes: avaliacoes.length } }
+                    ).catch(err => console.error('Erro ao atualizar avaliações:', err));
                 }
             }
 

@@ -5,6 +5,14 @@
     box-sizing: border-box;
 }
 
+@font-face {
+    font-family: 'Kingthings Foundation';
+    src: url('/font/Kingthings-Foundation/Kingthings_Foundation.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
 html {
     width: 100%;
     max-width: 100%;
@@ -198,7 +206,7 @@ body.mobile-sidebar-open {
     user-select: none;         /* Evita parecer apenas texto selecionável */
 }
 .logo-box img { width: 64px; height: 64px; border-radius: 50%; object-fit: cover; border: none; }
-.logo-box h1 { font-size: 26px; margin: 0; color: var(--text-header); } 
+.logo-box h1 { font-family: 'Kingthings Foundation', system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; font-size: 30px; margin: 0; color: #081a2e; } 
 .header-actions {
     flex-grow: 1;
     display: flex;
@@ -5591,7 +5599,7 @@ html.dark-mode #aviso-localizacao-incompleta {
     }
 
     .logo-box h1 {
-        font-size: 22px;
+        font-size: 26px;
     }
 
     .user-avatar-header {

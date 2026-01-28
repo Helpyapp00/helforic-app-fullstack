@@ -9,6 +9,14 @@
     --box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
 }
 
+@font-face {
+    font-family: 'Kingthings Foundation';
+    src: url('/font/Kingthings-Foundation/Kingthings_Foundation.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
 * {
     margin: 0;
     padding: 0;
@@ -138,9 +146,20 @@ body {
 .login-logo {
     width: 80px;
     height: auto;
-    margin-bottom: 1rem;
-    opacity: 0.75;
+    margin-bottom: 0.35rem;
+    opacity: 1;
     filter: none;
+}
+
+.login-brand {
+    font-family: 'Kingthings Foundation', system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+    font-size: 34px;
+    line-height: 1;
+    color: #081a2e;
+    font-weight: 800;
+    -webkit-text-stroke: 0.2px #081a2e;
+    margin-top: -2px;
+    margin-bottom: 0.65rem;
 }
 
 .login-header h1 {
@@ -353,9 +372,15 @@ body {
 
     .login-logo {
         width: 60px;
-        margin-bottom: 0.5rem;
-        opacity: 0.75;
+        margin-bottom: 0.25rem;
+        opacity: 1;
         filter: none;
+    }
+
+    .login-brand {
+        font-size: 28px;
+        margin-top: -2px;
+        margin-bottom: 0.5rem;
     }
 
     .form-group {
