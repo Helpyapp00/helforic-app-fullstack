@@ -153,11 +153,11 @@ body {
 
 .login-brand {
     font-family: 'Kingthings Foundation', system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-    font-size: 34px;
+    font-size: 38px;
     line-height: 1;
     color: #081a2e;
-    font-weight: 800;
-    -webkit-text-stroke: 0.2px #081a2e;
+    font-weight: 900;
+    -webkit-text-stroke: 0.45px #081a2e;
     margin-top: -2px;
     margin-bottom: 0.65rem;
 }
@@ -378,7 +378,7 @@ body {
     }
 
     .login-brand {
-        font-size: 28px;
+        font-size: 32px;
         margin-top: -2px;
         margin-bottom: 0.5rem;
     }
