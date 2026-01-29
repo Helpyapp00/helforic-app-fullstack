@@ -79,6 +79,80 @@ function getSharp() {
 
 const app = express();
 
+// Overrides de localização (fallback quando provedor não retorna bairro/localidade)
+let locationOverrides = [];
+try {
+    const overridesPath = path.join(__dirname, 'location-overrides.json');
+    if (fs.existsSync(overridesPath)) {
+        locationOverrides = JSON.parse(fs.readFileSync(overridesPath, 'utf8')) || [];
+    }
+} catch (e) {
+    locationOverrides = [];
+}
+
+function haversineDistanceMeters(lat1, lon1, lat2, lon2) {
+    const toRad = (d) => (d * Math.PI) / 180;
+    const R = 6371000;
+    const dLat = toRad(lat2 - lat1);
+    const dLon = toRad(lon2 - lon1);
+    const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+        Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+}
+
+function applyLocationOverrideIfNeeded(lat, lon, normalized) {
+    try {
+        const n = normalized || {};
+        const addr = (n.address || {});
+        const hasArea = !!((addr.neighbourhood || '').trim() || (addr.suburb || '').trim());
+        if (hasArea) return n;
+
+        const latNum = Number(lat);
+        const lonNum = Number(lon);
+        if (!Number.isFinite(latNum) || !Number.isFinite(lonNum)) return n;
+
+        for (const rule of (locationOverrides || [])) {
+            if (!rule || !rule.center || !rule.address) continue;
+            const rLat = Number(rule.center.lat);
+            const rLon = Number(rule.center.lon);
+            const rMeters = Number(rule.radiusMeters);
+            if (!Number.isFinite(rLat) || !Number.isFinite(rLon) || !Number.isFinite(rMeters)) continue;
+            const dist = haversineDistanceMeters(latNum, lonNum, rLat, rLon);
+            if (dist <= rMeters) {
+                const next = {
+                    ...n,
+                    address: {
+                        ...addr,
+                        ...rule.address
+                    },
+                    override: {
+                        id: rule.id,
+                        distanceMeters: Math.round(dist)
+                    }
+                };
+                const a = next.address || {};
+                const displayNameParts = [
+                    a.road,
+                    a.house_number,
+                    a.neighbourhood || a.suburb,
+                    a.city,
+                    a.state,
+                    a.postcode,
+                    a.country
+                ].map(p => (p || '').toString().trim()).filter(Boolean);
+                next.display_name = displayNameParts.join(', ');
+                return next;
+            }
+        }
+        return n;
+    } catch (e) {
+        return normalized;
+    }
+}
+
 let s3Client;
 let bucketName;
 let isDbConnected = false;
@@ -1072,18 +1146,18 @@ app.post('/api/verificar-email/solicitar', async (req, res) => {
         console.error('Stack trace:', error.stack);
         console.error('Error name:', error.name);
         console.error('Error code:', error.code);
-        
+
         // Garante que sempre retorna JSON
         if (!res.headersSent) {
             res.setHeader('Content-Type', 'application/json');
-            
+
             if (error.code === 11000) {
                 return res.status(409).json({ 
                     success: false, 
                     message: 'Este email já está cadastrado.' 
                 });
             }
-            
+
             // Se for erro de conexão com MongoDB
             if (error.message && error.message.includes('Falha na conexão')) {
                 return res.status(500).json({ 
@@ -1092,7 +1166,7 @@ app.post('/api/verificar-email/solicitar', async (req, res) => {
                     error: process.env.NODE_ENV === 'development' ? error.message : undefined
                 });
             }
-            
+
             return res.status(500).json({ 
                 success: false, 
                 message: 'Erro interno do servidor.',
@@ -1102,66 +1176,18 @@ app.post('/api/verificar-email/solicitar', async (req, res) => {
     }
 });
 
-// 🆕 NOVO: Rota para validar código de verificação
-app.post('/api/verificar-email/validar', async (req, res) => {
-    try {
-        const { email, codigo } = req.body;
-        
-        if (!email || !codigo) {
-            return res.status(400).json({ success: false, message: 'Email e código são obrigatórios.' });
-        }
-
-        const emailNormalizado = email.toLowerCase().trim();
-
-        // Verifica se o email já está verificado em outra conta (ANTES de validar o código)
-        const emailJaVerificadoEmOutraConta = await User.findOne({ 
-            email: emailNormalizado,
-            emailVerificado: true
-        });
-
-        if (emailJaVerificadoEmOutraConta) {
-            return res.status(409).json({ 
-                success: false, 
-                message: 'Este email já está vinculado a outra conta verificada. Por favor, use outro email ou faça login na conta existente.' 
-            });
-        }
-
-        const usuario = await User.findOne({ 
-            email: emailNormalizado 
-        });
-
-        if (!usuario) {
-            return res.status(404).json({ success: false, message: 'Email não encontrado. Solicite um novo código.' });
-        }
-
-        // Verifica se o código está correto e não expirou
-        if (usuario.codigoVerificacao !== codigo) {
-            return res.status(400).json({ success: false, message: 'Código de verificação inválido.' });
-        }
-
-        if (usuario.codigoVerificacaoExpira && new Date() > usuario.codigoVerificacaoExpira) {
-            return res.status(400).json({ success: false, message: 'Código de verificação expirado. Solicite um novo código.' });
-        }
-
-        // NÃO marca como verificado aqui - isso será feito no cadastro
-        // Apenas valida o código e retorna sucesso
-        res.json({ 
-            success: true, 
-            message: 'Código válido! Prosseguindo com o cadastro...',
-            email: emailNormalizado
-        });
-    } catch (error) {
-        console.error('Erro ao validar código:', error);
-        res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
-    }
-});
-
-// ----------------------------------------------------------------------
-// 📍 ROTA DE GEOCODIFICAÇÃO REVERSA (Proxy para Nominatim)
+// ROTA DE GEOCODIFICAÇÃO REVERSA (Proxy para Nominatim)
 // ----------------------------------------------------------------------
 app.get('/api/geocodificar-reversa', async (req, res) => {
+
     try {
         const { lat, lon } = req.query;
+        // Evita cache no browser/proxy para que o frontend não receba 304/ETag
+        res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+        res.set('Pragma', 'no-cache');
+        res.set('Expires', '0');
+        res.set('Surrogate-Control', 'no-store');
+        res.removeHeader('ETag');
         
         if (!lat || !lon) {
             return res.status(400).json({
@@ -1170,26 +1196,146 @@ app.get('/api/geocodificar-reversa', async (req, res) => {
             });
         }
         
+        const hereApiKey = (process.env.HERE_API_KEY || '').trim();
+
+        // Preferência: HERE (melhor cobertura para rua/número/bairro)
+        if (hereApiKey) {
+            const hereUrl = `https://revgeocode.search.hereapi.com/v1/revgeocode?at=${lat},${lon}&lang=pt-BR&limit=10&apikey=${encodeURIComponent(hereApiKey)}`;
+            const response = await fetch(hereUrl);
+
+            if (!response.ok) {
+                throw new Error(`Erro ao buscar endereço (HERE): ${response.status}`);
+            }
+
+            const hereData = await response.json();
+            const items = (hereData && Array.isArray(hereData.items)) ? hereData.items : [];
+
+            // Debug opcional: retorna todos os candidatos que a HERE forneceu
+            // (útil para escolher o melhor item de área/bairro quando não há número)
+            if (String(req.query.debug || '').trim() === '1') {
+                return res.status(200).json({
+                    success: true,
+                    data: {
+                        lat: String(lat),
+                        lon: String(lon)
+                    },
+                    debug: {
+                        provider: 'here',
+                        items
+                    }
+                });
+            }
+
+            const pickBestHereItem = (arr) => {
+                if (!Array.isArray(arr) || arr.length === 0) return null;
+                let best = null;
+                let bestScore = -1;
+                for (const it of arr) {
+                    const a = it && it.address ? it.address : null;
+                    if (!a) continue;
+                    const hasStreet = !!(a.street || a.road);
+                    const hasHouse = !!a.houseNumber;
+                    const hasArea = !!(a.neighborhood || a.subdistrict || a.district || a.cityDistrict);
+                    const hasPostal = !!a.postalCode;
+                    let score = 0;
+                    if (hasHouse) score += 100;
+                    if (hasStreet) score += 50;
+                    if (hasArea) score += 30;
+                    if (hasPostal) score += 10;
+                    if (it.resultType === 'houseNumber') score += 25;
+                    if (it.resultType === 'street') score += 5;
+                    if (score > bestScore) {
+                        bestScore = score;
+                        best = it;
+                    }
+                }
+                return best || arr[0] || null;
+            };
+
+            const item = pickBestHereItem(items);
+
+            if (!item || !item.address) {
+                throw new Error('Resposta da HERE sem itens de endereço.');
+            }
+
+            const a = item.address;
+            const road = a.street || a.road || '';
+            const houseNumber = a.houseNumber || '';
+            const neighbourhood = a.neighborhood || a.subdistrict || a.district || '';
+            const suburb = a.district || a.subdistrict || a.cityDistrict || a.neighborhood || '';
+            const city = a.city || a.municipality || a.county || '';
+            const state = a.state || a.stateCode || '';
+            const postcode = a.postalCode || '';
+            const rawCountryCode = (a.countryCode || '').toString().trim();
+            const countryCode = rawCountryCode ? rawCountryCode.slice(0, 2).toLowerCase() : '';
+
+            const displayNameParts = [
+                road,
+                houseNumber,
+                neighbourhood || suburb,
+                city,
+                state,
+                postcode,
+                (a.countryName || a.country || '')
+            ].map(p => (p || '').toString().trim()).filter(Boolean);
+
+            const normalized = {
+                lat: String(item.position?.lat ?? lat),
+                lon: String(item.position?.lng ?? lon),
+                display_name: displayNameParts.join(', '),
+                address: {
+                    road: road,
+                    house_number: houseNumber,
+                    neighbourhood: neighbourhood,
+                    suburb: suburb,
+                    city: city,
+                    state: state,
+                    postcode: postcode,
+                    country: a.countryName || a.country || '',
+                    country_code: countryCode
+                },
+                here: {
+                    id: item.id,
+                    title: item.title
+                }
+            };
+
+            const withOverride = applyLocationOverrideIfNeeded(lat, lon, normalized);
+
+            return res.status(200).json({
+                success: true,
+                data: withOverride
+            });
+        }
+
+        // Fallback: Nominatim
         // Adiciona delay para respeitar rate limit do Nominatim
         await new Promise(resolve => setTimeout(resolve, 1000));
-        
+
         const geocodeUrl = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&addressdetails=1&accept-language=pt-BR&zoom=18`;
-        
+
         const response = await fetch(geocodeUrl, {
             headers: {
                 'User-Agent': 'HelpyApp/1.0' // Nominatim requer User-Agent
             }
         });
-        
+
         if (!response.ok) {
-            throw new Error(`Erro ao buscar endereço: ${response.status}`);
+            throw new Error(`Erro ao buscar endereço (Nominatim): ${response.status}`);
         }
-        
+
         const data = await response.json();
+
+        // Se o Nominatim também não retornar bairro/localidade, aplica override por coordenada
+        const nominatimNormalized = {
+            ...data,
+            address: data.address || {}
+        };
+        const withOverride = applyLocationOverrideIfNeeded(lat, lon, nominatimNormalized);
         
-        res.json({
+        res.status(200).json({
             success: true,
-            data: data
+            data: withOverride
         });
     } catch (error) {
         console.error('Erro na geocodificação reversa:', error);
@@ -7494,7 +7640,7 @@ module.exports = app;
 if (require.main === module) {
   const PORT = process.env.PORT || 3000;
   const HOST = process.env.HOST || '0.0.0.0';
-  
+
   // Inicializa serviços antes de iniciar o servidor
   initializeServices().then(() => {
     app.listen(PORT, HOST, () => {
@@ -7505,6 +7651,17 @@ if (require.main === module) {
     });
   }).catch((error) => {
     console.error('❌ Erro ao inicializar serviços:', error);
+    // Em desenvolvimento, não encerra o processo (permite testar rotas que não dependem de serviços)
+    if (process.env.NODE_ENV !== 'production') {
+      console.warn('⚠️ MODO DEV: iniciando servidor mesmo com falha na inicialização de serviços.');
+      app.listen(PORT, HOST, () => {
+        console.log(`🚀 Servidor rodando na porta ${PORT}`);
+        if (process.env.DOMINIO) {
+          console.log(`🌐 Domínio: ${process.env.DOMINIO}`);
+        }
+      });
+      return;
+    }
     process.exit(1);
   });
 }

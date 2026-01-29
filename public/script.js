@@ -3089,35 +3089,80 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         const originalText = contentElement.textContent;
+
+        const optionsBtn = commentElement.querySelector('.btn-comment-options');
+        const originalOptionsText = optionsBtn ? optionsBtn.textContent : null;
+        const cancelEditViaX = () => {
+            contentElement.style.display = '';
+            editRow.remove();
+            commentElement.dataset.editing = '';
+            if (optionsBtn) {
+                optionsBtn.textContent = originalOptionsText || '⋯';
+                optionsBtn.style.display = '';
+            }
+            document.removeEventListener('mousedown', outsideCancelHandler, true);
+        };
+        const outsideCancelHandler = (ev) => {
+            if (commentElement.dataset.editing !== '1') return;
+            if (editRow.contains(ev.target)) return;
+            cancelEditViaX();
+        };
         
         // Fecha o menu
         const menu = commentElement.querySelector('.comment-options-menu');
         if (menu) menu.classList.add('oculto');
         
-        // Cria input de edição
-        const editInput = document.createElement('input');
-        editInput.type = 'text';
+        // Cria textarea de edição (auto-expansível)
+        const editInput = document.createElement('textarea');
         editInput.className = 'comment-edit-input';
         editInput.value = originalText;
-        
-        // Cria botões de confirmação/cancelamento
-        const editActions = document.createElement('div');
-        editActions.className = 'comment-edit-actions';
-        editActions.innerHTML = `
-            <button class="btn-confirm-edit" data-comment-id="${commentId}">✓</button>
-            <button class="btn-cancel-edit" data-comment-id="${commentId}">✗</button>
+
+        // Wrapper da edição com botão enviar (ícone por tema)
+        const editWrap = document.createElement('div');
+        editWrap.className = 'comment-edit-actions';
+        editWrap.innerHTML = `
+            <button class="btn-confirm-edit" type="button" data-comment-id="${commentId}" title="Enviar">
+                <img
+                    class="publish-icon"
+                    alt=""
+                    src="${document.documentElement.classList.contains('dark-mode') ? '/imagens/enviar.tema.escuro.png' : '/imagens/enviar.tema.claro.png'}"
+                    data-src-light="/imagens/enviar.tema.claro.png"
+                    data-src-dark="/imagens/enviar.tema.escuro.png"
+                >
+            </button>
         `;
+
+        const editRow = document.createElement('div');
+        editRow.className = 'inline-edit-row';
+        editRow.appendChild(editInput);
+        editRow.appendChild(editWrap);
         
         // Substitui o conteúdo
         contentElement.style.display = 'none';
-        contentElement.parentNode.insertBefore(editInput, contentElement);
-        contentElement.parentNode.insertBefore(editActions, editInput.nextSibling);
+        contentElement.parentNode.insertBefore(editRow, contentElement);
+
+        // Marca edição ativa
+        commentElement.dataset.editing = '1';
+        if (optionsBtn) {
+            optionsBtn.textContent = originalOptionsText || '⋯';
+            optionsBtn.style.display = 'none';
+        }
+        document.addEventListener('mousedown', outsideCancelHandler, true);
+        updateSendCommentIcons();
         
         editInput.focus();
         editInput.select();
+
+        const autoGrow = () => {
+            editInput.style.height = 'auto';
+            editInput.style.height = `${editInput.scrollHeight}px`;
+        };
+        autoGrow();
+        editInput.addEventListener('input', autoGrow);
         
         // Handler para confirmar
-        editActions.querySelector('.btn-confirm-edit').addEventListener('click', async () => {
+        editWrap.querySelector('.btn-confirm-edit').addEventListener('click', async () => {
+            document.removeEventListener('mousedown', outsideCancelHandler, true);
             const newContent = editInput.value.trim();
             if (!newContent) {
                 alert('O comentário não pode estar vazio.');
@@ -3155,22 +3200,28 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (data.success) {
                     contentElement.textContent = newContent;
                     contentElement.style.display = '';
-                    editInput.remove();
-                    editActions.remove();
+                    editRow.remove();
+                    commentElement.dataset.editing = '';
+                    if (optionsBtn) {
+                        optionsBtn.textContent = originalOptionsText || '⋯';
+                        optionsBtn.style.display = '';
+                    }
                 } else {
                     throw new Error(data.message || 'Erro ao editar comentário');
                 }
             } catch (error) {
                 console.error('❌ Erro ao editar comentário:', error);
                 alert('Erro ao editar comentário: ' + error.message);
+                document.addEventListener('mousedown', outsideCancelHandler, true);
             }
         });
-        
-        // Handler para cancelar
-        editActions.querySelector('.btn-cancel-edit').addEventListener('click', () => {
-            contentElement.style.display = '';
-            editInput.remove();
-            editActions.remove();
+
+        // Enter para enviar (Shift+Enter para nova linha)
+        editInput.addEventListener('keydown', (ev) => {
+            if (ev.key === 'Enter' && !ev.shiftKey) {
+                ev.preventDefault();
+                editWrap.querySelector('.btn-confirm-edit')?.click();
+            }
         });
     }
 
@@ -3316,30 +3367,73 @@ document.addEventListener('DOMContentLoaded', () => {
         const menu = replyElement.querySelector('.reply-options-menu');
         if (menu) menu.classList.add('oculto');
         
-        // Cria input de edição
-        const editInput = document.createElement('input');
-        editInput.type = 'text';
+        // Cria textarea de edição (auto-expansível)
+        const editInput = document.createElement('textarea');
         editInput.className = 'reply-edit-input';
         editInput.value = originalText;
-        
-        // Cria botões de confirmação/cancelamento
-        const editActions = document.createElement('div');
-        editActions.className = 'reply-edit-actions';
-        editActions.innerHTML = `
-            <button class="btn-confirm-edit-reply" data-comment-id="${commentId}" data-reply-id="${replyId}">✓</button>
-            <button class="btn-cancel-edit-reply" data-reply-id="${replyId}">✗</button>
+
+        const optionsBtn = replyElement.querySelector('.btn-reply-options');
+        const originalOptionsText = optionsBtn ? optionsBtn.textContent : null;
+        const cancelEditViaX = () => {
+            contentElement.style.display = '';
+            editRow.remove();
+            replyElement.dataset.editing = '';
+            if (optionsBtn) {
+                optionsBtn.textContent = originalOptionsText || '⋯';
+                optionsBtn.style.display = '';
+            }
+            document.removeEventListener('mousedown', outsideCancelHandler, true);
+        };
+        const outsideCancelHandler = (ev) => {
+            if (replyElement.dataset.editing !== '1') return;
+            if (editRow.contains(ev.target)) return;
+            cancelEditViaX();
+        };
+
+        const editWrap = document.createElement('div');
+        editWrap.className = 'reply-edit-actions';
+        editWrap.innerHTML = `
+            <button class="btn-confirm-edit-reply" type="button" data-comment-id="${commentId}" data-reply-id="${replyId}" title="Enviar">
+                <img
+                    class="publish-icon"
+                    alt=""
+                    src="${document.documentElement.classList.contains('dark-mode') ? '/imagens/enviar.tema.escuro.png' : '/imagens/enviar.tema.claro.png'}"
+                    data-src-light="/imagens/enviar.tema.claro.png"
+                    data-src-dark="/imagens/enviar.tema.escuro.png"
+                >
+            </button>
         `;
+
+        const editRow = document.createElement('div');
+        editRow.className = 'inline-edit-row';
+        editRow.appendChild(editInput);
+        editRow.appendChild(editWrap);
         
         // Substitui o conteúdo
         contentElement.style.display = 'none';
-        contentElement.parentNode.insertBefore(editInput, contentElement);
-        contentElement.parentNode.insertBefore(editActions, editInput.nextSibling);
+        contentElement.parentNode.insertBefore(editRow, contentElement);
+
+        replyElement.dataset.editing = '1';
+        if (optionsBtn) {
+            optionsBtn.textContent = originalOptionsText || '⋯';
+            optionsBtn.style.display = 'none';
+        }
+        document.addEventListener('mousedown', outsideCancelHandler, true);
+        updateSendCommentIcons();
         
         editInput.focus();
         editInput.select();
+
+        const autoGrow = () => {
+            editInput.style.height = 'auto';
+            editInput.style.height = `${editInput.scrollHeight}px`;
+        };
+        autoGrow();
+        editInput.addEventListener('input', autoGrow);
         
         // Handler para confirmar
-        editActions.querySelector('.btn-confirm-edit-reply').addEventListener('click', async () => {
+        editWrap.querySelector('.btn-confirm-edit-reply').addEventListener('click', async () => {
+            document.removeEventListener('mousedown', outsideCancelHandler, true);
             const newContent = editInput.value.trim();
             if (!newContent) {
                 alert('A resposta não pode estar vazia.');
@@ -3361,22 +3455,27 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (data.success) {
                     contentElement.textContent = newContent;
                     contentElement.style.display = '';
-                    editInput.remove();
-                    editActions.remove();
+                    editRow.remove();
+                    replyElement.dataset.editing = '';
+                    if (optionsBtn) {
+                        optionsBtn.textContent = originalOptionsText || '⋯';
+                        optionsBtn.style.display = '';
+                    }
                 } else {
                     throw new Error(data.message || 'Erro ao editar resposta');
                 }
             } catch (error) {
                 console.error('Erro ao editar resposta:', error);
                 alert('Erro ao editar resposta: ' + error.message);
+                document.addEventListener('mousedown', outsideCancelHandler, true);
             }
         });
-        
-        // Handler para cancelar
-        editActions.querySelector('.btn-cancel-edit-reply').addEventListener('click', () => {
-            contentElement.style.display = '';
-            editInput.remove();
-            editActions.remove();
+
+        editInput.addEventListener('keydown', (ev) => {
+            if (ev.key === 'Enter' && !ev.shiftKey) {
+                ev.preventDefault();
+                editWrap.querySelector('.btn-confirm-edit-reply')?.click();
+            }
         });
     }
 
@@ -3633,6 +3732,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function handleDeleteComment(e) {
+        if (e && e.__handledDelete) return;
+        if (e) e.__handledDelete = true;
         e.stopPropagation();
         const btn = e.currentTarget;
         const commentId = btn.dataset.commentId;
@@ -3675,7 +3776,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 
                 if (data.success) {
-                    const removed = btn.closest('.comment');
+                    const removed = postElement.querySelector(`.comment[data-comment-id="${commentId}"]`) || btn.closest('.comment');
                     if (removed) removed.remove(); // Remove o comentário do DOM
 
                     // Atualiza o contador no botão de comentários
@@ -3704,6 +3805,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function handleDeleteReply(e) {
+        if (e && e.__handledDelete) return;
+        if (e) e.__handledDelete = true;
         e.stopPropagation();
         const btn = e.currentTarget;
         const commentId = btn.dataset.commentId;
@@ -3747,11 +3850,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
 
                 if (data.success) {
-                    const replyEl = btn.closest('.reply') || document.querySelector(`.reply[data-reply-id="${replyId}"]`);
+                    const replyEl = postElement.querySelector(`.reply[data-reply-id="${replyId}"]`) || btn.closest('.reply');
                     if (replyEl) replyEl.remove(); // Remove a resposta do DOM
 
                     // Atualiza o botão "Ver X Respostas" (se não tem mais respostas, remove)
-                    const commentElement = document.querySelector(`.comment[data-comment-id="${commentId}"]`);
+                    const commentElement = postElement.querySelector(`.comment[data-comment-id="${commentId}"]`) || document.querySelector(`.comment[data-comment-id="${commentId}"]`);
                     syncRepliesUI(commentElement);
                 } else {
                     throw new Error(data.message);
@@ -3770,6 +3873,36 @@ document.addEventListener('DOMContentLoaded', () => {
             window.location.href = `/perfil.html?id=${userId}`;
         });
     }
+
+    // Event delegation: garante que a lixeira funcione mesmo se o menu for movido para o body
+    document.addEventListener('click', (ev) => {
+        const deleteCommentBtn = ev.target && ev.target.closest ? ev.target.closest('.btn-delete-comment') : null;
+        if (deleteCommentBtn) {
+            handleDeleteComment({
+                __handledDelete: false,
+                stopPropagation: () => ev.stopPropagation(),
+                preventDefault: () => ev.preventDefault(),
+                currentTarget: deleteCommentBtn,
+                clientX: ev.clientX,
+                clientY: ev.clientY,
+                target: ev.target
+            });
+            return;
+        }
+
+        const deleteReplyBtn = ev.target && ev.target.closest ? ev.target.closest('.btn-delete-reply') : null;
+        if (deleteReplyBtn) {
+            handleDeleteReply({
+                __handledDelete: false,
+                stopPropagation: () => ev.stopPropagation(),
+                preventDefault: () => ev.preventDefault(),
+                currentTarget: deleteReplyBtn,
+                clientX: ev.clientX,
+                clientY: ev.clientY,
+                target: ev.target
+            });
+        }
+    }, true);
     if (userAvatarHeader) {
         userAvatarHeader.style.cursor = 'pointer';
         userAvatarHeader.addEventListener('click', () => {

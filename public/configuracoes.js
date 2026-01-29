@@ -55,6 +55,23 @@ document.addEventListener('DOMContentLoaded', () => {
         ro.observe(headerEl);
     }
 
+    function fecharBuscaUI() {
+        if (!headerEl) return;
+        headerEl.classList.remove('search-open');
+        if (searchResultsContainer) searchResultsContainer.innerHTML = '';
+        if (searchResultsBackdrop) searchResultsBackdrop.classList.remove('visible');
+    }
+
+    // Fecha a busca ao clicar fora do header (inclui barra inferior e conteúdo)
+    if (headerEl) {
+        document.addEventListener('click', (e) => {
+            if (!headerEl.classList.contains('search-open')) return;
+            if (headerEl.contains(e.target)) return;
+            if (bottomNavSearchBtn && bottomNavSearchBtn.contains(e.target)) return;
+            fecharBuscaUI();
+        }, true);
+    }
+
     function getAuthHeaders() {
         const t = localStorage.getItem('jwtToken');
         if (!t || t === 'null' || t === 'undefined') return {};

@@ -1742,13 +1742,12 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch {}
 
     function aplicarIconeEnviarTemaNoPerfil() {
-        if (!btnEnviarPostagemPerfil) return;
-        const img = btnEnviarPostagemPerfil.querySelector('.publish-icon');
-        if (!img) return;
         const isDark = document.documentElement.classList.contains('dark-mode');
-        const light = img.getAttribute('data-src-light') || img.getAttribute('src');
-        const dark = img.getAttribute('data-src-dark') || img.getAttribute('src');
-        img.src = isDark ? dark : light;
+        document.querySelectorAll('.publish-icon').forEach((img) => {
+            const light = img.getAttribute('data-src-light') || img.getAttribute('src');
+            const dark = img.getAttribute('data-src-dark') || img.getAttribute('src');
+            if (light && dark) img.src = isDark ? dark : light;
+        });
     }
     function abrirModalCriarPostagemPerfil() {
         if (!modalCriarPostagemPerfil) return;
@@ -3089,7 +3088,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (post.commentsCount !== undefined) {
                     commentsCount = post.commentsCount;
                 } else if (post.comments && Array.isArray(post.comments)) {
-                    commentsCount = post.comments.length;
+                    // No perfil, pode existir comentário com user apagado (sem userId). Esses não devem contar.
+                    commentsCount = post.comments.filter(c => c && c.userId).length;
                 }
                 
                 // Verifica se o usuário já curtiu
@@ -3101,7 +3101,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     commentsCount: commentsCount,
                     isLiked: isLiked,
                     likes: post.likes || [],
-                    comments: post.comments || []
+                    // Mantém comments filtrado para evitar inconsistências entre contagem e renderização
+                    comments: (post.comments && Array.isArray(post.comments)) ? post.comments.filter(c => c && c.userId) : []
                 };
             });
             
@@ -3204,26 +3205,10 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Busca o post completo com comentários e likes
         let postCompleto = post;
-        try {
-            const response = await fetch(`/api/posts/${post._id}`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            if (response.ok) {
-                postCompleto = await response.json();
-                console.log('✅ Post completo carregado da API:', postCompleto);
-                console.log('📝 Comentários no post:', postCompleto.comments?.length || 0);
-            } else if (response.status === 404) {
-                console.warn('Post não encontrado na API, usando dados disponíveis');
-                // Garantir que temos pelo menos arrays vazios para comentários e likes
-                if (!postCompleto.comments) postCompleto.comments = [];
-                if (!postCompleto.likes) postCompleto.likes = [];
-            }
-        } catch (error) {
-            console.warn('Erro ao buscar post completo, usando dados disponíveis:', error);
-            // Garantir que temos pelo menos arrays vazios para comentários e likes
-            if (!postCompleto.comments) postCompleto.comments = [];
-            if (!postCompleto.likes) postCompleto.likes = [];
-        }
+        // No perfil, os posts já vêm do endpoint /api/user-posts/:userId com comments/likes populados.
+        // Evita chamar /api/posts/:id (pode não existir no backend e gerar 404).
+        if (!postCompleto.comments) postCompleto.comments = [];
+        if (!postCompleto.likes) postCompleto.likes = [];
         
         // Debug: verificar dados do post
         console.log('📋 Dados do post para renderização:', {
@@ -3244,7 +3229,6 @@ document.addEventListener('DOMContentLoaded', () => {
         // Verifica se já curtiu
         const isLiked = postCompleto.likes && Array.isArray(postCompleto.likes) && postCompleto.likes.includes(loggedInUserId);
         const likesCount = postCompleto.likes?.length || postCompleto.likesCount || 0;
-        const commentsCount = postCompleto.comments?.length || postCompleto.commentsCount || 0;
         
         let mediaHTML = '';
         if (postCompleto.mediaUrl) {
@@ -3262,8 +3246,11 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Renderiza comentários
         const isPostOwner = postCompleto.userId._id === loggedInUserId;
-        const commentsArray = postCompleto.comments || [];
-        console.log('📝 Renderizando comentários:', commentsArray.length);
+        const rawCommentsArray = postCompleto.comments || [];
+        // No perfil, pode existir comentário com user apagado (sem userId). Esses não devem contar/nem renderizar.
+        const commentsArray = rawCommentsArray.filter(c => c && c.userId);
+        const commentsCount = commentsArray.length;
+        console.log('📝 Renderizando comentários válidos:', commentsArray.length, '| totais brutos:', rawCommentsArray.length);
         
         // Em telas menores, mostrar apenas 2 comentários inicialmente
         // Em telas maiores, mostrar apenas 3 comentários inicialmente
@@ -3317,7 +3304,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                     <div class="comment-form">
                         <input type="text" class="comment-input" placeholder="Escreva um comentário...">
-                        <button class="btn-send-comment" data-post-id="${postCompleto._id}">Enviar</button>
+                        <button class="btn-send-comment" data-post-id="${postCompleto._id}" title="Enviar">
+                            <img
+                                class="publish-icon"
+                                alt=""
+                                src="${document.documentElement.classList.contains('dark-mode') ? '/imagens/enviar.tema.escuro.png' : '/imagens/enviar.tema.claro.png'}"
+                                data-src-light="/imagens/enviar.tema.claro.png"
+                                data-src-dark="/imagens/enviar.tema.escuro.png"
+                            >
+                        </button>
                     </div>
                 </div>
             </article>
@@ -3344,6 +3339,9 @@ document.addEventListener('DOMContentLoaded', () => {
         modalPostagem.classList.remove('hidden');
         document.body.style.overflow = 'hidden';
         
+        // Ajusta ícones por tema (inclui botões gerados no modal)
+        aplicarIconeEnviarTemaNoPerfil();
+
         // Configurar listeners de interação imediatamente
         setupPostModalListeners(postCompleto._id);
         
@@ -3454,6 +3452,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // Verifica se o usuário pode deletar este comentário
             const isCommentOwner = comment.userId._id === loggedInUserId;
             const canDeleteComment = isPostOwner || isCommentOwner;
+            const canEditComment = isCommentOwner;
             
             const commentPhoto = comment.userId.foto || comment.userId.avatarUrl || 'imagens/default-user.png';
             const isCommentLiked = comment.likes && Array.isArray(comment.likes) && comment.likes.includes(loggedInUserId);
@@ -3473,7 +3472,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         <div class="comment-body">
                             <strong>${comment.userId.nome}</strong>
                             <p>${comment.content}</p>
-                            ${canDeleteComment ? `<button class="btn-delete-comment" data-comment-id="${comment._id}" title="Apagar comentário"><i class="fas fa-trash"></i></button>` : ''}
+                            ${(canEditComment || canDeleteComment) ? `
+                                <button class="btn-comment-options" data-comment-id="${comment._id}" title="Opções">⋯</button>
+                                <div class="comment-options-menu oculto" data-comment-id="${comment._id}">
+                                    ${canEditComment ? `<button class="btn-edit-comment" data-comment-id="${comment._id}" title="Editar">✏️</button>` : ''}
+                                    ${canDeleteComment ? `<button class="btn-delete-comment" data-comment-id="${comment._id}" title="Apagar">🗑️</button>` : ''}
+                                </div>
+                            ` : ''}
                         </div>
                         <div class="comment-actions">
                             <button class="comment-action-btn btn-like-comment ${isCommentLiked ? 'liked' : ''}" data-comment-id="${comment._id}">
@@ -3486,7 +3491,15 @@ document.addEventListener('DOMContentLoaded', () => {
                         <div class="reply-list oculto">${repliesHTML}</div>
                         <div class="reply-form oculto">
                             <input type="text" class="reply-input" placeholder="Responda a ${comment.userId.nome}...">
-                            <button class="btn-send-reply" data-comment-id="${comment._id}">Enviar</button>
+                            <button class="btn-send-reply" data-comment-id="${comment._id}" title="Enviar">
+                                <img
+                                    class="publish-icon"
+                                    alt=""
+                                    src="${document.documentElement.classList.contains('dark-mode') ? '/imagens/enviar.tema.escuro.png' : '/imagens/enviar.tema.claro.png'}"
+                                    data-src-light="/imagens/enviar.tema.claro.png"
+                                    data-src-dark="/imagens/enviar.tema.escuro.png"
+                                >
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -3508,6 +3521,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!reply.userId) return '';
         const replyPhoto = reply.userId.foto || reply.userId.avatarUrl || 'imagens/default-user.png';
         const isReplyLiked = reply.likes && Array.isArray(reply.likes) && reply.likes.includes(loggedInUserId);
+        const isReplyOwner = reply.userId && reply.userId._id === loggedInUserId;
+        const canEditReply = isReplyOwner;
         
         return `
             <div class="reply" data-reply-id="${reply._id}">
@@ -3516,7 +3531,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="reply-body">
                         <strong>${reply.userId.nome}</strong>
                         <p>${reply.content}</p>
-                        ${canDeleteReply ? `<button class="btn-delete-reply" data-comment-id="${commentId}" data-reply-id="${reply._id}" title="Apagar resposta"><i class="fas fa-trash"></i></button>` : ''}
+                        ${(canEditReply || canDeleteReply) ? `
+                            <button class="btn-reply-options" data-comment-id="${commentId}" data-reply-id="${reply._id}" title="Opções">⋯</button>
+                            <div class="reply-options-menu oculto" data-comment-id="${commentId}" data-reply-id="${reply._id}">
+                                ${canEditReply ? `<button class="btn-edit-reply" data-comment-id="${commentId}" data-reply-id="${reply._id}" title="Editar">✏️</button>` : ''}
+                                ${canDeleteReply ? `<button class="btn-delete-reply" data-comment-id="${commentId}" data-reply-id="${reply._id}" title="Apagar">🗑️</button>` : ''}
+                            </div>
+                        ` : ''}
                     </div>
                     <div class="reply-actions">
                         <button class="reply-action-btn btn-like-reply ${isReplyLiked ? 'liked' : ''}" data-comment-id="${commentId}" data-reply-id="${reply._id}">
@@ -3630,9 +3651,20 @@ document.addEventListener('DOMContentLoaded', () => {
                             }
                         }, 300);
                         
-                        // Atualizar contador
-                        const commentCount = commentList.children.length;
+                        // Atualizar contador (conta apenas comentários reais)
+                        const commentCount = commentList.querySelectorAll('.comment').length;
                         btnComment.innerHTML = `<i class="fas fa-comment"></i> ${commentCount} Comentários`;
+
+                        // Mantém data-all-comments consistente (para "Carregar Mais")
+                        try {
+                            const existingAll = JSON.parse(commentList.dataset.allComments || '[]');
+                            if (data.comment && data.comment.userId) {
+                                existingAll.push(data.comment);
+                                commentList.dataset.allComments = JSON.stringify(existingAll);
+                            }
+                        } catch (_) {
+                            // ignora
+                        }
                         
                         // Atualiza contador na miniatura
                         const thumbnail = document.querySelector(`.post-thumbnail[data-post-id="${postId}"]`);
@@ -3961,39 +3993,66 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
         
-        // Deletar comentário
+        const btnCommentOptions = commentElement.querySelector('.btn-comment-options');
+        const commentOptionsMenu = commentElement.querySelector('.comment-options-menu');
+        if (btnCommentOptions && commentOptionsMenu) {
+            btnCommentOptions.addEventListener('click', (e) => {
+                e.stopPropagation();
+                document.querySelectorAll('.comment-options-menu').forEach(m => m.classList.add('oculto'));
+                document.querySelectorAll('.reply-options-menu').forEach(m => m.classList.add('oculto'));
+                commentOptionsMenu.classList.toggle('oculto');
+            });
+        }
+
         const btnDeleteComment = commentElement.querySelector('.btn-delete-comment');
         if (btnDeleteComment) {
-            btnDeleteComment.addEventListener('click', async (e) => {
+            btnDeleteComment.addEventListener('click', (e) => {
                 e.stopPropagation();
-                if (!confirm('Tem certeza que deseja apagar este comentário?')) return;
-                
-                try {
-                    const response = await fetch(`/api/posts/${postId}/comments/${commentId}`, {
-                        method: 'DELETE',
-                        headers: { 'Authorization': `Bearer ${token}` }
-                    });
-                    const data = await response.json();
-                    if (data.success) {
+                showDeleteConfirmPopup(btnDeleteComment, async () => {
+                    try {
+                        const response = await fetch(`/api/posts/${postId}/comments/${commentId}`, {
+                            method: 'DELETE',
+                            headers: { 'Authorization': `Bearer ${token}` }
+                        });
+
+                        let data = null;
+                        try {
+                            data = await response.json();
+                        } catch (_) {
+                            data = null;
+                        }
+
+                        const ok = response.ok && (!data || data.success !== false);
+                        if (!ok) {
+                            throw new Error(data?.message || 'Erro ao deletar comentário.');
+                        }
+
                         commentElement.remove();
-                        // Atualizar contador
                         const commentList = document.querySelector(`[data-post-id="${postId}"] .comment-list`);
-                        const commentCount = commentList?.children.length || 0;
+                        const commentCount = commentList?.querySelectorAll('.comment').length || 0;
                         const btnComment = document.querySelector(`[data-post-id="${postId}"] .btn-comment`);
                         if (btnComment) {
                             btnComment.innerHTML = `<i class="fas fa-comment"></i> ${commentCount} Comentários`;
                         }
-                        // Atualiza contador na miniatura
                         const thumbnail = document.querySelector(`.post-thumbnail[data-post-id="${postId}"]`);
                         if (thumbnail) {
                             const commentCountEl = thumbnail.querySelector('.comment-count');
                             if (commentCountEl) commentCountEl.textContent = commentCount;
                         }
+                    } catch (error) {
+                        console.error('Erro ao deletar comentário:', error);
+                        alert(error.message || 'Erro ao deletar comentário.');
                     }
-                } catch (error) {
-                    console.error('Erro ao deletar comentário:', error);
-                    alert('Erro ao deletar comentário.');
-                }
+                }, e);
+            });
+        }
+
+        const btnEditComment = commentElement.querySelector('.btn-edit-comment');
+        if (btnEditComment) {
+            btnEditComment.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (commentOptionsMenu) commentOptionsMenu.classList.add('oculto');
+                startInlineEditComment(commentElement, postId, commentId);
             });
         }
         
@@ -4029,29 +4088,480 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
         
-        // Deletar resposta
+        const btnReplyOptions = replyElement.querySelector('.btn-reply-options');
+        const replyOptionsMenu = replyElement.querySelector('.reply-options-menu');
+        if (btnReplyOptions && replyOptionsMenu) {
+            btnReplyOptions.addEventListener('click', (e) => {
+                e.stopPropagation();
+                document.querySelectorAll('.comment-options-menu').forEach(m => m.classList.add('oculto'));
+                document.querySelectorAll('.reply-options-menu').forEach(m => m.classList.add('oculto'));
+                replyOptionsMenu.classList.toggle('oculto');
+            });
+        }
+
         const btnDeleteReply = replyElement.querySelector('.btn-delete-reply');
         if (btnDeleteReply) {
-            btnDeleteReply.addEventListener('click', async (e) => {
+            btnDeleteReply.addEventListener('click', (e) => {
                 e.stopPropagation();
-                if (!confirm('Tem certeza que deseja apagar esta resposta?')) return;
-                
-                try {
-                    const response = await fetch(`/api/posts/${postId}/comments/${commentId}/replies/${replyId}`, {
-                        method: 'DELETE',
-                        headers: { 'Authorization': `Bearer ${token}` }
-                    });
-                    const data = await response.json();
-                    if (data.success) {
+                showDeleteConfirmPopup(btnDeleteReply, async () => {
+                    try {
+                        const response = await fetch(`/api/posts/${postId}/comments/${commentId}/replies/${replyId}`, {
+                            method: 'DELETE',
+                            headers: { 'Authorization': `Bearer ${token}` }
+                        });
+
+                        let data = null;
+                        try {
+                            data = await response.json();
+                        } catch (_) {
+                            data = null;
+                        }
+
+                        const ok = response.ok && (!data || data.success !== false);
+                        if (!ok) {
+                            throw new Error(data?.message || 'Erro ao deletar resposta.');
+                        }
+
                         replyElement.remove();
+
+                        const commentEl = replyElement.closest('.comment') || document.querySelector(`.comment[data-comment-id="${commentId}"]`);
+                        const replyList = commentEl ? commentEl.querySelector('.reply-list') : null;
+                        const btnToggleReplies = commentEl ? commentEl.querySelector('.btn-toggle-replies') : null;
+
+                        if (replyList && btnToggleReplies) {
+                            const replyCount = replyList.querySelectorAll('.reply').length;
+                            if (replyCount <= 0) {
+                                btnToggleReplies.remove();
+                                replyList.classList.add('oculto');
+                            } else {
+                                btnToggleReplies.textContent = `Ver ${replyCount} Respostas`;
+                            }
+                        }
+                    } catch (error) {
+                        console.error('Erro ao deletar resposta:', error);
+                        alert(error.message || 'Erro ao deletar resposta.');
                     }
-                } catch (error) {
-                    console.error('Erro ao deletar resposta:', error);
-                    alert('Erro ao deletar resposta.');
-                }
+                }, e);
+            });
+        }
+
+        const btnEditReply = replyElement.querySelector('.btn-edit-reply');
+        if (btnEditReply) {
+            btnEditReply.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (replyOptionsMenu) replyOptionsMenu.classList.add('oculto');
+                startInlineEditReply(replyElement, postId, commentId, replyId);
             });
         }
     }
+
+    function startInlineEditComment(commentElement, postId, commentId) {
+        const body = commentElement.querySelector('.comment-body');
+        if (!body) return;
+
+        const p = body.querySelector('p');
+        if (!p) return;
+
+        if (body.querySelector('.comment-edit-input')) {
+            const existing = body.querySelector('.comment-edit-input');
+            existing.focus();
+            existing.select();
+            return;
+        }
+
+        const originalText = p.textContent;
+
+        const input = document.createElement('textarea');
+        input.className = 'comment-edit-input';
+        input.value = originalText;
+
+        const optionsBtn = commentElement.querySelector('.btn-comment-options');
+        const originalOptionsText = optionsBtn ? optionsBtn.textContent : null;
+
+        const actions = document.createElement('div');
+        actions.className = 'comment-edit-actions';
+        actions.innerHTML = `
+            <button class="btn-confirm-edit" type="button" title="Enviar">
+                <img
+                    class="publish-icon"
+                    alt=""
+                    src="${document.documentElement.classList.contains('dark-mode') ? '/imagens/enviar.tema.escuro.png' : '/imagens/enviar.tema.claro.png'}"
+                    data-src-light="/imagens/enviar.tema.claro.png"
+                    data-src-dark="/imagens/enviar.tema.escuro.png"
+                >
+            </button>
+        `;
+
+        const editRow = document.createElement('div');
+        editRow.className = 'inline-edit-row';
+        editRow.appendChild(input);
+        editRow.appendChild(actions);
+
+        p.style.display = 'none';
+        body.insertBefore(editRow, p);
+        input.focus();
+        input.select();
+
+        commentElement.dataset.editing = '1';
+        const cancelEditViaOutside = () => {
+            commentElement.dataset.editing = '';
+            p.style.display = '';
+            editRow.remove();
+            if (optionsBtn) {
+                optionsBtn.textContent = originalOptionsText || '⋯';
+                optionsBtn.style.display = '';
+            }
+            document.removeEventListener('mousedown', outsideCancelHandler, true);
+        };
+        const outsideCancelHandler = (ev) => {
+            if (commentElement.dataset.editing !== '1') return;
+            if (editRow.contains(ev.target)) return;
+            cancelEditViaOutside();
+        };
+        if (optionsBtn) {
+            optionsBtn.textContent = originalOptionsText || '⋯';
+            optionsBtn.style.display = 'none';
+        }
+        document.addEventListener('mousedown', outsideCancelHandler, true);
+        aplicarIconeEnviarTemaNoPerfil();
+
+        const autoGrow = () => {
+            input.style.height = 'auto';
+            input.style.height = `${input.scrollHeight}px`;
+        };
+        autoGrow();
+        input.addEventListener('input', autoGrow);
+
+        actions.querySelector('.btn-confirm-edit')?.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            document.removeEventListener('mousedown', outsideCancelHandler, true);
+            const newContent = input.value.trim();
+            if (!newContent) {
+                alert('O comentário não pode estar vazio.');
+                return;
+            }
+            try {
+                const response = await fetch(`/api/posts/${postId}/comments/${commentId}`, {
+                    method: 'PUT',
+                    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ content: newContent })
+                });
+                const data = await response.json();
+                if (!response.ok || !data.success) {
+                    throw new Error(data.message || 'Erro ao editar comentário');
+                }
+                p.textContent = newContent;
+                cancelEditViaOutside();
+            } catch (err) {
+                console.error('Erro ao editar comentário:', err);
+                alert(err.message || 'Erro ao editar comentário');
+                document.addEventListener('mousedown', outsideCancelHandler, true);
+            }
+        });
+
+        input.addEventListener('keydown', (ev) => {
+            if (ev.key === 'Enter' && !ev.shiftKey) {
+                ev.preventDefault();
+                actions.querySelector('.btn-confirm-edit')?.click();
+            }
+        });
+    }
+
+    function startInlineEditReply(replyElement, postId, commentId, replyId) {
+        const body = replyElement.querySelector('.reply-body');
+        if (!body) return;
+
+        const p = body.querySelector('p');
+        if (!p) return;
+
+        if (body.querySelector('.reply-edit-input')) {
+            const existing = body.querySelector('.reply-edit-input');
+            existing.focus();
+            existing.select();
+            return;
+        }
+
+        const originalText = p.textContent;
+
+        const input = document.createElement('textarea');
+        input.className = 'reply-edit-input';
+        input.value = originalText;
+
+        const optionsBtn = replyElement.querySelector('.btn-reply-options');
+        const originalOptionsText = optionsBtn ? optionsBtn.textContent : null;
+
+        const actions = document.createElement('div');
+        actions.className = 'reply-edit-actions';
+        actions.innerHTML = `
+            <button class="btn-confirm-edit-reply" type="button" title="Enviar">
+                <img
+                    class="publish-icon"
+                    alt=""
+                    src="${document.documentElement.classList.contains('dark-mode') ? '/imagens/enviar.tema.escuro.png' : '/imagens/enviar.tema.claro.png'}"
+                    data-src-light="/imagens/enviar.tema.claro.png"
+                    data-src-dark="/imagens/enviar.tema.escuro.png"
+                >
+            </button>
+        `;
+
+        const editRow = document.createElement('div');
+        editRow.className = 'inline-edit-row';
+        editRow.appendChild(input);
+        editRow.appendChild(actions);
+
+        p.style.display = 'none';
+        body.insertBefore(editRow, p);
+        input.focus();
+        input.select();
+
+        replyElement.dataset.editing = '1';
+        const cancelEditViaOutside = () => {
+            replyElement.dataset.editing = '';
+            p.style.display = '';
+            editRow.remove();
+            if (optionsBtn) {
+                optionsBtn.textContent = originalOptionsText || '⋯';
+                optionsBtn.style.display = '';
+            }
+            document.removeEventListener('mousedown', outsideCancelHandler, true);
+        };
+        const outsideCancelHandler = (ev) => {
+            if (replyElement.dataset.editing !== '1') return;
+            if (editRow.contains(ev.target)) return;
+            cancelEditViaOutside();
+        };
+        if (optionsBtn) {
+            optionsBtn.textContent = originalOptionsText || '⋯';
+            optionsBtn.style.display = 'none';
+        }
+        document.addEventListener('mousedown', outsideCancelHandler, true);
+        aplicarIconeEnviarTemaNoPerfil();
+
+        const autoGrow = () => {
+            input.style.height = 'auto';
+            input.style.height = `${input.scrollHeight}px`;
+        };
+        autoGrow();
+        input.addEventListener('input', autoGrow);
+
+        actions.querySelector('.btn-confirm-edit-reply')?.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            document.removeEventListener('mousedown', outsideCancelHandler, true);
+            const newContent = input.value.trim();
+            if (!newContent) {
+                alert('A resposta não pode estar vazia.');
+                return;
+            }
+            try {
+                const response = await fetch(`/api/posts/${postId}/comments/${commentId}/replies/${replyId}`, {
+                    method: 'PUT',
+                    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ content: newContent })
+                });
+                const data = await response.json();
+                if (!response.ok || !data.success) {
+                    throw new Error(data.message || 'Erro ao editar resposta');
+                }
+                p.textContent = newContent;
+                cancelEditViaOutside();
+            } catch (err) {
+                console.error('Erro ao editar resposta:', err);
+                alert(err.message || 'Erro ao editar resposta');
+                document.addEventListener('mousedown', outsideCancelHandler, true);
+            }
+        });
+
+        input.addEventListener('keydown', (ev) => {
+            if (ev.key === 'Enter' && !ev.shiftKey) {
+                ev.preventDefault();
+                actions.querySelector('.btn-confirm-edit-reply')?.click();
+            }
+        });
+    }
+
+    function showDeleteConfirmPopup(btn, onConfirm, clickEvent) {
+        const existing = document.querySelector('.delete-confirm-popup');
+        if (existing) existing.remove();
+
+        const popup = document.createElement('div');
+        popup.className = 'delete-confirm-popup';
+        popup.innerHTML = `
+            <div class="delete-confirm-content">
+                <button class="btn-confirm-yes" type="button">Sim</button>
+                <button class="btn-confirm-no" type="button">Não</button>
+            </div>
+        `;
+        document.body.appendChild(popup);
+
+        const rect = btn.getBoundingClientRect();
+        const viewportW = window.innerWidth;
+        const viewportH = window.innerHeight;
+        const padding = 8;
+
+        // Usa coordenadas da viewport (fixed) para sempre ficar acima do modal
+        let top = (clickEvent?.clientY ?? rect.top);
+        let left = (clickEvent?.clientX ?? rect.left);
+
+        popup.style.position = 'fixed';
+        popup.style.zIndex = '10050';
+
+        // Mede para evitar sair da tela
+        popup.style.top = '0px';
+        popup.style.left = '0px';
+        void popup.offsetHeight;
+        const popupRect = popup.getBoundingClientRect();
+
+        // Preferência: um pouco abaixo e à direita do clique
+        top = top + 6;
+        left = left + 6;
+
+        if (left + popupRect.width > viewportW - padding) {
+            left = Math.max(padding, viewportW - popupRect.width - padding);
+        }
+        if (top + popupRect.height > viewportH - padding) {
+            top = Math.max(padding, (clickEvent?.clientY ?? rect.top) - popupRect.height - 6);
+        }
+
+        popup.style.top = `${top}px`;
+        popup.style.left = `${left}px`;
+
+        const btnYes = popup.querySelector('.btn-confirm-yes');
+        const btnNo = popup.querySelector('.btn-confirm-no');
+
+        btnYes.addEventListener('click', () => {
+            popup.remove();
+            onConfirm();
+        });
+
+        btnNo.addEventListener('click', () => {
+            popup.remove();
+        });
+
+        setTimeout(() => {
+            document.addEventListener('click', function closePopup(e) {
+                if (!popup.contains(e.target) && e.target !== btn) {
+                    popup.remove();
+                    document.removeEventListener('click', closePopup);
+                }
+            });
+        }, 10);
+    }
+
+    async function handleDelegatedDeleteComment(deleteBtn, clickEvent) {
+        const commentId = deleteBtn?.dataset?.commentId;
+        const commentElement = commentId ? document.querySelector(`.comment[data-comment-id="${commentId}"]`) : null;
+        const postContainer = commentElement?.closest('[data-post-id]');
+        const postId = postContainer?.dataset?.postId;
+
+        if (!commentId || !postId || !commentElement) {
+            console.error('❌ Delete comentário: não foi possível resolver IDs.', { postId, commentId });
+            alert('Erro ao apagar comentário.');
+            return;
+        }
+
+        showDeleteConfirmPopup(deleteBtn, async () => {
+            try {
+                const response = await fetch(`/api/posts/${postId}/comments/${commentId}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                let data = null;
+                try {
+                    data = await response.json();
+                } catch (_) {
+                    data = null;
+                }
+
+                const ok = response.ok && (!data || data.success !== false);
+                if (!ok) throw new Error(data?.message || 'Erro ao deletar comentário.');
+
+                commentElement.remove();
+                const commentList = postContainer.querySelector('.comment-list');
+                const commentCount = commentList?.querySelectorAll('.comment').length || 0;
+
+                const btnComment = postContainer.querySelector('.btn-comment');
+                if (btnComment) btnComment.innerHTML = `<i class="fas fa-comment"></i> ${commentCount} Comentários`;
+
+                const thumbnail = document.querySelector(`.post-thumbnail[data-post-id="${postId}"]`);
+                if (thumbnail) {
+                    const commentCountEl = thumbnail.querySelector('.comment-count');
+                    if (commentCountEl) commentCountEl.textContent = commentCount;
+                }
+            } catch (error) {
+                console.error('Erro ao deletar comentário:', error);
+                alert(error.message || 'Erro ao deletar comentário.');
+            }
+        }, clickEvent);
+    }
+
+    async function handleDelegatedDeleteReply(deleteBtn, clickEvent) {
+        const commentId = deleteBtn?.dataset?.commentId;
+        const replyId = deleteBtn?.dataset?.replyId;
+        const replyElement = replyId ? document.querySelector(`.reply[data-reply-id="${replyId}"]`) : null;
+        const postContainer = replyElement?.closest('[data-post-id]');
+        const postId = postContainer?.dataset?.postId;
+
+        if (!commentId || !replyId || !postId || !replyElement) {
+            console.error('❌ Delete resposta: não foi possível resolver IDs.', { postId, commentId, replyId });
+            alert('Erro ao apagar resposta.');
+            return;
+        }
+
+        showDeleteConfirmPopup(deleteBtn, async () => {
+            try {
+                const response = await fetch(`/api/posts/${postId}/comments/${commentId}/replies/${replyId}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                let data = null;
+                try {
+                    data = await response.json();
+                } catch (_) {
+                    data = null;
+                }
+
+                const ok = response.ok && (!data || data.success !== false);
+                if (!ok) throw new Error(data?.message || 'Erro ao deletar resposta.');
+
+                replyElement.remove();
+
+                const commentEl = document.querySelector(`.comment[data-comment-id="${commentId}"]`);
+                const replyList = commentEl ? commentEl.querySelector('.reply-list') : null;
+                const btnToggleReplies = commentEl ? commentEl.querySelector('.btn-toggle-replies') : null;
+
+                if (replyList && btnToggleReplies) {
+                    const replyCount = replyList.querySelectorAll('.reply').length;
+                    if (replyCount <= 0) {
+                        btnToggleReplies.remove();
+                        replyList.classList.add('oculto');
+                    } else {
+                        btnToggleReplies.textContent = `Ver ${replyCount} Respostas`;
+                    }
+                }
+            } catch (error) {
+                console.error('Erro ao deletar resposta:', error);
+                alert(error.message || 'Erro ao deletar resposta.');
+            }
+        }, clickEvent);
+    }
+
+    // Event delegation: garante que a lixeira funcione mesmo com DOM dinâmico/menus
+    document.addEventListener('click', (ev) => {
+        const deleteCommentBtn = ev.target && ev.target.closest ? ev.target.closest('.btn-delete-comment') : null;
+        if (deleteCommentBtn) {
+            ev.stopPropagation();
+            handleDelegatedDeleteComment(deleteCommentBtn, ev);
+            return;
+        }
+
+        const deleteReplyBtn = ev.target && ev.target.closest ? ev.target.closest('.btn-delete-reply') : null;
+        if (deleteReplyBtn) {
+            ev.stopPropagation();
+            handleDelegatedDeleteReply(deleteReplyBtn, ev);
+        }
+    }, true);
     function renderMediaAvaliacao(media) { if (!mediaEstrelas) return; mediaEstrelas.innerHTML = ''; const estrelasCheias = Math.floor(media); const temMeiaEstrela = media % 1 !== 0; for (let i = 0; i < estrelasCheias; i++) mediaEstrelas.innerHTML += '<i class="fas fa-star"></i>'; if (temMeiaEstrela) mediaEstrelas.innerHTML += '<i class="fas fa-star-half-alt"></i>'; const estrelasVazias = 5 - estrelasCheias - (temMeiaEstrela ? 1 : 0); for (let i = 0; i < estrelasVazias; i++) mediaEstrelas.innerHTML += '<i class="far fa-star"></i>'; }
 
     // ----------------------------------------------------------------------
@@ -6667,14 +7177,31 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    function fecharBuscaHeader() {
+        if (!headerEl) return;
+        headerEl.classList.remove('search-open');
+    }
+
+    // Fecha a busca ao clicar fora do header (inclui barra inferior e conteúdo)
+    if (shouldInitSharedUI && headerEl) {
+        document.addEventListener('click', (e) => {
+            if (!headerEl.classList.contains('search-open')) return;
+            if (headerEl.contains(e.target)) return;
+            if (bottomNavSearchBtn && bottomNavSearchBtn.contains(e.target)) return;
+            fecharBuscaHeader();
+        }, true);
+    }
+
     if (shouldInitSharedUI && bottomNavHomeBtn) {
         bottomNavHomeBtn.addEventListener('click', () => {
+            fecharBuscaHeader();
             window.location.href = '/';
         });
     }
 
     if (shouldInitSharedUI && bottomNavQuickBtn) {
         bottomNavQuickBtn.addEventListener('click', () => {
+            fecharBuscaHeader();
             // Abrir menu lateral
             if (mobileSidebarToggle) {
                 mobileSidebarToggle.click();
@@ -6693,6 +7220,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (shouldInitSharedUI && bottomNavNotificationsBtn) {
         bottomNavNotificationsBtn.addEventListener('click', () => {
+            fecharBuscaHeader();
             // Abrir notificações
             const btnNotificacoes = document.getElementById('btn-notificacoes');
             if (btnNotificacoes) {
@@ -6703,6 +7231,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (shouldInitSharedUI && bottomNavSettingsBtn) {
         bottomNavSettingsBtn.addEventListener('click', () => {
+            fecharBuscaHeader();
             window.location.href = '/configuracoes-conta.html';
         });
     }

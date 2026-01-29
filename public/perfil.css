@@ -1352,11 +1352,59 @@ html.dark-mode #inputPostagemPerfilTexto:focus {
     user-select: none;
 }
 
-/* Aproxima as miniaturas/imagens das bordas (topo/baixo) */
-#secao-postagens .minhas-postagens,
-#secao-postagens .postagens-grid {
-    padding-top: 4px;
-    padding-bottom: 4px;
+/* Edição inline (comentário/resposta) no modal/perfil */
+.inline-edit-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+}
+
+.comment-edit-input,
+.reply-edit-input {
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 14px;
+    color: var(--text-primary);
+    width: 100%;
+    min-width: 200px;
+    max-width: 100%;
+    font-family: inherit;
+    resize: none;
+    overflow: hidden;
+    line-height: 1.35;
+}
+
+.comment-edit-actions,
+.reply-edit-actions {
+    display: inline-flex;
+    gap: 4px;
+    margin-left: 8px;
+    vertical-align: middle;
+}
+
+.btn-confirm-edit,
+.btn-confirm-edit-reply {
+    width: 25px;
+    height: 25px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+}
+
+.btn-confirm-edit .publish-icon,
+.btn-confirm-edit-reply .publish-icon {
+    width: 25px;
+    height: 25px;
+    object-fit: contain;
+    display: block;
+    transform: translateX(-7px);
 }
 
 .servicos-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
@@ -1692,6 +1740,21 @@ html.dark-mode #inputPostagemPerfilTexto:focus {
     overflow-wrap: anywhere;
 }
 
+/* Durante edição inline, não reservar espaço do ⋯ no layout */
+#modal-postagem-completa .comment[data-editing="1"] .comment-body,
+.minhas-postagens .post-comments .comment[data-editing="1"] .comment-body {
+    width: 100% !important;
+    max-width: 100% !important;
+    padding-right: 0 !important;
+}
+
+#modal-postagem-completa .reply[data-editing="1"] .reply-body,
+.minhas-postagens .post-comments .reply[data-editing="1"] .reply-body {
+    width: 100% !important;
+    max-width: 100% !important;
+    padding-right: 0 !important;
+}
+
 /* Botão de opções (⋯) */
 #modal-postagem-completa .btn-comment-options,
 #modal-postagem-completa .btn-reply-options,
@@ -1719,6 +1782,12 @@ html.dark-mode #inputPostagemPerfilTexto:focus {
 .minhas-postagens .btn-comment-options:hover,
 .minhas-postagens .btn-reply-options:hover {
     color: var(--text-primary);
+}
+
+/* Esconde o botão de opções (⋯) durante edição inline */
+.comment[data-editing="1"] .btn-comment-options,
+.reply[data-editing="1"] .btn-reply-options {
+    display: none !important;
 }
 
 /* Menu de opções: no perfil, abre SOBRE o conteúdo (não ao lado) */
@@ -1859,7 +1928,11 @@ html.dark-mode #inputPostagemPerfilTexto:focus {
 
 /* Perfil (Minhas postagens / modal de postagem): aumenta só o ícone de ENVIAR comentário */
 #modal-postagem-completa .btn-send-comment .send-comment-icon,
-.minhas-postagens .btn-send-comment .send-comment-icon {
+.minhas-postagens .btn-send-comment .send-comment-icon,
+#modal-postagem-completa .btn-send-comment .publish-icon,
+.minhas-postagens .btn-send-comment .publish-icon,
+#modal-postagem-completa .btn-send-reply .publish-icon,
+.minhas-postagens .btn-send-reply .publish-icon {
     width: 30px;
     height: 30px;
 }
@@ -1872,6 +1945,19 @@ html.dark-mode #inputPostagemPerfilTexto:focus {
     align-items: center;
     justify-content: center;
     padding: 0;
+}
+
+/* Área clicável e alinhamento do enviar resposta no perfil/modal */
+#modal-postagem-completa .btn-send-reply,
+.minhas-postagens .btn-send-reply {
+    width: 44px;
+    height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    background: transparent;
+    border: none;
 }
 
 /* Seção de Avaliação */

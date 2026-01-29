@@ -1,0 +1,18 @@
+[
+  {
+    "id": "colonia-padre-damiao-cantinho-do-ceu",
+    "center": { "lat": -21.0783, "lon": -42.9496 },
+    "radiusMeters": 350,
+    "address": {
+      "road": "Colônia Padre Damião",
+      "house_number": "100",
+      "neighbourhood": "Cantinho do Céu",
+      "suburb": "Cantinho do Céu",
+      "city": "Ubá",
+      "state": "Minas Gerais",
+      "postcode": "36505-290",
+      "country": "Brasil",
+      "country_code": "br"
+    }
+  }
+]

@@ -617,13 +617,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             });
             
-            const { latitude, longitude } = position.coords;
-            console.log('📍 Coordenadas obtidas:', latitude, longitude);
+            const { latitude, longitude, accuracy } = position.coords;
+            console.log('📍 Coordenadas obtidas:', latitude, longitude, '| accuracy(m):', accuracy);
             
             // Usa API de geocodificação reversa através do backend (proxy para evitar CORS)
             btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Buscando endereço...';
             
-            const response = await fetch(`/api/geocodificar-reversa?lat=${latitude}&lon=${longitude}`);
+            const response = await fetch(`/api/geocodificar-reversa?lat=${latitude}&lon=${longitude}&_=${Date.now()}`, {
+                cache: 'no-store'
+            });
             
             if (!response.ok) {
                 throw new Error('Erro ao buscar endereço.');
@@ -687,6 +689,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (/^\d{1,6}[A-Za-z]?(?:[-/]\d{1,6}[A-Za-z]?)?$/.test(v)) {
                     return v.toUpperCase();
                 }
+                // aceita prefixo "N" (ex: N88) usado em algumas localidades
+                if (/^[Nn]\d{1,6}[A-Za-z]?(?:[-/]\d{1,6}[A-Za-z]?)?$/.test(v)) {
+                    return v.toUpperCase();
+                }
                 // fallback: só dígitos até 6
                 if (/^\d{1,6}$/.test(v)) return v;
                 return '';
@@ -698,11 +704,24 @@ document.addEventListener('DOMContentLoaded', () => {
             // Alguns lugares vêm como "residential" (condomínio/vila) quando não há "road"
             let rua = address.road || address.street || address.pedestrian || address.path || address.highway || address.residential || '';
             let numero = normalizarNumeroEndereco(address.house_number || address.house || address.housenumber || '');
-            // Bairro pode vir de várias propriedades, mas NÃO usa hamlet como bairro (hamlet é muito genérico)
-            // Ainda assim, quando NÃO existe suburb/neighbourhood/etc, o "hamlet" costuma ser o que o WhatsApp mostra como bairro.
-            let bairro = address.suburb || address.neighbourhood || address.quarter || address.city_district || address.district || address.hamlet || '';
-            // Se não tem rua mas tem hamlet, o hamlet pode ser o nome da área, mas não é rua
-            const hamlet = address.hamlet || '';
+            // Bairro pode vir de várias propriedades; em alguns locais o Nominatim retorna:
+            // - suburb: região mais ampla (ex: "Jardim Esperança")
+            // - hamlet/neighbourhood: área mais específica (ex: "Colônia Padre Damião")
+            // Preferimos o mais específico quando existir.
+            const hamlet = (address.hamlet || '').trim();
+            const suburb = (address.suburb || '').trim();
+            let bairro =
+                (address.neighbourhood || '').trim() ||
+                (address.quarter || '').trim() ||
+                (address.city_district || '').trim() ||
+                (address.district || '').trim() ||
+                suburb ||
+                hamlet ||
+                '';
+
+            if (hamlet && suburb && hamlet.length >= 4) {
+                bairro = hamlet;
+            }
             let cidade = address.city || address.town || address.village || address.municipality || address.county || '';
             let estado = address.state_code || address.state || '';
             
@@ -738,16 +757,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Se não tem número e parece ser nome de bairro, não usa como rua
                     // Importante: \b\d{1,6}\b NÃO detecta "12A" (digit+letra é tudo \w),
                     // então usamos um padrão que cobre número com letra/complemento.
-                    const temNumeroNaPrimeiraParte = /\b\d{1,6}\s*[A-Za-z]?(?:[-/]\d{1,6}\s*[A-Za-z]?)?\b/.test(primeiraParte);
+                    const temNumeroNaPrimeiraParte = /\b(?:[Nn])?\d{1,6}\s*[A-Za-z]?(?:[-/]\d{1,6}\s*[A-Za-z]?)?\b/.test(primeiraParte);
                     
                     if (temNumeroNaPrimeiraParte) {
                         // Tenta padrões comuns: "Rua, 43" ou "Rua 43" ou "Rua - 43"
                         // Prioriza padrão com vírgula: "Dr. Joao Barletta, 43"
                         const patterns = [
-                            /^(.+?),\s*(\d{1,6}\s*[A-Za-z]?(?:[-/]\d{1,6}\s*[A-Za-z]?)?)(?:\s|$|,|-)/,        // "Rua, 43" / "Rua, 43A" / "Rua, 43-1"
-                            /^(.+?)\s+(\d{1,6}\s*[A-Za-z]?(?:[-/]\d{1,6}\s*[A-Za-z]?)?)(?:\s|$|,|-)/,         // "Rua 43" / "Rua 43A"
-                            /^(.+?)\s*-\s*(\d{1,6}\s*[A-Za-z]?(?:[-/]\d{1,6}\s*[A-Za-z]?)?)(?:\s|$|,)/,       // "Rua - 43"
-                            /^(.+?)\s+n[º°]?\s*(\d{1,6}\s*[A-Za-z]?(?:[-/]\d{1,6}\s*[A-Za-z]?)?)(?:\s|$|,)/i, // "Rua nº 43"
+                            /^(.+?),\s*((?:[Nn])?\d{1,6}\s*[A-Za-z]?(?:[-/]\d{1,6}\s*[A-Za-z]?)?)(?:\s|$|,|-)/,        // "Rua, 43" / "Rua, N88" / "Rua, 43A" / "Rua, 43-1"
+                            /^(.+?)\s+((?:[Nn])?\d{1,6}\s*[A-Za-z]?(?:[-/]\d{1,6}\s*[A-Za-z]?)?)(?:\s|$|,|-)/,         // "Rua 43" / "Rua N88" / "Rua 43A"
+                            /^(.+?)\s*-\s*((?:[Nn])?\d{1,6}\s*[A-Za-z]?(?:[-/]\d{1,6}\s*[A-Za-z]?)?)(?:\s|$|,)/,       // "Rua - 43"
+                            /^(.+?)\s+n[º°]?\s*((?:[Nn])?\d{1,6}\s*[A-Za-z]?(?:[-/]\d{1,6}\s*[A-Za-z]?)?)(?:\s|$|,)/i, // "Rua nº 43" / "Rua nº N88"
                         ];
                         
                         let matched = false;
@@ -768,13 +787,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         
                         // Se não encontrou padrão, tenta extrair número separadamente
                         if (!matched) {
-                            const numMatch = primeiraParte.match(/\b(\d{1,6}\s*[A-Za-z]?(?:[-/]\d{1,6}\s*[A-Za-z]?)?)\b/);
+                            const numMatch = primeiraParte.match(/\b((?:[Nn])?\d{1,6}\s*[A-Za-z]?(?:[-/]\d{1,6}\s*[A-Za-z]?)?)\b/);
                             if (numMatch && numMatch[1]) {
                                 const numEncontrado = normalizarNumeroEndereco(numMatch[1]);
                                 if (numEncontrado) {
                                     numero = numEncontrado;
                                     // Remove o número da rua (remove até o primeiro bloco numérico)
-                                    rua = primeiraParte.replace(/\b\d{1,6}\s*[A-Za-z]?(?:[-/]\d{1,6}\s*[A-Za-z]?)?\b.*$/, '').trim();
+                                    rua = primeiraParte.replace(/\b(?:[Nn])?\d{1,6}\s*[A-Za-z]?(?:[-/]\d{1,6}\s*[A-Za-z]?)?\b.*$/, '').trim();
                                     rua = rua.replace(/,\s*$/, '').trim(); // Remove vírgula final
                                     console.log('✅ Número extraído separadamente:', numero, 'Rua:', rua);
                                 }
@@ -824,10 +843,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         // Procura padrões de número: "123", "nº 123", "número 123", etc.
                         // MAS NÃO CEP (CEP geralmente tem 8 dígitos ou formato 00000-000)
                         const numPatterns = [
-                            /^(\d{1,6}\s*[A-Za-z]?(?:[-/]\d{1,6}\s*[A-Za-z]?)?)$/, // Apenas número (até 6 dígitos, com letra/complemento)
-                            /n[º°]?\s*(\d{1,6}\s*[A-Za-z]?(?:[-/]\d{1,6}\s*[A-Za-z]?)?)/i, // "nº 123A"
-                            /número\s*(\d{1,6}\s*[A-Za-z]?(?:[-/]\d{1,6}\s*[A-Za-z]?)?)/i, // "número 123"
-                            /\b(\d{1,6}\s*[A-Za-z]?(?:[-/]\d{1,6}\s*[A-Za-z]?)?)\b/         // bloco numérico com possíveis complementos
+                            /^((?:[Nn])?\d{1,6}\s*[A-Za-z]?(?:[-/]\d{1,6}\s*[A-Za-z]?)?)$/, // Apenas número / N88 (até 6 dígitos, com letra/complemento)
+                            /n[º°]?\s*((?:[Nn])?\d{1,6}\s*[A-Za-z]?(?:[-/]\d{1,6}\s*[A-Za-z]?)?)/i, // "nº 123A" / "nº N88"
+                            /número\s*((?:[Nn])?\d{1,6}\s*[A-Za-z]?(?:[-/]\d{1,6}\s*[A-Za-z]?)?)/i, // "número 123" / "número N88"
+                            /\b((?:[Nn])?\d{1,6}\s*[A-Za-z]?(?:[-/]\d{1,6}\s*[A-Za-z]?)?)\b/         // bloco numérico com possíveis complementos
                         ];
                         
                         for (const pattern of numPatterns) {
@@ -848,8 +867,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Se ainda não encontrou número, procura na primeira parte novamente (pode ter sido perdido)
                 if (!numero && partes.length > 0) {
                     const primeiraParte = partes[0];
-                    // Procura qualquer número de 1 a 6 dígitos que não seja CEP
-                    const numMatch = primeiraParte.match(/\b(\d{1,6}\s*[A-Za-z]?(?:[-/]\d{1,6}\s*[A-Za-z]?)?)\b/);
+                    // Procura qualquer número (inclui N88) que não seja CEP
+                    const numMatch = primeiraParte.match(/\b((?:[Nn])?\d{1,6}\s*[A-Za-z]?(?:[-/]\d{1,6}\s*[A-Za-z]?)?)\b/);
                     if (numMatch && numMatch[1]) {
                         const numEncontrado = normalizarNumeroEndereco(numMatch[1]);
                         if (numEncontrado) {
@@ -998,71 +1017,32 @@ document.addEventListener('DOMContentLoaded', () => {
             
             console.log('📍 Dados extraídos:', { numero, bairro, cidade, estado });
             
-            // Preenche endereço completo (endereço já contém a rua, então não precisa de campo separado)
+            // Preenche endereço completo
+            // Aqui o campo "Endereço" deve receber apenas a rua/logradouro.
+            // Número e bairro possuem campos próprios.
             if (campoEnderecoCompleto) {
-                // Monta endereço: endereço completo (que já contém a rua) + número + bairro
-                // Prioriza: endereço completo + número + bairro > endereço completo + número > endereço completo + bairro > endereço completo > bairro + número > bairro
-                let endereco = '';
-                const numeroValido = numero && numero !== 'S/N' ? numero : null;
-                
-                // Extrai rua do Nominatim para usar na montagem do endereço completo
-                const ruaExtraida = rua || '';
-                const temRuaValida = ruaExtraida && ruaExtraida.trim().length >= 3;
-                
-                // Usa endereço completo se disponível, senão monta a partir da rua extraída
-                const enderecoCompleto = (campoEnderecoCompleto.value || '').trim();
-                const enderecoBase = enderecoCompleto || ruaExtraida;
-                
-                if (temRuaValida) {
-                    // Quando temos rua, mantém o padrão do formulário: "Rua, 123 - Bairro"
-                    if (enderecoBase && numeroValido && bairro) {
-                        endereco = `${enderecoBase}, ${numeroValido} - ${bairro}`;
-                    } else if (enderecoBase && numeroValido) {
-                        endereco = `${enderecoBase}, ${numeroValido}`;
-                    } else if (enderecoBase && bairro) {
-                        endereco = `${enderecoBase} - ${bairro}`;
-                    } else if (enderecoBase) {
-                        endereco = enderecoBase;
-                    } else if (bairro && numeroValido) {
-                        endereco = `${bairro}, ${numeroValido}`;
-                    } else if (bairro) {
-                        endereco = bairro;
+                let endereco = (rua || '').trim();
+
+                if (!endereco && displayName) {
+                    const partes = displayName.split(',').map(p => p.trim()).filter(p => p);
+                    if (partes.length > 0) {
+                        // Remove um possível número da primeira parte, para manter apenas o logradouro.
+                        endereco = partes[0]
+                            .replace(/\b\d{1,6}\s*[A-Za-z]?(?:[-/]\d{1,6}\s*[A-Za-z]?)?\b/g, '')
+                            .replace(/\d{5}-?\d{3}/g, '')
+                            .replace(/\bS\/?N\b/gi, '')
+                            .replace(/\s+/g, ' ')
+                            .replace(/,\s*$/, '')
+                            .trim();
                     }
-                } else {
-                    // Quando NÃO temos rua/número (caso comum do Nominatim em alguns locais),
-                    // NÃO colocamos cidade/estado no campo de endereço (cidade/UF já têm campos próprios).
-                    // Aqui a melhor aproximação é preencher com a "área" (bairro/hamlet), e deixar o usuário ajustar se quiser.
-                    endereco = (bairro || enderecoBase || '').trim();
                 }
-                
-                // Segurança: se por algum motivo cidade/UF vazarem para o campo, remove (esses dados têm campos próprios)
-                if (endereco && cidade) {
-                    endereco = endereco.replace(new RegExp(cidade, 'gi'), '').trim();
-                }
-                if (endereco && estado) {
-                    endereco = endereco.replace(new RegExp(estado, 'gi'), '').trim();
-                }
-                // Remove CEP se estiver presente
-                endereco = endereco.replace(/\d{5}-?\d{3}/g, '').trim();
-                // Remove "S/N" se estiver presente
-                endereco = endereco.replace(/\bS\/N\b/gi, '').trim();
-                // Mantém o "-" (no formato "Rua, 123 - Bairro") para bater com o WhatsApp/placeholder
-                // Remove termos geográficos que o Nominatim costuma incluir no display_name
-                endereco = endereco
-                    .replace(/Região\s+Geográfica[^,]*/gi, '')
-                    .replace(/Região\s+Sudeste/gi, '')
-                    .replace(/\bBrasil\b/gi, '')
-                    .trim();
-                // Remove vírgulas duplas ou espaços extras
-                endereco = endereco.replace(/,\s*,/g, ',').replace(/\s+/g, ' ').trim();
-                
+
                 if (endereco) {
                     campoEnderecoCompleto.value = endereco;
-                    console.log('✅ Endereço preenchido (endereço completo, número, bairro):', campoEnderecoCompleto.value);
+                    console.log('✅ Endereço preenchido (logradouro):', campoEnderecoCompleto.value);
                 } else {
-                    // Limpa o campo se não conseguiu montar endereço válido
                     campoEnderecoCompleto.value = '';
-                    console.warn('⚠️ Não foi possível montar endereço válido, campo deixado vazio');
+                    console.warn('⚠️ Não foi possível preencher o logradouro, campo deixado vazio');
                 }
             } else {
                 console.error('❌ Campo endereço não encontrado!');
@@ -1299,8 +1279,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (dataAgendadaIso) {
                     formData.append('dataAgendada', dataAgendadaIso);
                 }
-                // Monta endereço formatado: endereço completo ou endereço + número + bairro
-                const enderecoFormatado = enderecoCompleto || (numero && bairro ? `${enderecoCompleto || ''}, ${numero} - ${bairro}`.replace(/^,\s*/, '') : enderecoCompleto);
+                // Monta endereço formatado para exibição: logradouro + número + bairro
+                // Nota: o campo "pedido-endereco-completo" armazena apenas o logradouro.
+                const partsEndereco = [];
+                if (enderecoCompleto && String(enderecoCompleto).trim()) {
+                    partsEndereco.push(String(enderecoCompleto).trim());
+                }
+                if (numero && String(numero).trim()) {
+                    const num = String(numero).trim();
+                    if (partsEndereco.length > 0) {
+                        partsEndereco[0] = `${partsEndereco[0]}, ${num}`;
+                    } else {
+                        partsEndereco.push(num);
+                    }
+                }
+                if (bairro && String(bairro).trim()) {
+                    partsEndereco.push(String(bairro).trim());
+                }
+                const enderecoFormatado = partsEndereco.join(' - ');
                 formData.append('localizacao', JSON.stringify({
                     endereco: enderecoFormatado,
                     enderecoCompleto: enderecoCompleto,
