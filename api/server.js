@@ -107,8 +107,9 @@ function applyLocationOverrideIfNeeded(lat, lon, normalized) {
     try {
         const n = normalized || {};
         const addr = (n.address || {});
-        const hasArea = !!((addr.neighbourhood || '').trim() || (addr.suburb || '').trim());
-        if (hasArea) return n;
+
+        // Se cair dentro do raio de um override, aplica SEMPRE (mesmo que o provedor traga um bairro incorreto).
+        // Para desativar em debug: use ?noOverride=1
 
         const latNum = Number(lat);
         const lonNum = Number(lon);
@@ -133,6 +134,7 @@ function applyLocationOverrideIfNeeded(lat, lon, normalized) {
                         distanceMeters: Math.round(dist)
                     }
                 };
+
                 const a = next.address || {};
                 const displayNameParts = [
                     a.road,
@@ -1300,7 +1302,8 @@ app.get('/api/geocodificar-reversa', async (req, res) => {
                 }
             };
 
-            const withOverride = applyLocationOverrideIfNeeded(lat, lon, normalized);
+            const allowOverride = String(req.query.noOverride || '').trim() !== '1';
+            const withOverride = allowOverride ? applyLocationOverrideIfNeeded(lat, lon, normalized) : normalized;
 
             return res.status(200).json({
                 success: true,
@@ -1331,7 +1334,8 @@ app.get('/api/geocodificar-reversa', async (req, res) => {
             ...data,
             address: data.address || {}
         };
-        const withOverride = applyLocationOverrideIfNeeded(lat, lon, nominatimNormalized);
+        const allowOverride = String(req.query.noOverride || '').trim() !== '1';
+        const withOverride = allowOverride ? applyLocationOverrideIfNeeded(lat, lon, nominatimNormalized) : nominatimNormalized;
         
         res.status(200).json({
             success: true,
