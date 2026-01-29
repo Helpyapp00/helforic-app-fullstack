@@ -14,5 +14,37 @@
       "country": "Brasil",
       "country_code": "br"
     }
+  },
+  {
+    "id": "ervalia-jose-simao-guimaraes-60",
+    "center": { "lat": -20.8400471751828, "lon": -42.6643336653853 },
+    "radiusMeters": 250,
+    "address": {
+      "road": "Rua José Simão Guimarães",
+      "house_number": "60",
+      "neighbourhood": "Centro",
+      "suburb": "Centro",
+      "city": "Ervália",
+      "state": "Minas Gerais",
+      "postcode": "36555-000",
+      "country": "Brasil",
+      "country_code": "br"
+    }
+  },
+  {
+    "id": "uba-dr-joao-barletta-43",
+    "center": { "lat": -21.16111304142739, "lon": -42.99204788216938 },
+    "radiusMeters": 180,
+    "address": {
+      "road": "Dr. João Barletta",
+      "house_number": "43",
+      "neighbourhood": "Centro",
+      "suburb": "Centro",
+      "city": "Ubá",
+      "state": "Minas Gerais",
+      "postcode": "36508-899",
+      "country": "Brasil",
+      "country_code": "br"
+    }
   }
 ]
