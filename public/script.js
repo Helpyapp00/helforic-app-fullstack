@@ -143,6 +143,50 @@ document.addEventListener('DOMContentLoaded', () => {
     const bottomNavSettingsBtn = document.getElementById('bottom-nav-settings');
     let abrirBuscaComHistorico = null;
 
+    function fecharModaisPrecisoAgoraEPedidoUrgente() {
+        const m1 = document.getElementById('modal-preciso-agora');
+        const m2 = document.getElementById('modal-pedido-urgente');
+        let mudou = false;
+        if (m1 && !m1.classList.contains('hidden')) {
+            m1.classList.add('hidden');
+            mudou = true;
+        }
+        if (m2 && !m2.classList.contains('hidden')) {
+            m2.classList.add('hidden');
+            mudou = true;
+        }
+        if (mudou) {
+            try { window.syncModalScrollLock?.(); } catch {}
+        }
+        return mudou;
+    }
+
+    // Se algum desses dois modais estiver aberto e o usuário clicar no header
+    // ou na barra inferior, fecha antes de abrir qualquer outra coisa.
+    document.addEventListener('click', (e) => {
+        const target = e.target;
+        if (!target) return;
+
+        const modalPrecisoAgoraOpen = (() => {
+            const el = document.getElementById('modal-preciso-agora');
+            return !!(el && !el.classList.contains('hidden'));
+        })();
+        const modalPedidoUrgenteOpen = (() => {
+            const el = document.getElementById('modal-pedido-urgente');
+            return !!(el && !el.classList.contains('hidden'));
+        })();
+        if (!modalPrecisoAgoraOpen && !modalPedidoUrgenteOpen) return;
+
+        const clickedHeader = !!target.closest('header');
+        const clickedBottomNav = !!target.closest('#mobile-bottom-nav, .mobile-bottom-nav');
+        if (!clickedHeader && !clickedBottomNav) return;
+
+        // Não interfere se o clique foi em botão de fechar modal (será tratado na lógica existente)
+        if (target.closest('.btn-close-modal')) return;
+
+        fecharModaisPrecisoAgoraEPedidoUrgente();
+    }, true);
+
     function fecharBuscaUI() {
         // Fecha UI de busca (campo + resultados + backdrop)
         headerEl && headerEl.classList.remove('search-open');
@@ -361,6 +405,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (bottomNavHomeBtn) {
         bottomNavHomeBtn.addEventListener('click', () => {
+            fecharModaisPrecisoAgoraEPedidoUrgente();
             fecharBuscaUI();
             const currentPath = window.location.pathname;
             if (currentPath === '/' || currentPath === '/index.html') {
@@ -373,6 +418,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (bottomNavQuickBtn) {
         bottomNavQuickBtn.addEventListener('click', () => {
+            fecharModaisPrecisoAgoraEPedidoUrgente();
             fecharBuscaUI();
             // Reaproveita a lógica existente do menu lateral (categorias/ações rápidas/equipe)
             if (mobileSidebarToggle) {
@@ -383,6 +429,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (bottomNavSearchBtn) {
         bottomNavSearchBtn.addEventListener('click', () => {
+            fecharModaisPrecisoAgoraEPedidoUrgente();
             if (!headerEl) return;
             mostrarHeaderNoMobile();
 
@@ -398,6 +445,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (bottomNavNotificationsBtn) {
         bottomNavNotificationsBtn.addEventListener('click', () => {
+            fecharModaisPrecisoAgoraEPedidoUrgente();
             fecharBuscaUI();
             // Garante que os cabeçalhos não "sumam" ao abrir notificações
             mostrarHeaderNoMobile();
@@ -414,6 +462,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (bottomNavSettingsBtn) {
         bottomNavSettingsBtn.addEventListener('click', () => {
+            fecharModaisPrecisoAgoraEPedidoUrgente();
             fecharBuscaUI();
             window.location.href = '/configuracoes-conta.html';
         });
@@ -434,6 +483,22 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             if (openPanel === 'notifications' && bottomNavNotificationsBtn) {
                 bottomNavNotificationsBtn.click();
+            }
+
+            if (openPanel === 'preciso-agora') {
+                const modal = document.getElementById('modal-preciso-agora');
+                if (modal) {
+                    modal.classList.remove('hidden');
+                    try { window.syncModalScrollLock?.(); } catch {}
+                }
+            }
+
+            if (openPanel === 'pedidos-urgentes') {
+                const modal = document.getElementById('modal-pedidos-urgentes-profissional');
+                if (modal) {
+                    modal.classList.remove('hidden');
+                    try { window.syncModalScrollLock?.(); } catch {}
+                }
             }
         }
 

@@ -447,6 +447,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const mobileSidebarClose = document.getElementById('mobile-sidebar-close');
     let mobileSidebarBackdrop = document.getElementById('mobile-sidebar-backdrop');
 
+    // Ações rápidas do menu lateral
+    const btnPrecisoAgora = document.getElementById('btn-preciso-agora');
+    const btnVerPedidosUrgentes = document.getElementById('btn-ver-pedidos-urgentes');
+
     function garantirBackdropSidebar() {
         if (mobileSidebarBackdrop) return mobileSidebarBackdrop;
         mobileSidebarBackdrop = document.createElement('div');
@@ -481,6 +485,19 @@ document.addEventListener('DOMContentLoaded', () => {
             const bd = garantirBackdropSidebar();
             bd.classList.remove('visible');
             document.body.style.overflow = '';
+        });
+    }
+
+    // Em Configurações não existem os modais do feed no DOM.
+    // Então, ao clicar nas ações rápidas, navegamos para o feed e pedimos para ele abrir o modal.
+    if (btnPrecisoAgora) {
+        btnPrecisoAgora.addEventListener('click', () => {
+            irParaFeedComAcao('preciso-agora');
+        });
+    }
+    if (btnVerPedidosUrgentes) {
+        btnVerPedidosUrgentes.addEventListener('click', () => {
+            irParaFeedComAcao('pedidos-urgentes');
         });
     }
 
