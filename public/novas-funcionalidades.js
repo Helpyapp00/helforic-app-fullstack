@@ -719,7 +719,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 hamlet ||
                 '';
 
-            if (hamlet && suburb && hamlet.length >= 4) {
+            if (!bairro && hamlet && hamlet.length >= 4) {
                 bairro = hamlet;
             }
             let cidade = address.city || address.town || address.village || address.municipality || address.county || '';
