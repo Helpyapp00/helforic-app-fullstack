@@ -927,35 +927,47 @@ function httpGetJson(urlStr, options = {}) {
         try {
             const urlObj = new URL(urlStr);
             const lib = urlObj.protocol === 'http:' ? http : https;
-            const req = lib.request(
-                {
-                    protocol: urlObj.protocol,
-                    hostname: urlObj.hostname,
-                    port: urlObj.port,
-                    path: urlObj.pathname + (urlObj.search || ''),
-                    method: 'GET',
-                    headers: options.headers || {}
-                },
-                (res) => {
-                    let raw = '';
-                    res.setEncoding('utf8');
-                    res.on('data', (chunk) => {
-                        raw += chunk;
-                    });
-                    res.on('end', () => {
-                        const status = res.statusCode || 0;
-                        if (status < 200 || status >= 300) {
-                            return reject(new Error(`HTTP ${status}`));
-                        }
-                        try {
-                            resolve(JSON.parse(raw || '{}'));
-                        } catch (e) {
-                            reject(new Error('Invalid JSON'));
-                        }
-                    });
-                }
-            );
+            const headers = {
+                Accept: 'application/json',
+                'User-Agent': 'Helpy API Client',
+                ...(options.headers || {})
+            };
+
+            const reqOptions = {
+                protocol: urlObj.protocol,
+                hostname: urlObj.hostname,
+                path: urlObj.pathname + (urlObj.search || ''),
+                method: 'GET',
+                headers
+            };
+            // IMPORTANTE: não enviar port quando estiver vazio (''), isso pode causar erro no Node.
+            if (urlObj.port) {
+                reqOptions.port = urlObj.port;
+            }
+
+            const req = lib.request(reqOptions, (res) => {
+                let raw = '';
+                res.setEncoding('utf8');
+                res.on('data', (chunk) => {
+                    raw += chunk;
+                });
+                res.on('end', () => {
+                    const status = res.statusCode || 0;
+                    if (status < 200 || status >= 300) {
+                        const snippet = (raw || '').toString().slice(0, 500);
+                        return reject(new Error(`HTTP ${status}: ${snippet}`));
+                    }
+                    try {
+                        resolve(JSON.parse(raw || '{}'));
+                    } catch (e) {
+                        reject(new Error('Invalid JSON'));
+                    }
+                });
+            });
             req.on('error', reject);
+            req.setTimeout(Number(options.timeoutMs) || 12000, () => {
+                try { req.destroy(new Error('Request timeout')); } catch {}
+            });
             req.end();
         } catch (e) {
             reject(e);
