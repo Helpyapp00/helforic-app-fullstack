@@ -1255,116 +1255,123 @@ app.get('/api/geocodificar-reversa', async (req, res) => {
             });
         }
         
-        const hereApiKey = (process.env.HERE_API_KEY || '').trim();
+        let hereApiKey = (process.env.HERE_API_KEY || '').trim();
+        if (!hereApiKey || /^undefined$/i.test(hereApiKey) || /^null$/i.test(hereApiKey)) {
+            hereApiKey = '';
+        }
 
         // Preferência: HERE (melhor cobertura para rua/número/bairro)
         if (hereApiKey) {
-            const hereUrl = `https://revgeocode.search.hereapi.com/v1/revgeocode?at=${lat},${lon}&lang=pt-BR&limit=10&apikey=${encodeURIComponent(hereApiKey)}`;
-            const hereData = await httpGetJson(hereUrl);
+            try {
+                const hereUrl = `https://revgeocode.search.hereapi.com/v1/revgeocode?at=${encodeURIComponent(lat)},${encodeURIComponent(lon)}&lang=pt-BR&limit=10&apiKey=${encodeURIComponent(hereApiKey)}`;
+                const hereJson = await httpGetJson(hereUrl, { headers: { 'Accept': 'application/json' } });
+                if (!hereJson) {
+                    throw new Error(`Erro ao buscar endereço (HERE): ${hereJson}`);
+                }
 
-            if (!hereData) {
-                throw new Error(`Erro ao buscar endereço (HERE): ${hereData}`);
-            }
+                const items = (hereJson && Array.isArray(hereJson.items)) ? hereJson.items : [];
 
-            const items = (hereData && Array.isArray(hereData.items)) ? hereData.items : [];
+                // Debug opcional: retorna todos os candidatos que a HERE forneceu
+                // (útil para escolher o melhor item de área/bairro quando não há número)
+                if (String(req.query.debug || '').trim() === '1') {
+                    return res.status(200).json({
+                        success: true,
+                        data: {
+                            lat: String(lat),
+                            lon: String(lon)
+                        },
+                        debug: {
+                            provider: 'here',
+                            items
+                        }
+                    });
+                }
 
-            // Debug opcional: retorna todos os candidatos que a HERE forneceu
-            // (útil para escolher o melhor item de área/bairro quando não há número)
-            if (String(req.query.debug || '').trim() === '1') {
+                const pickBestHereItem = (arr) => {
+                    if (!Array.isArray(arr) || arr.length === 0) return null;
+                    let best = null;
+                    let bestScore = -1;
+                    for (const it of arr) {
+                        const a = it && it.address ? it.address : null;
+                        if (!a) continue;
+                        const hasStreet = !!(a.street || a.road);
+                        const hasHouse = !!a.houseNumber;
+                        const hasArea = !!(a.neighborhood || a.subdistrict || a.district || a.cityDistrict);
+                        const hasPostal = !!a.postalCode;
+                        let score = 0;
+                        if (hasHouse) score += 100;
+                        if (hasStreet) score += 50;
+                        if (hasArea) score += 30;
+                        if (hasPostal) score += 10;
+                        if (it.resultType === 'houseNumber') score += 25;
+                        if (it.resultType === 'street') score += 5;
+                        if (score > bestScore) {
+                            bestScore = score;
+                            best = it;
+                        }
+                    }
+                    return best || arr[0] || null;
+                };
+
+                const item = pickBestHereItem(items);
+
+                if (!item || !item.address) {
+                    throw new Error('Resposta da HERE sem itens de endereço.');
+                }
+
+                const a = item.address;
+                const road = a.street || a.road || '';
+                const houseNumber = a.houseNumber || '';
+                const neighbourhood = a.neighborhood || a.subdistrict || a.district || '';
+                const suburb = a.district || a.subdistrict || a.cityDistrict || a.neighborhood || '';
+                const city = a.city || a.municipality || a.county || '';
+                const state = a.state || a.stateCode || '';
+                const postcode = a.postalCode || '';
+                const rawCountryCode = (a.countryCode || '').toString().trim();
+                const countryCode = rawCountryCode ? rawCountryCode.slice(0, 2).toLowerCase() : '';
+
+                const displayNameParts = [
+                    road,
+                    houseNumber,
+                    neighbourhood || suburb,
+                    city,
+                    state,
+                    postcode,
+                    (a.countryName || a.country || '')
+                ].map(p => (p || '').toString().trim()).filter(Boolean);
+
+                const normalized = {
+                    lat: String(item.position?.lat ?? lat),
+                    lon: String(item.position?.lng ?? lon),
+                    display_name: displayNameParts.join(', '),
+                    address: {
+                        road: road,
+                        house_number: houseNumber,
+                        neighbourhood: neighbourhood,
+                        suburb: suburb,
+                        city: city,
+                        state: state,
+                        postcode: postcode,
+                        country: a.countryName || a.country || '',
+                        country_code: countryCode
+                    },
+                    here: {
+                        id: item.id,
+                        title: item.title
+                    }
+                };
+
+                const allowOverride = String(req.query.noOverride || '').trim() !== '1';
+                const withOverride = allowOverride ? applyLocationOverrideIfNeeded(lat, lon, normalized) : normalized;
+
                 return res.status(200).json({
                     success: true,
-                    data: {
-                        lat: String(lat),
-                        lon: String(lon)
-                    },
-                    debug: {
-                        provider: 'here',
-                        items
-                    }
+                    data: withOverride
                 });
+            } catch (hereError) {
+                console.error('Erro na geocodificação reversa (HERE):', hereError);
+                // Continua para fallback Nominatim
             }
-
-            const pickBestHereItem = (arr) => {
-                if (!Array.isArray(arr) || arr.length === 0) return null;
-                let best = null;
-                let bestScore = -1;
-                for (const it of arr) {
-                    const a = it && it.address ? it.address : null;
-                    if (!a) continue;
-                    const hasStreet = !!(a.street || a.road);
-                    const hasHouse = !!a.houseNumber;
-                    const hasArea = !!(a.neighborhood || a.subdistrict || a.district || a.cityDistrict);
-                    const hasPostal = !!a.postalCode;
-                    let score = 0;
-                    if (hasHouse) score += 100;
-                    if (hasStreet) score += 50;
-                    if (hasArea) score += 30;
-                    if (hasPostal) score += 10;
-                    if (it.resultType === 'houseNumber') score += 25;
-                    if (it.resultType === 'street') score += 5;
-                    if (score > bestScore) {
-                        bestScore = score;
-                        best = it;
-                    }
-                }
-                return best || arr[0] || null;
-            };
-
-            const item = pickBestHereItem(items);
-
-            if (!item || !item.address) {
-                throw new Error('Resposta da HERE sem itens de endereço.');
-            }
-
-            const a = item.address;
-            const road = a.street || a.road || '';
-            const houseNumber = a.houseNumber || '';
-            const neighbourhood = a.neighborhood || a.subdistrict || a.district || '';
-            const suburb = a.district || a.subdistrict || a.cityDistrict || a.neighborhood || '';
-            const city = a.city || a.municipality || a.county || '';
-            const state = a.state || a.stateCode || '';
-            const postcode = a.postalCode || '';
-            const rawCountryCode = (a.countryCode || '').toString().trim();
-            const countryCode = rawCountryCode ? rawCountryCode.slice(0, 2).toLowerCase() : '';
-
-            const displayNameParts = [
-                road,
-                houseNumber,
-                neighbourhood || suburb,
-                city,
-                state,
-                postcode,
-                (a.countryName || a.country || '')
-            ].map(p => (p || '').toString().trim()).filter(Boolean);
-
-            const normalized = {
-                lat: String(item.position?.lat ?? lat),
-                lon: String(item.position?.lng ?? lon),
-                display_name: displayNameParts.join(', '),
-                address: {
-                    road: road,
-                    house_number: houseNumber,
-                    neighbourhood: neighbourhood,
-                    suburb: suburb,
-                    city: city,
-                    state: state,
-                    postcode: postcode,
-                    country: a.countryName || a.country || '',
-                    country_code: countryCode
-                },
-                here: {
-                    id: item.id,
-                    title: item.title
-                }
-            };
-
-            const allowOverride = String(req.query.noOverride || '').trim() !== '1';
-            const withOverride = allowOverride ? applyLocationOverrideIfNeeded(lat, lon, normalized) : normalized;
-
-            return res.status(200).json({
-                success: true,
-                data: withOverride
-            });
         }
 
         // Fallback: Nominatim
