@@ -105,7 +105,7 @@ function haversineDistanceMeters(lat1, lon1, lat2, lon2) {
     return R * c;
 }
 
-function applyLocationOverrideIfNeeded(lat, lon, normalized) {
+function applyLocationOverrideIfNeeded(lat, lon, normalized, accuracyMeters) {
     try {
         const n = normalized || {};
         const addr = (n.address || {});
@@ -116,6 +116,13 @@ function applyLocationOverrideIfNeeded(lat, lon, normalized) {
         const latNum = Number(lat);
         const lonNum = Number(lon);
         if (!Number.isFinite(latNum) || !Number.isFinite(lonNum)) return n;
+
+        // Se a localização estiver imprecisa, não aplica override por raio.
+        // Isso evita que um GPS/Wi-Fi "solto" caia na área de um override incorreto.
+        const accNum = Number(accuracyMeters);
+        if (Number.isFinite(accNum) && accNum > 80) {
+            return n;
+        }
 
         for (const rule of (locationOverrides || [])) {
             if (!rule || !rule.center || !rule.address) continue;
@@ -1240,7 +1247,7 @@ app.post('/api/verificar-email/solicitar', async (req, res) => {
 app.get('/api/geocodificar-reversa', async (req, res) => {
 
     try {
-        const { lat, lon } = req.query;
+        const { lat, lon, accuracy } = req.query;
         // Evita cache no browser/proxy para que o frontend não receba 304/ETag
         res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
         res.set('Pragma', 'no-cache');
@@ -1251,7 +1258,7 @@ app.get('/api/geocodificar-reversa', async (req, res) => {
         if (!lat || !lon) {
             return res.status(400).json({
                 success: false,
-                message: 'Latitude e longitude são obrigatórios.'
+                message: 'Latitude e longitude são obrigatórias.'
             });
         }
         
@@ -1362,7 +1369,7 @@ app.get('/api/geocodificar-reversa', async (req, res) => {
                 };
 
                 const allowOverride = String(req.query.noOverride || '').trim() !== '1';
-                const withOverride = allowOverride ? applyLocationOverrideIfNeeded(lat, lon, normalized) : normalized;
+                const withOverride = allowOverride ? applyLocationOverrideIfNeeded(lat, lon, normalized, accuracy) : normalized;
 
                 return res.status(200).json({
                     success: true,
@@ -1396,7 +1403,7 @@ app.get('/api/geocodificar-reversa', async (req, res) => {
             address: data.address || {}
         };
         const allowOverride = String(req.query.noOverride || '').trim() !== '1';
-        const withOverride = allowOverride ? applyLocationOverrideIfNeeded(lat, lon, nominatimNormalized) : nominatimNormalized;
+        const withOverride = allowOverride ? applyLocationOverrideIfNeeded(lat, lon, nominatimNormalized, accuracy) : nominatimNormalized;
         
         res.status(200).json({
             success: true,

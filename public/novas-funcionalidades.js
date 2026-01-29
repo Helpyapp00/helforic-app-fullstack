@@ -623,7 +623,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // Usa API de geocodificação reversa através do backend (proxy para evitar CORS)
             btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Buscando endereço...';
             
-            const response = await fetch(`/api/geocodificar-reversa?lat=${latitude}&lon=${longitude}&_=${Date.now()}`, {
+            const response = await fetch(`/api/geocodificar-reversa?lat=${latitude}&lon=${longitude}&accuracy=${encodeURIComponent(accuracy)}&_=${Date.now()}`, {
                 cache: 'no-store'
             });
             
