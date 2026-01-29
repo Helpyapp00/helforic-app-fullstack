@@ -41,6 +41,8 @@ const multer = require('multer');
 const nodemailer = require('nodemailer');
 const { S3Client, PutObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
 const { URL } = require('url');
+const http = require('http');
+const https = require('https');
 
 // Função helper para carregar sharp apenas quando necessário (lazy loading)
 // Cache para evitar múltiplas tentativas de carregamento
@@ -197,6 +199,7 @@ async function initializeServices() {
         }
     }
 }
+
 // ----------------------------------------------------------------------
 // DEFINIÇÃO DOS SCHEMAS
 // ----------------------------------------------------------------------
@@ -918,6 +921,48 @@ function authMiddleware(req, res, next) {
         return res.status(401).json({ message: 'Token inválido.' });
     }
 }
+
+function httpGetJson(urlStr, options = {}) {
+    return new Promise((resolve, reject) => {
+        try {
+            const urlObj = new URL(urlStr);
+            const lib = urlObj.protocol === 'http:' ? http : https;
+            const req = lib.request(
+                {
+                    protocol: urlObj.protocol,
+                    hostname: urlObj.hostname,
+                    port: urlObj.port,
+                    path: urlObj.pathname + (urlObj.search || ''),
+                    method: 'GET',
+                    headers: options.headers || {}
+                },
+                (res) => {
+                    let raw = '';
+                    res.setEncoding('utf8');
+                    res.on('data', (chunk) => {
+                        raw += chunk;
+                    });
+                    res.on('end', () => {
+                        const status = res.statusCode || 0;
+                        if (status < 200 || status >= 300) {
+                            return reject(new Error(`HTTP ${status}`));
+                        }
+                        try {
+                            resolve(JSON.parse(raw || '{}'));
+                        } catch (e) {
+                            reject(new Error('Invalid JSON'));
+                        }
+                    });
+                }
+            );
+            req.on('error', reject);
+            req.end();
+        } catch (e) {
+            reject(e);
+        }
+    });
+}
+
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage, limits: { fileSize: 10 * 1024 * 1024 }, fileFilter: (req, file, cb) => { const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'video/mp4', 'video/quicktime', 'video/webm']; if (allowedTypes.includes(file.mimetype)) { cb(null, true); } else { cb(new Error('Tipo de arquivo não suportado.'), false); } } });
 
@@ -1203,13 +1248,12 @@ app.get('/api/geocodificar-reversa', async (req, res) => {
         // Preferência: HERE (melhor cobertura para rua/número/bairro)
         if (hereApiKey) {
             const hereUrl = `https://revgeocode.search.hereapi.com/v1/revgeocode?at=${lat},${lon}&lang=pt-BR&limit=10&apikey=${encodeURIComponent(hereApiKey)}`;
-            const response = await fetch(hereUrl);
+            const hereData = await httpGetJson(hereUrl);
 
-            if (!response.ok) {
-                throw new Error(`Erro ao buscar endereço (HERE): ${response.status}`);
+            if (!hereData) {
+                throw new Error(`Erro ao buscar endereço (HERE): ${hereData}`);
             }
 
-            const hereData = await response.json();
             const items = (hereData && Array.isArray(hereData.items)) ? hereData.items : [];
 
             // Debug opcional: retorna todos os candidatos que a HERE forneceu
@@ -1317,17 +1361,15 @@ app.get('/api/geocodificar-reversa', async (req, res) => {
 
         const geocodeUrl = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&addressdetails=1&accept-language=pt-BR&zoom=18`;
 
-        const response = await fetch(geocodeUrl, {
+        const data = await httpGetJson(geocodeUrl, {
             headers: {
                 'User-Agent': 'HelpyApp/1.0' // Nominatim requer User-Agent
             }
         });
 
-        if (!response.ok) {
-            throw new Error(`Erro ao buscar endereço (Nominatim): ${response.status}`);
+        if (!data) {
+            throw new Error(`Erro ao buscar endereço (Nominatim): ${data}`);
         }
-
-        const data = await response.json();
 
         // Se o Nominatim também não retornar bairro/localidade, aplica override por coordenada
         const nominatimNormalized = {
