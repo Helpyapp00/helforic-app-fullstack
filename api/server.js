@@ -44,6 +44,30 @@ const { URL } = require('url');
 const http = require('http');
 const https = require('https');
 
+const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 10 * 1024 * 1024 }
+});
+
+function authMiddleware(req, res, next) {
+    try {
+        const authHeader = req.headers.authorization || '';
+        const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+        if (!token) {
+            return res.status(401).json({ success: false, message: 'Token não fornecido.' });
+        }
+        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret');
+        req.user = decoded?.user ? decoded.user : decoded;
+        if (!req.user?.id && req.user?._id) req.user.id = req.user._id;
+        if (!req.user?.id) {
+            return res.status(401).json({ success: false, message: 'Token inválido.' });
+        }
+        next();
+    } catch (error) {
+        return res.status(401).json({ success: false, message: 'Token inválido ou expirado.' });
+    }
+}
+
 // Função helper para carregar sharp apenas quando necessário (lazy loading)
 // Cache para evitar múltiplas tentativas de carregamento
 let sharpCache = null;
@@ -80,6 +104,56 @@ function getSharp() {
 }
 
 const app = express();
+
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use(express.static(path.join(__dirname, '../public')));
+
+mongoose.set('strictPopulate', false);
+
+app.get('/login', (req, res) => {
+    res.sendFile(path.join(__dirname, '../public/login.html'));
+});
+
+app.get('/perfil/:slug', (req, res) => {
+    res.sendFile(path.join(__dirname, '../public/perfil.html'));
+});
+
+app.post('/api/login', async (req, res) => {
+    try {
+        const { email, senha } = req.body || {};
+        if (!email || !senha) {
+            return res.status(400).json({ success: false, message: 'Email e senha são obrigatórios.' });
+        }
+
+        const usuario = await User.findOne({ email: String(email).trim().toLowerCase() });
+        if (!usuario) {
+            return res.status(401).json({ success: false, message: 'Credenciais inválidas.' });
+        }
+
+        const senhaOk = await bcrypt.compare(String(senha), usuario.senha || '');
+        if (!senhaOk) {
+            return res.status(401).json({ success: false, message: 'Credenciais inválidas.' });
+        }
+
+        const payload = { user: { id: usuario._id, email: usuario.email, tipo: usuario.tipo } };
+        const token = jwt.sign(payload, process.env.JWT_SECRET || 'secret', { expiresIn: '7d' });
+
+        res.json({
+            success: true,
+            message: 'Login realizado com sucesso!',
+            token,
+            userId: String(usuario._id),
+            userType: usuario.tipo || 'usuario',
+            userName: usuario.nome || 'Usuário',
+            userPhotoUrl: usuario.foto || usuario.avatarUrl || 'https://placehold.co/50?text=User',
+            userTheme: usuario.tema || usuario.userTheme || undefined
+        });
+    } catch (error) {
+        console.error('Erro ao fazer login:', error);
+        res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
+    }
+});
 
 // Overrides de localização (fallback quando provedor não retorna bairro/localidade)
 let locationOverrides = [];
@@ -207,17 +281,84 @@ async function initializeServices() {
     }
 }
 
-// ----------------------------------------------------------------------
 // DEFINIÇÃO DOS SCHEMAS
 // ----------------------------------------------------------------------
-const avaliacaoSchema = new mongoose.Schema({ usuarioId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }, estrelas: { type: Number, required: true, min: 1, max: 5 }, comentario: { type: String, trim: true } }, { timestamps: true });
+const userSchema = new mongoose.Schema({
+    nome: { type: String, trim: true },
+    email: { type: String, trim: true, lowercase: true },
+    senha: { type: String },
+    tipo: { type: String, default: 'usuario' },
+    foto: { type: String },
+    avatarUrl: { type: String },
+    tema: { type: String },
+    userTheme: { type: String }
+}, { timestamps: true, strict: false });
 
-// 🆕 ATUALIZADO: Schema de Serviço/Portfólio com validação por pares
+const User = mongoose.models.User || mongoose.model('User', userSchema);
+
+const notificacaoSchema = new mongoose.Schema({
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    tipo: { type: String },
+    titulo: { type: String },
+    mensagem: { type: String },
+    dadosAdicionais: { type: Object },
+    lida: { type: Boolean, default: false },
+    dataLeitura: { type: Date }
+}, { timestamps: true, strict: false });
+
+const Notificacao = mongoose.models.Notificacao || mongoose.model('Notificacao', notificacaoSchema);
+
+const postagemSchema = new mongoose.Schema({
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    content: { type: String },
+    likes: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+    comments: [{ type: Object }]
+}, { timestamps: true, strict: false });
+
+const Postagem = mongoose.models.Postagem || mongoose.model('Postagem', postagemSchema);
+
+const avaliacaoVerificadaSchema = new mongoose.Schema({
+    profissionalId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    clienteId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    agendamentoId: { type: mongoose.Schema.Types.ObjectId },
+    pedidoUrgenteId: { type: mongoose.Schema.Types.ObjectId },
+    estrelas: { type: Number },
+    comentario: { type: String },
+    servico: { type: String },
+    dataServico: { type: Date }
+}, { timestamps: true, strict: false });
+
+const AvaliacaoVerificada = mongoose.models.AvaliacaoVerificada || mongoose.model('AvaliacaoVerificada', avaliacaoVerificadaSchema);
+
+const timeProjetoSchema = new mongoose.Schema({
+    clienteId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    titulo: { type: String },
+    status: { type: String, default: 'aberto' },
+    candidatos: [{ type: Object }],
+    profissionaisNecessarios: [{ type: Object }],
+    localizacao: { type: Object }
+}, { timestamps: true, strict: false });
+
+const TimeProjeto = mongoose.models.TimeProjeto || mongoose.model('TimeProjeto', timeProjetoSchema);
+
+const pedidoUrgenteSchema = new mongoose.Schema({}, { timestamps: true, strict: false });
+const PedidoUrgente = mongoose.models.PedidoUrgente || mongoose.model('PedidoUrgente', pedidoUrgenteSchema);
+
+const agendamentoSchema = new mongoose.Schema({}, { timestamps: true, strict: false });
+const Agendamento = mongoose.models.Agendamento || mongoose.model('Agendamento', agendamentoSchema);
+
 const validacaoParSchema = new mongoose.Schema({
-    profissionalId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-    dataValidacao: { type: Date, default: Date.now },
-    comentario: { type: String, trim: true }
-}, { timestamps: true });
+    profissionalId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    comentario: { type: String },
+    estrelas: { type: Number },
+    data: { type: Date }
+}, { timestamps: true, strict: false });
+
+const avaliacaoSchema = new mongoose.Schema({
+    usuarioId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    estrelas: { type: Number },
+    comentario: { type: String }
+}, { timestamps: true, strict: false });
 
 const servicoSchema = new mongoose.Schema({ 
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }, 
@@ -235,9 +376,6 @@ const servicoSchema = new mongoose.Schema({
     avaliacoes: [avaliacaoSchema], 
     mediaAvaliacao: { type: Number, default: 0 }
 }, { timestamps: true });
-const replySchema = new mongoose.Schema({ userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }, content: { type: String, required: true }, likes: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }], createdAt: { type: Date, default: Date.now } });
-const commentSchema = new mongoose.Schema({ userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }, content: { type: String, required: true }, likes: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }], replies: [replySchema], createdAt: { type: Date, default: Date.now } });
-const postagemSchema = new mongoose.Schema({ userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }, content: { type: String, trim: true }, mediaUrl: { type: String }, mediaType: { type: String, enum: ['image', 'video'] }, likes: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }], comments: [commentSchema], createdAt: { type: Date, default: Date.now }, });
 
 const anuncioPagoSchema = new mongoose.Schema({
     ownerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
@@ -245,6 +383,8 @@ const anuncioPagoSchema = new mongoose.Schema({
     descricao: { type: String, trim: true },
     imagemUrl: { type: String, trim: true },
     linkUrl: { type: String, trim: true },
+    endereco: { type: String, trim: true },
+    numero: { type: String, trim: true },
     cidade: { type: String, trim: true },
     estado: { type: String, trim: true },
     plano: { type: String, enum: ['basico', 'premium'], default: 'basico' },
@@ -254,1981 +394,14 @@ const anuncioPagoSchema = new mongoose.Schema({
     prioridade: { type: Number, default: 0 }
 }, { timestamps: true });
 
-// 🆕 NOVO: Schema de Time de Projeto
-const timeProjetoSchema = new mongoose.Schema({
-    clienteId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-    titulo: { type: String, required: true },
-    descricao: { type: String, required: true },
-    localizacao: {
-        rua: { type: String },
-        numero: { type: String },
-        bairro: { type: String, required: true },
-        cidade: { type: String, required: true },
-        estado: { type: String, required: true },
-        latitude: { type: Number },
-        longitude: { type: Number }
-    },
-    profissionaisNecessarios: [{
-        tipo: { type: String, required: true }, // ex: "pedreiro", "eletricista", "pintor"
-        quantidade: { type: Number, default: 1 },
-        valorBase: { type: Number }, // Valor base por dia para este tipo de profissional (null se "A Combinar")
-        aCombinar: { type: Boolean, default: false } // Se o valor será combinado depois
-    }],
-    candidatos: [{
-        profissionalId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-        tipo: { type: String }, // tipo de profissional que está se candidatando
-        status: { type: String, enum: ['pendente', 'aceito', 'rejeitado'], default: 'pendente' },
-        valor: { type: Number }, // Valor aceito ou proposto pelo profissional
-        justificativa: { type: String }, // Justificativa da contraproposta
-        tipoCandidatura: { type: String, enum: ['aceite', 'contraproposta'], default: 'aceite' }, // Se aceitou o valor base ou enviou contraproposta
-        dataCandidatura: { type: Date, default: Date.now }
-    }],
-    status: { type: String, enum: ['aberto', 'em_andamento', 'concluido', 'cancelado'], default: 'aberto' },
-    dataInicio: { type: Date },
-    dataConclusao: { type: Date }
-}, { timestamps: true });
-
-// 🆕 NOVO: Schema de Agendamento
-const agendamentoSchema = new mongoose.Schema({
-    profissionalId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-    clienteId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-    dataHora: { type: Date, required: true },
-    servico: { type: String, required: true },
-    observacoes: { type: String },
-    status: { type: String, enum: ['pendente', 'confirmado', 'cancelado', 'concluido'], default: 'pendente' },
-    endereco: {
-        rua: { type: String },
-        numero: { type: String },
-        bairro: { type: String },
-        pontoReferencia: { type: String },
-        cidade: { type: String },
-        estado: { type: String }
-    }
-}, { timestamps: true });
-
-// 🆕 NOVO: Schema de Horários Disponíveis
-const horarioDisponivelSchema = new mongoose.Schema({
-    profissionalId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-    diaSemana: { type: Number, required: true, min: 0, max: 6 }, // 0 = Domingo, 6 = Sábado
-    horaInicio: { type: String, required: true }, // Formato "HH:MM"
-    horaFim: { type: String, required: true },
-    disponivel: { type: Boolean, default: true }
-}, { timestamps: true });
-
-// 🆕 NOVO: Schema de Equipe Verificada
-const equipeVerificadaSchema = new mongoose.Schema({
-    liderId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-    nome: { type: String, required: true },
-    descricao: { type: String },
-    membros: [{
-        profissionalId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-        funcao: { type: String, required: true },
-        status: { type: String, enum: ['pendente', 'aceito', 'recusado'], default: 'pendente' },
-        dataConvite: { type: Date, default: Date.now }
-    }],
-    xpTotal: { type: Number, default: 0 }, // Soma do XP de todos os membros
-    nivelEquipe: { type: Number, default: 1 },
-    projetosCompletos: { type: Number, default: 0 },
-    isVerificada: { type: Boolean, default: false }
-}, { timestamps: true });
-
-// Em ambientes serverless (como Vercel), o arquivo pode ser carregado mais de uma vez.
-// Usamos mongoose.models[...] para evitar OverwriteModelError ao recompilar os models.
-const TimeProjeto = mongoose.models.TimeProjeto || mongoose.model('TimeProjeto', timeProjetoSchema);
-const Agendamento = mongoose.models.Agendamento || mongoose.model('Agendamento', agendamentoSchema);
-const HorarioDisponivel = mongoose.models.HorarioDisponivel || mongoose.model('HorarioDisponivel', horarioDisponivelSchema);
-const EquipeVerificada = mongoose.models.EquipeVerificada || mongoose.model('EquipeVerificada', equipeVerificadaSchema);
-
-const pagamentoSeguroSchema = new mongoose.Schema({
-    pedidoUrgenteId: { type: mongoose.Schema.Types.ObjectId, ref: 'PedidoUrgente' },
-    projetoTimeId: { type: mongoose.Schema.Types.ObjectId, ref: 'ProjetoTime' },
-    
-    // Tipo de serviço para identificar qual referência usar
-    tipoServico: { 
-        type: String, 
-        enum: ['agendamento', 'pedido_urgente', 'projeto_time'], 
-        required: true 
-    },
-    
-    clienteId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-    profissionalId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-    valor: { type: Number, required: true },
-    taxaPlataforma: { type: Number, default: 0.05 }, // 5% padrão, pode ser configurável
-    valorLiquido: { type: Number }, // Valor que o profissional recebe (valor - taxa)
-    status: { 
-        type: String, 
-        enum: ['pendente', 'pago', 'liberado', 'reembolsado', 'cancelado'], 
-        default: 'pendente' 
-    },
-    dataPagamento: { type: Date },
-    dataLiberacao: { type: Date },
-    metodoPagamento: { type: String },
-    transacaoId: { type: String },
-    // Flag para identificar serviços com Garantia Helpy (para XP extra)
-    temGarantiaHelpy: { type: Boolean, default: true }
-}, { timestamps: true });
-
-const PagamentoSeguro = mongoose.models.PagamentoSeguro || mongoose.model('PagamentoSeguro', pagamentoSeguroSchema);
-
 const AnuncioPago = mongoose.models.AnuncioPago || mongoose.model('AnuncioPago', anuncioPagoSchema);
 
-// NOVO: Schema de Oportunidade (Mural)
-const oportunidadeSchema = new mongoose.Schema({
-    clienteId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-    titulo: { type: String, required: true },
-    descricao: { type: String, required: true },
-    categoria: { type: String, required: true }, // ex: "design", "programacao", "construcao"
-    orcamento: { type: Number, required: true },
-    prazo: { type: Date, required: true },
-    localizacao: {
-        cidade: { type: String },
-        estado: { type: String }
-    },
-    propostas: [{
-        profissionalId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-        valor: { type: Number, required: true },
-        prazo: { type: Date, required: true },
-        descricao: { type: String },
-        status: { type: String, enum: ['pendente', 'aceita', 'rejeitada'], default: 'pendente' },
-        dataProposta: { type: Date, default: Date.now }
-    }],
-    status: { 
-        type: String, 
-        enum: ['aberta', 'em_negociacao', 'fechada', 'cancelada'], 
-        default: 'aberta' 
-    },
-    propostaSelecionada: { type: mongoose.Schema.Types.ObjectId, ref: 'oportunidadeSchema.propostas' }
-}, { timestamps: true });
+// ...
 
-const Oportunidade = mongoose.models.Oportunidade || mongoose.model('Oportunidade', oportunidadeSchema);
-
-// NOVO: Schema de Notificações
-const notificacaoSchema = new mongoose.Schema({
-    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-    tipo: { 
-        type: String, 
-        enum: [
-            'pagamento_garantido',
-            'pagamento_liberado',
-            'pagamento_reembolsado',
-            'proposta_aceita',
-            'servico_concluido',
-            'servico_cancelado',
-            'disputa_aberta',
-            'disputa_resolvida',
-            'avaliacao_recebida',
-            'pedido_urgente',
-            'proposta_pedido_urgente',
-            'candidatura_time',
-            'contraproposta_time',
-            'proposta_time_aceita',
-            'confirmar_perfil_time',
-            'candidatura_recusada_time',
-            'post_curtido',
-            'post_comentado',
-            'comentario_respondido',
-            'comentario_curtido',
-            'resposta_curtida'
-        ], 
-        required: true 
-    },
-    titulo: { type: String, required: true },
-    mensagem: { type: String, required: true },
-    lida: { type: Boolean, default: false },
-    dataLeitura: { type: Date },
-    dadosAdicionais: { type: mongoose.Schema.Types.Mixed }, // Dados extras (IDs, valores, etc.)
-    link: { type: String } // Link para ação relacionada
-}, { timestamps: true });
-
-// ⚖️ NOVO: Schema de Disputas
-const disputaSchema = new mongoose.Schema({
-    pagamentoId: { type: mongoose.Schema.Types.ObjectId, ref: 'PagamentoSeguro', required: true },
-    criadorId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }, // Cliente ou Profissional
-    tipo: { 
-        type: String, 
-        enum: ['cliente_nao_liberou', 'profissional_nao_executou', 'servico_nao_conforme', 'outro'], 
-        required: true 
-    },
-    motivo: { type: String, required: true },
-    status: { 
-        type: String, 
-        enum: ['aberta', 'em_analise', 'resolvida_cliente', 'resolvida_profissional', 'cancelada'], 
-        default: 'aberta' 
-    },
-    resolucao: { type: String }, // Decisão do admin
-    resolvidoPor: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, // Admin que resolveu
-    dataResolucao: { type: Date },
-    evidencias: [{ type: String }] // URLs de imagens/comprovantes
-}, { timestamps: true });
-
-// 📊 NOVO: Schema de Histórico de Transações (auditoria)
-const historicoTransacaoSchema = new mongoose.Schema({
-    pagamentoId: { type: mongoose.Schema.Types.ObjectId, ref: 'PagamentoSeguro', required: true },
-    acao: { 
-        type: String, 
-        enum: ['criado', 'pago', 'liberado', 'reembolsado', 'disputa_aberta', 'disputa_resolvida', 'cancelado'],
-        required: true 
-    },
-    realizadoPor: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-    dadosAntes: { type: mongoose.Schema.Types.Mixed },
-    dadosDepois: { type: mongoose.Schema.Types.Mixed },
-    ip: { type: String },
-    userAgent: { type: String }
-}, { timestamps: true });
-
-const Notificacao = mongoose.models.Notificacao || mongoose.model('Notificacao', notificacaoSchema);
-const Disputa = mongoose.models.Disputa || mongoose.model('Disputa', disputaSchema);
-const HistoricoTransacao = mongoose.models.HistoricoTransacao || mongoose.model('HistoricoTransacao', historicoTransacaoSchema);
-
-// 🔔 Função auxiliar para criar notificações
-async function criarNotificacao(userId, tipo, titulo, mensagem, dadosAdicionais = {}, link = null) {
-    try {
-        // Validação básica
-        if (!userId || !tipo || !titulo || !mensagem) {
-            console.error('❌ Dados inválidos para criar notificação:', { userId, tipo, titulo, mensagem: mensagem ? 'presente' : 'ausente' });
-            return null;
-        }
-        
-        const notificacao = new Notificacao({
-            userId,
-            tipo,
-            titulo,
-            mensagem,
-            dadosAdicionais,
-            link
-        });
-        
-        await notificacao.save();
-        
-        console.log('✅ Notificação criada com sucesso:', {
-            id: notificacao._id,
-            userId,
-            tipo,
-            titulo
-        });
-
-        // TODO: Aqui você pode integrar com serviços de push notification
-        // Exemplo: Firebase Cloud Messaging, OneSignal, etc.
-        // await enviarPushNotification(userId, titulo, mensagem);
-
-        return notificacao;
-    } catch (error) {
-        console.error('❌ Erro ao criar notificação:', error);
-        console.error('Detalhes:', {
-            userId,
-            tipo,
-            titulo,
-            mensagem: mensagem ? 'presente' : 'ausente',
-            errorMessage: error.message,
-            errorStack: error.stack
-        });
-        // Não falha a operação principal se a notificação falhar
-        return null;
-    }
-}
-
-// 📊 Função auxiliar para registrar histórico de transações
-async function registrarHistoricoTransacao(pagamentoId, acao, realizadoPor, dadosAntes = {}, dadosDepois = {}, req = null) {
-    try {
-        const historico = new HistoricoTransacao({
-            pagamentoId,
-            acao,
-            realizadoPor,
-            dadosAntes,
-            dadosDepois,
-            ip: req?.ip || req?.connection?.remoteAddress || null,
-            userAgent: req?.get('user-agent') || null
-        });
-        await historico.save();
-        return historico;
-    } catch (error) {
-        console.error('Erro ao registrar histórico:', error);
-        return null;
-    }
-}
-
-// 🌟 NOVO: Schema de Avaliação Verificada (Sistema Híbrido de Confiança)
-const avaliacaoVerificadaSchema = new mongoose.Schema({
-    profissionalId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-    clienteId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-    agendamentoId: { type: mongoose.Schema.Types.ObjectId, ref: 'Agendamento' }, // Opcional para pedidos urgentes
-    pedidoUrgenteId: { type: mongoose.Schema.Types.ObjectId, ref: 'PedidoUrgente' }, // Para pedidos urgentes sem agendamento
-    estrelas: { type: Number, required: true, min: 1, max: 5 },
-    comentario: { type: String, trim: true },
-    servico: { type: String }, // Nome do serviço prestado
-    isVerificada: { type: Boolean, default: true }, // Sempre true para avaliações verificadas
-    dataServico: { type: Date, required: true } // Data em que o serviço foi realizado
-}, { timestamps: true });
-
-// 🏢 NOVO: Schema de Time Local (Micro-Agência)
-const timeLocalSchema = new mongoose.Schema({
-    liderId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-    nome: { type: String, required: true },
-    descricao: { type: String },
-    categoria: { type: String, required: true }, // ex: "construcao", "pintura", "jardinagem"
-    membros: [{
-        profissionalId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-        funcao: { type: String, required: true }, // ex: "Pintor", "Ajudante", "Eletricista"
-        status: { type: String, enum: ['pendente', 'aceito', 'recusado'], default: 'pendente' },
-        dataConvite: { type: Date, default: Date.now }
-    }],
-    nivelMedio: { type: Number, default: 1 }, // Média dos níveis dos membros
-    projetosCompletos: { type: Number, default: 0 },
-    avaliacaoMedia: { type: Number, default: 0 },
-    isAtivo: { type: Boolean, default: true }
-}, { timestamps: true });
-
-// 📋 NOVO: Schema de Projeto de Time / Mutirão Pago
-const projetoTimeSchema = new mongoose.Schema({
-    clienteId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-    titulo: { type: String, required: true },
-    descricao: { type: String, required: true },
-    categoria: { type: String, required: true },
-    localizacao: {
-        endereco: { type: String, required: true },
-        bairro: { type: String },
-        cidade: { type: String, required: true },
-        estado: { type: String, required: true },
-        latitude: { type: Number },
-        longitude: { type: Number }
-    },
-    dataServico: { type: Date, required: true },
-    horaInicio: { type: String, required: true }, // Formato "HH:MM"
-    horaFim: { type: String, required: true },
-    profissionaisNecessarios: [{
-        tipo: { type: String, required: true }, // ex: "pintor", "ajudante"
-        quantidade: { type: Number, default: 1 },
-        valorPorPessoa: { type: Number, required: true }
-    }],
-    valorTotal: { type: Number, required: true },
-    candidatos: [{
-        timeLocalId: { type: mongoose.Schema.Types.ObjectId, ref: 'TimeLocal' },
-        proposta: { type: String },
-        status: { type: String, enum: ['pendente', 'aceita', 'rejeitada'], default: 'pendente' },
-        dataCandidatura: { type: Date, default: Date.now }
-    }],
-    status: { 
-        type: String, 
-        enum: ['aberto', 'em_andamento', 'concluido', 'cancelado'], 
-        default: 'aberto' 
-    },
-    timeSelecionado: { type: mongoose.Schema.Types.ObjectId, ref: 'TimeLocal' }
-}, { timestamps: true });
-
-// 🚨 NOVO: Schema de Pedido Urgente ("Preciso Agora!")
-const pedidoUrgenteSchema = new mongoose.Schema({
-    clienteId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-    servico: { type: String, required: true }, // Tipo de serviço necessário
-    descricao: { type: String },
-    foto: { type: String }, // URL da foto do serviço (mantido para compatibilidade)
-    fotos: [{ type: String }], // Array de URLs das fotos do serviço
-    localizacao: {
-        endereco: { type: String, required: true }, // Rua completa (pode incluir número/bairro)
-        rua: { type: String },
-        numero: { type: String },
-        bairro: { type: String },
-        pontoReferencia: { type: String },
-        cidade: { type: String, required: true },
-        estado: { type: String, required: true },
-        latitude: { type: Number },
-        longitude: { type: Number }
-    },
-    categoria: { type: String, required: true }, // Para filtrar profissionais
-    tipoAtendimento: { type: String, enum: ['urgente', 'agendado'], default: 'urgente' }, // urgente (agora) ou agendado
-    prazoHoras: { type: Number, default: 1 }, // Prazo escolhido (1, 2, 5, 9, 12, 24)
-    dataAgendada: { type: Date }, // Quando o cliente agendou o serviço (opcional)
-    propostas: [{
-        profissionalId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-        valor: { type: Number, required: true },
-        tempoChegada: { type: String, required: true }, // ex: "30 min", "1 hora"
-        observacoes: { type: String },
-        status: { type: String, enum: ['pendente', 'aceita', 'rejeitada', 'cancelada'], default: 'pendente' },
-        dataProposta: { type: Date, default: Date.now }
-    }],
-    propostaSelecionada: { type: mongoose.Schema.Types.ObjectId },
-    agendamentoId: { type: mongoose.Schema.Types.ObjectId, ref: 'Agendamento' },
-    status: { 
-        type: String, 
-        enum: ['aberto', 'em_andamento', 'concluido', 'cancelado'], 
-        default: 'aberto' 
-    },
-    motivoCancelamento: { type: String },
-    canceladoPor: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-    dataExpiracao: { type: Date }, // Pedidos urgentes expiram rápido
-    notificacoesEnviadas: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }], // Profissionais notificados
-    notificacoesCriadas: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Notificacao' }] // IDs das notificações geradas
-}, { timestamps: true });
-
-const AvaliacaoVerificada = mongoose.models.AvaliacaoVerificada || mongoose.model('AvaliacaoVerificada', avaliacaoVerificadaSchema);
-const TimeLocal = mongoose.models.TimeLocal || mongoose.model('TimeLocal', timeLocalSchema);
-const ProjetoTime = mongoose.models.ProjetoTime || mongoose.model('ProjetoTime', projetoTimeSchema);
-const PedidoUrgente = mongoose.models.PedidoUrgente || mongoose.model('PedidoUrgente', pedidoUrgenteSchema);
-
-// Schema de Vaga-Relâmpago REMOVIDO - funcionalidade descontinuada
-
-// 🛑 ATUALIZADO: Schema de Usuário
-const userSchema = new mongoose.Schema({
-    nome: { type: String, required: true },
-    slugPerfil: { type: String, unique: true, sparse: true },
-    idade: { type: Number },
-    cidade: { type: String }, 
-    estado: { type: String }, 
-    tipo: { type: String, enum: ['usuario', 'empresa'], required: true },
-    atuacao: { type: String, default: null }, // Opcional - qualquer usuário pode ter área de atuação
-    telefone: { type: String, default: null },
-    descricao: { type: String, default: null },
-    email: { 
-        type: String, 
-        required: true, 
-        unique: true,
-        validate: {
-            validator: function(v) {
-                return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
-            },
-            message: props => `${props.value} não é um e-mail válido!`
-        }
-    },
-    emailVerificado: { type: Boolean, default: false },
-    codigoVerificacao: { type: String },
-    codigoExpiracao: { type: Date },
-    senha: { type: String, required: true },
-    foto: { type: String, default: 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png' },
-    avatarUrl: { type: String, default: 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png' },
-    servicosImagens: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Servico' }],
-    isVerified: { type: Boolean, default: false },
-    emailVerificado: { type: Boolean, default: false },
-    codigoVerificacao: { type: String, default: null },
-    codigoVerificacaoExpira: { type: Date, default: null },
-    mediaAvaliacao: { type: Number, default: 0 },
-    totalAvaliacoes: { type: Number, default: 0 },
-    avaliacoes: [avaliacaoSchema],
-    // 🛑 NOVO: Campo Tema
-    tema: { type: String, enum: ['light', 'dark'], default: 'light' },
-    // 🆕 NOVO: Localização (coordenadas)
-    localizacao: {
-        latitude: { type: Number, default: null },
-        longitude: { type: Number, default: null },
-        ultimaAtualizacao: { type: Date, default: null }
-    },
-    // 🆕 NOVO: Gamificação
-    gamificacao: {
-        nivel: { type: Number, default: 1, min: 1, max: 50 },
-        xp: { type: Number, default: 0 },
-        xpProximoNivel: { type: Number, default: 100 },
-        desafiosCompletos: [{ type: String }],
-        portfolioValidado: { type: Boolean, default: false },
-        mediaAvaliacoesVerificadas: { type: Number, default: 0 },
-        totalAvaliacoesVerificadas: { type: Number, default: 0 },
-        temSeloQualidade: { type: Boolean, default: false }, // Nível 10+
-        temSeloHumano: { type: Boolean, default: false }, // Selo de trabalho 100% humano
-        nivelReputacao: { type: String, enum: ['iniciante', 'validado', 'mestre'], default: 'iniciante' }
-    },
-    // 🆕 NOVO: Status de disponibilidade (para "Preciso agora!")
-    disponivelAgora: { type: Boolean, default: false },
-    // 👑 NOVO: Flag de administrador
-    isAdmin: { type: Boolean, default: false },
-    // 🆕 NOVO: Equipes concluídas ocultas (para limpar a lista sem deletar do banco)
-    equipesConcluidasOcultas: [{ type: mongoose.Schema.Types.ObjectId, ref: 'TimeProjeto' }]
-}, { timestamps: true });
-
-const User = mongoose.models.User || mongoose.model('User', userSchema);
-const Postagem = mongoose.models.Postagem || mongoose.model('Postagem', postagemSchema);
-const Servico = mongoose.models.Servico || mongoose.model('Servico', servicoSchema);
-//----------------------------------------------------------------------
-
-// Helper para gerar slug único de perfil (baseado no nome)
-async function gerarSlugPerfil(nome) {
-    if (!nome) {
-        // Fallback simples se não tiver nome
-        const base = `user-${Date.now()}`;
-        return base;
-    }
-
-    const baseSlug = nome
-        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-        .toLowerCase()
-        .trim()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/(^-|-$)+/g, '') || `user-${Date.now()}`;
-
-    let slug = baseSlug;
-    let contador = 0;
-
-    // Garante unicidade
-    while (await User.exists({ slugPerfil: slug })) {
-        contador += 1;
-        slug = `${baseSlug}-${contador}`;
-    }
-
-    return slug;
-}
-
-// MIDDLEWARES (App.use, Auth, Multer)
-// ----------------------------------------------------------------------
-// Configuração do CORS
-app.use(cors({
-    origin: '*',
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
-    credentials: true
-}));
-
-// Servir arquivos estáticos
-const publicDir = path.join(__dirname, '../public');
-app.use(express.static(publicDir));
-
-// Rotas amigáveis para páginas principais (sem expor .html)
-app.get('/', (req, res) => {
-    res.sendFile(path.join(publicDir, 'index.html'));
-});
-
-app.get('/login', (req, res) => {
-    res.sendFile(path.join(publicDir, 'login.html'));
-});
-
-app.get('/cadastro', (req, res) => {
-    res.sendFile(path.join(publicDir, 'cadastro.html'));
-});
-
-// Perfil por query (?id=...) - redireciona para slug amigável quando possível
-app.get('/perfil', async (req, res) => {
-    try {
-        const { id } = req.query;
-        if (id) {
-            const usuario = await User.findById(id).select('slugPerfil');
-            if (usuario && usuario.slugPerfil) {
-                return res.redirect(`/perfil/${usuario.slugPerfil}`);
-            }
-        }
-        // Fallback: serve a página normalmente
-        res.sendFile(path.join(publicDir, 'perfil.html'));
-    } catch (error) {
-        console.error('Erro ao redirecionar perfil por id para slug:', error);
-        res.sendFile(path.join(publicDir, 'perfil.html'));
-    }
-});
-
-// Perfil por slug amigável: /perfil/:slug
-app.get('/perfil/:slug', (req, res) => {
-    res.sendFile(path.join(publicDir, 'perfil.html'));
-});
-
-// API: Buscar usuário por slug de perfil
-app.get('/api/usuarios/slug/:slug', authMiddleware, async (req, res) => {
-    try {
-        const { slug } = req.params;
-        const usuario = await User.findOne({ slugPerfil: slug }).select('-senha -codigoVerificacao -codigoExpiracao');
-        if (!usuario) {
-            return res.status(404).json({ success: false, message: 'Usuário não encontrado.' });
-        }
-        res.json({ success: true, usuario });
-    } catch (error) {
-        console.error('Erro ao buscar usuário por slug:', error);
-        res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
-    }
-});
-
-// Inicialização dos serviços
-app.use(async (req, res, next) => { 
-    try { 
-        await initializeServices(); 
-        next(); 
-    } catch (error) { 
-        console.error("Falha na inicialização dos serviços:", error);
-        if (!res.headersSent) {
-            res.status(500).json({ 
-                success: false, 
-                message: "Erro interno do servidor. Não foi possível inicializar os serviços.",
-                error: process.env.NODE_ENV === 'development' ? error.message : undefined
-            });
-        }
-    } 
-});
-
-// Body parsers
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
-
-// Middleware para garantir Content-Type JSON em todas as rotas da API
-app.use('/api', (req, res, next) => {
-    res.setHeader('Content-Type', 'application/json');
-    next();
-});
-
-// Segredo JWT com fallback seguro em desenvolvimento (evita erro 500 se variável não estiver definida)
-const JWT_SECRET = process.env.JWT_SECRET || 'helpy-dev-secret-2024';
-
-// Helper para comparar IDs de forma consistente (ObjectId ou string)
-function compareIds(id1, id2) {
-    if (!id1 || !id2) {
-        console.log('⚠️ compareIds: um dos IDs é null/undefined', { id1, id2 });
-        return false;
-    }
-    
-    // Função auxiliar para normalizar qualquer tipo de ID para string
-    const normalizeId = (id) => {
-        // Se for null ou undefined
-        if (!id) return '';
-        
-        // Se for objeto populado (tem _id)
-        if (id._id) {
-            const normalized = String(id._id);
-            console.log('📌 ID normalizado (objeto populado):', normalized);
-            return normalized;
-        }
-        
-        // Se tiver método toString (ObjectId do mongoose)
-        if (id.toString && typeof id.toString === 'function') {
-            const str = id.toString();
-            console.log('📌 ID normalizado (toString):', str, 'tipo:', typeof id, 'constructor:', id.constructor?.name);
-            return str;
-        }
-        
-        // Caso padrão: converte para string
-        const normalized = String(id);
-        console.log('📌 ID normalizado (string):', normalized);
-        return normalized;
-    };
-    
-    const str1 = normalizeId(id1);
-    const str2 = normalizeId(id2);
-    
-    const result = str1 === str2 && str1 !== '';
-    console.log('🔍 Comparação:', { str1, str2, result });
-    
-    return result;
-}
-
-function authMiddleware(req, res, next) {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        return res.status(401).json({ message: 'Token não fornecido ou inválido.' });
-    }
-    const token = authHeader.split(' ')[1];
-    
-    // Validação adicional: verifica se o token não é null, undefined ou string vazia
-    if (!token || token === 'null' || token === 'undefined' || token.trim() === '') {
-        return res.status(401).json({ message: 'Token não fornecido ou inválido.' });
-    }
-    
-    try {
-        const decoded = jwt.verify(token, JWT_SECRET);
-        req.user = decoded;
-        next();
-    } catch (error) {
-        // Não loga erro se for apenas token malformado ou expirado (evita spam de logs)
-        if (error.message === 'jwt malformed' || error.message === 'jwt expired') {
-            // Log apenas em desenvolvimento
-            if (process.env.NODE_ENV !== 'production') {
-                console.warn('Token JWT inválido ou expirado:', error.message);
-            }
-        } else {
-            console.error('Erro ao verificar token JWT:', error.message);
-        }
-        return res.status(401).json({ message: 'Token inválido.' });
-    }
-}
-
-function httpGetJson(urlStr, options = {}) {
-    return new Promise((resolve, reject) => {
-        try {
-            const urlObj = new URL(urlStr);
-            const lib = urlObj.protocol === 'http:' ? http : https;
-            const headers = {
-                Accept: 'application/json',
-                'User-Agent': 'Helpy API Client',
-                ...(options.headers || {})
-            };
-
-            const reqOptions = {
-                protocol: urlObj.protocol,
-                hostname: urlObj.hostname,
-                path: urlObj.pathname + (urlObj.search || ''),
-                method: 'GET',
-                headers
-            };
-            // IMPORTANTE: não enviar port quando estiver vazio (''), isso pode causar erro no Node.
-            if (urlObj.port) {
-                reqOptions.port = urlObj.port;
-            }
-
-            const req = lib.request(reqOptions, (res) => {
-                let raw = '';
-                res.setEncoding('utf8');
-                res.on('data', (chunk) => {
-                    raw += chunk;
-                });
-                res.on('end', () => {
-                    const status = res.statusCode || 0;
-                    if (status < 200 || status >= 300) {
-                        const snippet = (raw || '').toString().slice(0, 500);
-                        return reject(new Error(`HTTP ${status}: ${snippet}`));
-                    }
-                    try {
-                        resolve(JSON.parse(raw || '{}'));
-                    } catch (e) {
-                        reject(new Error('Invalid JSON'));
-                    }
-                });
-            });
-            req.on('error', reject);
-            req.setTimeout(Number(options.timeoutMs) || 12000, () => {
-                try { req.destroy(new Error('Request timeout')); } catch {}
-            });
-            req.end();
-        } catch (e) {
-            reject(e);
-        }
-    });
-}
-
-const storage = multer.memoryStorage();
-const upload = multer({ storage: storage, limits: { fileSize: 10 * 1024 * 1024 }, fileFilter: (req, file, cb) => { const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'video/mp4', 'video/quicktime', 'video/webm']; if (allowedTypes.includes(file.mimetype)) { cb(null, true); } else { cb(new Error('Tipo de arquivo não suportado.'), false); } } });
-
-const uploadAdImage = multer({
-    storage: storage,
-    limits: { fileSize: 5 * 1024 * 1024 },
-    fileFilter: (req, file, cb) => {
-        const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-        if (allowedTypes.includes(file.mimetype)) {
-            cb(null, true);
-        } else {
-            cb(new Error('Tipo de arquivo não suportado. Envie apenas imagem.'), false);
-        }
-    }
-});
-
-// ----------------------------------------------------------------------
-// FUNÇÕES DE VERIFICAÇÃO DE EMAIL
-// ----------------------------------------------------------------------
-
-// Função para criar transporter de email
-function criarTransporterEmail() {
-    try {
-        // Verifica se tem configurações SMTP
-        const hasSMTPConfig = process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS;
-        
-        if (!hasSMTPConfig) {
-            console.warn('═══════════════════════════════════════════════════════════');
-            console.warn('AVISO: Configurações SMTP não encontradas.');
-            console.warn('Para enviar emails, configure as seguintes variáveis na Vercel:');
-            console.warn('- SMTP_HOST (ex: smtp.gmail.com)');
-            console.warn('- SMTP_PORT (ex: 587)');
-            console.warn('- SMTP_USER (seu email)');
-            console.warn('- SMTP_PASS (sua senha ou senha de app)');
-            console.warn('- SMTP_SECURE (true para porta 465, false para 587)');
-            console.warn('- SMTP_FROM (ex: Helpy <noreply@helpy.com>)');
-            console.warn('═══════════════════════════════════════════════════════════');
-            return null;
-        }
-        
-        // Cria transporter com as configurações
-        const transporter = nodemailer.createTransport({
-            host: process.env.SMTP_HOST,
-            port: parseInt(process.env.SMTP_PORT) || 587,
-            secure: process.env.SMTP_SECURE === 'true',
-            requireTLS: process.env.SMTP_SECURE !== 'true', // Requer TLS para porta 587
-            auth: {
-                user: process.env.SMTP_USER,
-                pass: process.env.SMTP_PASS
-            },
-            // Timeout aumentado para evitar erros
-            connectionTimeout: 10000,
-            greetingTimeout: 10000,
-            socketTimeout: 10000
-        });
-        
-        console.log('✅ Transporter de email configurado com sucesso');
-        return transporter;
-    } catch (error) {
-        console.error('❌ Erro ao criar transporter de email:', error);
-        return null;
-    }
-}
-
-// Função para gerar código de verificação
-function gerarCodigoVerificacao() {
-    return Math.floor(100000 + Math.random() * 900000).toString(); // Código de 6 dígitos
-}
-
-// Função para enviar código de verificação por email
-async function enviarCodigoVerificacao(email, codigo) {
-    try {
-        const transporter = criarTransporterEmail();
-        
-        // Se não houver transporter configurado, NÃO loga código/email por padrão (evita vazamento).
-        if (!transporter) {
-            if (DEBUG_EMAIL_CODES) {
-                console.warn('[DEV] SMTP não configurado. Código de verificação gerado (debug):', codigo);
-                console.warn('[DEV] Email (debug):', email);
-            }
-            // Sempre retorna true quando não há SMTP - código já foi salvo no banco
-            return true;
-        }
-        
-        const mailOptions = {
-            from: process.env.SMTP_FROM || 'Helpy <noreply@helpy.com>',
-            to: email,
-            subject: 'Código de Verificação - Helpy',
-            html: `
-                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                    <h2 style="color: #4CAF50;">Verificação de Email - Helpy</h2>
-                    <p>Olá!</p>
-                    <p>Seu código de verificação é:</p>
-                    <div style="background-color: #f4f4f4; padding: 20px; text-align: center; margin: 20px 0;">
-                        <h1 style="color: #4CAF50; font-size: 36px; letter-spacing: 5px; margin: 0;">${codigo}</h1>
-                    </div>
-                    <p>Este código expira em 10 minutos.</p>
-                    <p>Se você não solicitou este código, ignore este email.</p>
-                    <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
-                    <p style="color: #999; font-size: 12px;">Equipe Helpy</p>
-                </div>
-            `,
-            text: `Seu código de verificação é: ${codigo}. Este código expira em 10 minutos.`
-        };
-
-        const info = await transporter.sendMail(mailOptions);
-        // Evita logar metadados/PII por padrão (email/messageId).
-        if (IS_DEV) {
-            console.log('Email de verificação enviado com sucesso.');
-        }
-        return true;
-    } catch (error) {
-        console.error('❌ Erro ao enviar email de verificação:', error);
-        console.error('   Detalhes:', error.message);
-        
-        // Se houver SMTP configurado, tenta novamente ou retorna false
-        if (process.env.SMTP_HOST) {
-            console.error('   SMTP configurado mas falhou. Verifique as credenciais.');
-            // Em produção com SMTP configurado, retorna false para alertar
-            if (process.env.NODE_ENV === 'production') {
-                return false;
-            }
-            // Em desenvolvimento, ainda retorna true para não bloquear testes
-            console.warn('   MODO DEV: Continuando mesmo com erro (código salvo no banco)');
-            if (DEBUG_EMAIL_CODES) {
-                console.warn('   Código de verificação (debug):', codigo);
-            }
-            return true;
-        }
-        
-        // Sem SMTP configurado, retorna true (código já foi salvo no banco)
-        if (DEBUG_EMAIL_CODES) {
-            console.warn('[DEV] Código de verificação (debug):', codigo);
-        }
-        return true;
-    }
-}
-
-// ----------------------------------------------------------------------
-// ROTAS DE API
-// ----------------------------------------------------------------------
-
-// 🆕 NOVO: Rota para solicitar código de verificação de email
-app.post('/api/verificar-email/solicitar', async (req, res) => {
-    try {
-        // Garante que os serviços estão inicializados
-        await initializeServices();
-        
-        const { email } = req.body;
-        
-        if (!email) {
-            return res.status(400).json({ success: false, message: 'Email é obrigatório.' });
-        }
-
-        const emailNormalizado = email.toLowerCase().trim();
-
-        // Verifica se o email já está verificado em outra conta
-        const emailJaVerificado = await User.findOne({ 
-            email: emailNormalizado,
-            emailVerificado: true 
-        });
-
-        if (emailJaVerificado) {
-            return res.status(409).json({ 
-                success: false, 
-                message: 'Este email já está vinculado a outra conta verificada. Por favor, use outro email ou faça login na conta existente.' 
-            });
-        }
-
-        // Gera código de verificação
-        const codigo = gerarCodigoVerificacao();
-        const expiraEm = new Date();
-        expiraEm.setMinutes(expiraEm.getMinutes() + 10); // Expira em 10 minutos
-
-        // Verifica se já existe um usuário temporário com este email (não verificado)
-        let usuarioTemp = await User.findOne({ 
-            email: emailNormalizado,
-            emailVerificado: false 
-        });
-
-        if (usuarioTemp) {
-            // Atualiza código existente
-            usuarioTemp.codigoVerificacao = codigo;
-            usuarioTemp.codigoVerificacaoExpira = expiraEm;
-            await usuarioTemp.save();
-        } else {
-            // Cria usuário temporário apenas para armazenar o código
-            usuarioTemp = new User({
-                email: emailNormalizado,
-                senha: 'temp_' + Date.now(), // Senha temporária
-                nome: 'TEMP',
-                tipo: 'cliente',
-                codigoVerificacao: codigo,
-                codigoVerificacaoExpira: expiraEm,
-                emailVerificado: false
-            });
-            await usuarioTemp.save();
-        }
-
-        // Envia código por email (não bloqueia se falhar - código já foi salvo no banco)
-        try {
-            const emailEnviado = await enviarCodigoVerificacao(emailNormalizado, codigo);
-            // Se o email não foi enviado mas estamos em produção E temos SMTP configurado, retorna erro
-            // Caso contrário, continua normalmente (código já está salvo no banco)
-            if (!emailEnviado && process.env.NODE_ENV === 'production' && process.env.SMTP_HOST) {
-                console.warn('Email não foi enviado em produção, mas código foi salvo no banco');
-                // Não retorna erro, apenas avisa - o código já está salvo e pode ser usado
-            }
-        } catch (emailError) {
-            console.error('Erro ao tentar enviar email:', emailError);
-            // Não bloqueia o processo - o código já foi salvo no banco
-            // Em produção com SMTP configurado, apenas loga o erro
-            if (process.env.NODE_ENV === 'production' && process.env.SMTP_HOST) {
-                console.error('Erro crítico ao enviar email em produção com SMTP configurado');
-                // Mesmo assim, não retorna erro porque o código foi salvo
-            } else {
-                console.log('MODO DEV/SEM SMTP: Continuando mesmo com erro no envio de email');
-            }
-        }
-
-        return res.json({ 
-            success: true, 
-            message: 'Código de verificação enviado para seu email!',
-            email: emailNormalizado
-        });
-    } catch (error) {
-        console.error('Erro ao solicitar verificação de email:', error);
-        console.error('Stack trace:', error.stack);
-        console.error('Error name:', error.name);
-        console.error('Error code:', error.code);
-
-        // Garante que sempre retorna JSON
-        if (!res.headersSent) {
-            res.setHeader('Content-Type', 'application/json');
-
-            if (error.code === 11000) {
-                return res.status(409).json({ 
-                    success: false, 
-                    message: 'Este email já está cadastrado.' 
-                });
-            }
-
-            // Se for erro de conexão com MongoDB
-            if (error.message && error.message.includes('Falha na conexão')) {
-                return res.status(500).json({ 
-                    success: false, 
-                    message: 'Erro ao conectar com o banco de dados. Tente novamente mais tarde.',
-                    error: process.env.NODE_ENV === 'development' ? error.message : undefined
-                });
-            }
-
-            return res.status(500).json({ 
-                success: false, 
-                message: 'Erro interno do servidor.',
-                error: process.env.NODE_ENV === 'development' ? error.message : undefined
-            });
-        }
-    }
-});
-
-// ROTA DE GEOCODIFICAÇÃO REVERSA (Proxy para Nominatim)
-// ----------------------------------------------------------------------
-app.get('/api/geocodificar-reversa', async (req, res) => {
-
-    try {
-        const { lat, lon, accuracy } = req.query;
-        // Evita cache no browser/proxy para que o frontend não receba 304/ETag
-        res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-        res.set('Pragma', 'no-cache');
-        res.set('Expires', '0');
-        res.set('Surrogate-Control', 'no-store');
-        res.removeHeader('ETag');
-        
-        if (!lat || !lon) {
-            return res.status(400).json({
-                success: false,
-                message: 'Latitude e longitude são obrigatórias.'
-            });
-        }
-        
-        let hereApiKey = (process.env.HERE_API_KEY || '').trim();
-        if (!hereApiKey || /^undefined$/i.test(hereApiKey) || /^null$/i.test(hereApiKey)) {
-            hereApiKey = '';
-        }
-
-        // Preferência: HERE (melhor cobertura para rua/número/bairro)
-        if (hereApiKey) {
-            try {
-                const hereUrl = `https://revgeocode.search.hereapi.com/v1/revgeocode?at=${encodeURIComponent(lat)},${encodeURIComponent(lon)}&lang=pt-BR&limit=10&apiKey=${encodeURIComponent(hereApiKey)}`;
-                const hereJson = await httpGetJson(hereUrl, { headers: { 'Accept': 'application/json' } });
-                if (!hereJson) {
-                    throw new Error(`Erro ao buscar endereço (HERE): ${hereJson}`);
-                }
-
-                const items = (hereJson && Array.isArray(hereJson.items)) ? hereJson.items : [];
-
-                // Debug opcional: retorna todos os candidatos que a HERE forneceu
-                // (útil para escolher o melhor item de área/bairro quando não há número)
-                if (String(req.query.debug || '').trim() === '1') {
-                    return res.status(200).json({
-                        success: true,
-                        data: {
-                            lat: String(lat),
-                            lon: String(lon)
-                        },
-                        debug: {
-                            provider: 'here',
-                            items
-                        }
-                    });
-                }
-
-                const pickBestHereItem = (arr) => {
-                    if (!Array.isArray(arr) || arr.length === 0) return null;
-                    let best = null;
-                    let bestScore = -1;
-                    for (const it of arr) {
-                        const a = it && it.address ? it.address : null;
-                        if (!a) continue;
-                        const hasStreet = !!(a.street || a.road);
-                        const hasHouse = !!a.houseNumber;
-                        const hasArea = !!(a.neighborhood || a.subdistrict || a.district || a.cityDistrict);
-                        const hasPostal = !!a.postalCode;
-                        let score = 0;
-                        if (hasHouse) score += 100;
-                        if (hasStreet) score += 50;
-                        if (hasArea) score += 30;
-                        if (hasPostal) score += 10;
-                        if (it.resultType === 'houseNumber') score += 25;
-                        if (it.resultType === 'street') score += 5;
-                        if (score > bestScore) {
-                            bestScore = score;
-                            best = it;
-                        }
-                    }
-                    return best || arr[0] || null;
-                };
-
-                const item = pickBestHereItem(items);
-
-                if (!item || !item.address) {
-                    throw new Error('Resposta da HERE sem itens de endereço.');
-                }
-
-                const a = item.address;
-                const road = a.street || a.road || '';
-                const houseNumber = a.houseNumber || '';
-                const neighbourhood = a.neighborhood || a.subdistrict || a.district || '';
-                const suburb = a.district || a.subdistrict || a.cityDistrict || a.neighborhood || '';
-                const city = a.city || a.municipality || a.county || '';
-                const state = a.state || a.stateCode || '';
-                const postcode = a.postalCode || '';
-                const rawCountryCode = (a.countryCode || '').toString().trim();
-                const countryCode = rawCountryCode ? rawCountryCode.slice(0, 2).toLowerCase() : '';
-
-                const displayNameParts = [
-                    road,
-                    houseNumber,
-                    neighbourhood || suburb,
-                    city,
-                    state,
-                    postcode,
-                    (a.countryName || a.country || '')
-                ].map(p => (p || '').toString().trim()).filter(Boolean);
-
-                const normalized = {
-                    lat: String(item.position?.lat ?? lat),
-                    lon: String(item.position?.lng ?? lon),
-                    display_name: displayNameParts.join(', '),
-                    address: {
-                        road: road,
-                        house_number: houseNumber,
-                        neighbourhood: neighbourhood,
-                        suburb: suburb,
-                        city: city,
-                        state: state,
-                        postcode: postcode,
-                        country: a.countryName || a.country || '',
-                        country_code: countryCode
-                    },
-                    here: {
-                        id: item.id,
-                        title: item.title
-                    }
-                };
-
-                const allowOverride = String(req.query.noOverride || '').trim() !== '1';
-                const withOverride = allowOverride ? applyLocationOverrideIfNeeded(lat, lon, normalized, accuracy) : normalized;
-
-                return res.status(200).json({
-                    success: true,
-                    data: withOverride
-                });
-            } catch (hereError) {
-                console.error('Erro na geocodificação reversa (HERE):', hereError);
-                // Continua para fallback Nominatim
-            }
-        }
-
-        // Fallback: Nominatim
-        // Adiciona delay para respeitar rate limit do Nominatim
-        await new Promise(resolve => setTimeout(resolve, 1000));
-
-        const geocodeUrl = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&addressdetails=1&accept-language=pt-BR&zoom=18`;
-
-        const data = await httpGetJson(geocodeUrl, {
-            headers: {
-                'User-Agent': 'HelpyApp/1.0' // Nominatim requer User-Agent
-            }
-        });
-
-        if (!data) {
-            throw new Error(`Erro ao buscar endereço (Nominatim): ${data}`);
-        }
-
-        // Se o Nominatim também não retornar bairro/localidade, aplica override por coordenada
-        const nominatimNormalized = {
-            ...data,
-            address: data.address || {}
-        };
-        const allowOverride = String(req.query.noOverride || '').trim() !== '1';
-        const withOverride = allowOverride ? applyLocationOverrideIfNeeded(lat, lon, nominatimNormalized, accuracy) : nominatimNormalized;
-        
-        res.status(200).json({
-            success: true,
-            data: withOverride
-        });
-    } catch (error) {
-        console.error('Erro na geocodificação reversa:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Erro ao buscar endereço.',
-            error: process.env.NODE_ENV === 'development' ? error.message : undefined
-        });
-    }
-});
-
-// ----------------------------------------------------------------------
-// 🔍 ROTA DE BUSCA GLOBAL (usuários, serviços, postagens)
-// ----------------------------------------------------------------------
-app.get('/api/busca', authMiddleware, async (req, res) => {
-    try {
-        const termoBruto = (req.query.q || '').toString().trim();
-
-        if (!termoBruto) {
-            return res.json({
-                success: true,
-                usuarios: [],
-                servicos: [],
-                posts: []
-            });
-        }
-
-        // Busca tolerante a acentos (ex: "joao" encontra "João")
-        function buildAccentInsensitiveRegex(input) {
-            const s = (input || '')
-                .toString()
-                .trim()
-                // remove acentos para gerar um padrão base
-                .normalize('NFD')
-                .replace(/[\u0300-\u036f]/g, '');
-
-            const map = {
-                a: 'aàáâãäåÀÁÂÃÄÅ',
-                e: 'eèéêëÈÉÊË',
-                i: 'iìíîïÌÍÎÏ',
-                o: 'oòóôõöÒÓÔÕÖ',
-                u: 'uùúûüÙÚÛÜ',
-                c: 'cçÇ',
-                n: 'nñÑ'
-            };
-
-            const escapeChar = (ch) => ch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
-            let pattern = '';
-            for (let i = 0; i < s.length; i++) {
-                const ch = s[i];
-                if (/\s/.test(ch)) {
-                    // permite múltiplos espaços
-                    pattern += '\\s+';
-                    continue;
-                }
-                const lower = ch.toLowerCase();
-                if (map[lower]) {
-                    pattern += `[${map[lower]}]`;
-                } else if (/[a-z0-9]/i.test(ch)) {
-                    pattern += escapeChar(ch);
-                } else {
-                    pattern += escapeChar(ch);
-                }
-            }
-            return new RegExp(pattern, 'i');
-        }
-
-        const regex = buildAccentInsensitiveRegex(termoBruto);
-
-        const [usuarios, servicos, posts] = await Promise.all([
-            User.find({
-                $or: [
-                    { nome: regex },
-                    { atuacao: regex },
-                    { cidade: regex },
-                    { estado: regex },
-                    { email: regex }
-                ]
-            })
-            .select('nome cidade estado atuacao avatarUrl foto slugPerfil tipo')
-            .limit(10),
-
-            Servico.find({
-                $or: [
-                    { title: regex },
-                    { description: regex },
-                    { tecnologias: regex },
-                    { desafio: regex }
-                ]
-            })
-            .select('title description imagens ownerId')
-            .limit(10),
-
-            Postagem.find({
-                $or: [
-                    { content: regex }
-                ]
-            })
-            .populate('userId', 'nome cidade estado tipo avatarUrl foto slugPerfil')
-            .select('content mediaUrl mediaType createdAt userId')
-            .limit(10)
-        ]);
-
-        res.json({
-            success: true,
-            usuarios,
-            servicos,
-            posts
-        });
-    } catch (error) {
-        console.error('Erro na rota /api/busca:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Erro ao realizar busca.',
-            error: process.env.NODE_ENV === 'development' ? error.message : undefined
-        });
-    }
-});
-
-// Rota de Login
-app.post('/api/login', async (req, res) => {
-    try {
-        const { email, senha } = req.body;
-        
-        if (!email || !senha) {
-            return res.status(400).json({ success: false, message: 'Email e senha são obrigatórios.' });
-        }
-        
-        const emailNormalizado = email.toLowerCase().trim();
-        const user = await User.findOne({ email: emailNormalizado });
-        
-        if (!user) {
-            return res.status(404).json({ success: false, message: 'Usuário não encontrado.' });
-        }
-        
-        // Validação extra: garante que há uma senha hash válida antes de chamar o bcrypt
-        if (!user.senha || typeof user.senha !== 'string' || !user.senha.startsWith('$2')) {
-            console.warn('Login bloqueado: senha inválida ou não-hash para evitar erro 500.');
-            return res.status(401).json({ 
-                success: false, 
-                message: 'Não foi possível fazer login com esta conta. Por favor, redefina sua senha ou finalize seu cadastro.' 
-            });
-        }
-
-        // Verifica se a senha está correta
-        const isMatch = await bcrypt.compare(senha, user.senha);
-        
-        if (!isMatch) {
-            return res.status(401).json({ success: false, message: 'Senha incorreta.' });
-        }
-        
-        // Verifica se o e-mail foi verificado
-        if (!user.emailVerificado) {
-            return res.status(403).json({ 
-                success: false, 
-                message: 'Por favor, verifique seu e-mail para fazer login. Verifique sua caixa de entrada ou spam.',
-                needsVerification: true,
-                email: user.email
-            });
-        }
-
-        const token = jwt.sign(
-            { 
-                id: user._id, 
-                email: user.email, 
-                tipo: user.tipo 
-            }, 
-            JWT_SECRET, 
-            { expiresIn: '1d' }
-        );
-        
-        const responseData = {
-            success: true,
-            message: 'Login bem-sucedido!',
-            token,
-            userId: user._id,
-            userType: user.tipo,
-            userName: user.nome,
-            userPhotoUrl: user.avatarUrl || user.foto,
-            userTheme: user.tema || 'light'
-        };
-        
-        res.json(responseData);
-    } catch (error) {
-        console.error('Erro no login:', error);
-        console.error('Stack trace:', error.stack);
-        
-        // Verifica se a resposta já foi enviada
-        if (res.headersSent) {
-            console.error('A resposta já foi enviada, não é possível enviar outra resposta.');
-            return;
-        }
-        
-        // Para evitar que a Vercel/servidor substitua nossa resposta JSON por HTML genérico,
-        // sempre retornamos 200 aqui com success: false.
-        res.json({ 
-            success: false, 
-            message: 'Erro interno do servidor ao fazer login. Tente novamente em alguns instantes.',
-            error: process.env.NODE_ENV === 'development' ? error.message : undefined
-        });
-    }
-});
-
-// Rota de Cadastro
-// Rota para verificar e-mail
-app.post('/api/verificar-email', async (req, res) => {
-    try {
-        const { email, codigo } = req.body;
-
-        if (!email || !codigo) {
-            return res.status(400).json({ 
-                success: false, 
-                message: 'E-mail e código são obrigatórios.' 
-            });
-        }
-
-        const user = await User.findOne({ email });
-        if (!user) {
-            return res.status(404).json({ 
-                success: false, 
-                message: 'Usuário não encontrado.' 
-            });
-        }
-
-        // Verifica se o e-mail já está verificado
-        if (user.emailVerificado) {
-            return res.json({ 
-                success: true, 
-                message: 'E-mail já verificado anteriormente.' 
-            });
-        }
-
-        // Verifica se o código está correto e não expirou
-        const agora = new Date();
-        if (user.codigoVerificacao !== codigo || user.codigoExpiracao < agora) {
-            return res.status(400).json({ 
-                success: false, 
-                message: 'Código inválido ou expirado. Por favor, solicite um novo código.' 
-            });
-        }
-
-        // Atualiza o usuário como verificado
-        user.emailVerificado = true;
-        user.codigoVerificacao = undefined;
-        user.codigoExpiracao = undefined;
-        await user.save();
-
-        // Gera token de autenticação
-        const token = jwt.sign(
-            { 
-                id: user._id, 
-                email: user.email, 
-                tipo: user.tipo 
-            }, 
-            JWT_SECRET, 
-            { expiresIn: '1d' }
-        );
-
-        res.json({
-            success: true,
-            message: 'E-mail verificado com sucesso!',
-            token,
-            userId: user._id,
-            emailVerificado: true,
-            userType: user.tipo,
-            userName: user.nome,
-            userPhotoUrl: user.avatarUrl,
-            userTheme: user.tema || 'light'
-        });
-    } catch (error) {
-        console.error('Erro ao verificar e-mail:', error);
-        res.status(500).json({ 
-            success: false, 
-            message: 'Erro ao verificar e-mail.' 
-        });
-    }
-});
-
-// Rota para reenviar código de verificação
-app.post('/api/reenviar-codigo', async (req, res) => {
-    try {
-        const { email } = req.body;
-
-        if (!email) {
-            return res.status(400).json({ 
-                success: false, 
-                message: 'E-mail é obrigatório.' 
-            });
-        }
-
-        const user = await User.findOne({ email });
-        if (!user) {
-            return res.status(404).json({ 
-                success: false, 
-                message: 'Usuário não encontrado.' 
-            });
-        }
-
-        // Gera novo código de verificação
-        const novoCodigo = gerarCodigoVerificacao();
-        const dataExpiracao = new Date();
-        dataExpiracao.setHours(dataExpiracao.getHours() + 24); // Expira em 24 horas
-
-        // Atualiza os dados do usuário
-        user.codigoVerificacao = novoCodigo;
-        user.codigoExpiracao = dataExpiracao;
-        await user.save();
-
-        // Envia o novo código por e-mail
-        const emailEnviado = await enviarEmailVerificacao(email, novoCodigo);
-        if (!emailEnviado) {
-            return res.status(500).json({ 
-                success: false, 
-                message: 'Falha ao enviar e-mail de verificação.' 
-            });
-        }
-
-        res.json({ 
-            success: true, 
-            message: 'Novo código de verificação enviado para seu e-mail.' 
-        });
-    } catch (error) {
-        console.error('Erro ao reenviar código:', error);
-        res.status(500).json({ 
-            success: false, 
-            message: 'Erro ao processar sua solicitação.' 
-        });
-    }
-});
-
-app.post('/api/cadastro', upload.single('fotoPerfil'), async (req, res) => {
-    try {
-        const { nome, idade, cidade, estado, tipo, atuacao, telefone, descricao, email, senha, tema } = req.body;
-        const avatarFile = req.file;
-
-        if (!nome || !email || !senha || !tipo) {
-            return res.status(400).json({ success: false, message: 'Campos obrigatórios (Nome, Email, Senha, Tipo) não preenchidos.' });
-        }
-
-        const emailNormalizado = email.toLowerCase().trim();
-
-        // Verifica se já existe um usuário com este email
-        let usuarioExistente = await User.findOne({ email: emailNormalizado });
-        
-        // Se existe um usuário verificado, retorna erro
-        if (usuarioExistente && usuarioExistente.emailVerificado) {
-            return res.status(400).json({ 
-                success: false, 
-                message: 'Este e-mail já está cadastrado. Por favor, use outro e-mail ou faça login.'
-            });
-        }
-
-        // Se existe um usuário não verificado (temporário), vamos atualizá-lo
-        const atualizarUsuario = usuarioExistente && !usuarioExistente.emailVerificado;
-
-        // Se existe um usuário temporário, verifica se tem código de verificação válido
-        if (atualizarUsuario && !usuarioExistente.codigoVerificacao) {
-            return res.status(400).json({ 
-                success: false, 
-                message: 'Por favor, valide o código de verificação primeiro.'
-            });
-        }
-
-        // --- Lógica de Upload S3 ou Local ---
-        let fotoUrl = 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png';
-        if (avatarFile) {
-            try {
-                const sharp = getSharp();
-                let imageBuffer;
-                const mimeType = avatarFile.mimetype || '';
-                
-                if (sharp) {
-                    // Processa a imagem com Sharp com máxima qualidade
-                    // Usa tamanho 1000x1000 para melhor qualidade quando redimensionada pelo navegador
-                    let pipeline = sharp(avatarFile.buffer)
-                        .resize(1000, 1000, { 
-                            fit: 'cover',
-                            withoutEnlargement: true, // Não aumenta imagens menores
-                            kernel: 'lanczos3' // Melhor algoritmo de redimensionamento
-                        });
-
-                    // Mantém PNG/WebP praticamente sem perda, e JPEG com qualidade muito alta
-                    if (mimeType.includes('png')) {
-                        imageBuffer = await pipeline
-                            .png({
-                                compressionLevel: 6,
-                                adaptiveFiltering: true
-                            })
-                            .toBuffer();
-                    } else if (mimeType.includes('webp')) {
-                        imageBuffer = await pipeline
-                            .webp({
-                                quality: 98,
-                                lossless: true
-                            })
-                            .toBuffer();
-                    } else {
-                        imageBuffer = await pipeline
-                        .jpeg({ 
-                            quality: 98, 
-                            mozjpeg: true,
-                            progressive: true,
-                            optimizeScans: true,
-                            trellisQuantisation: true,
-                            overshootDeringing: true
-                        })
-                        .toBuffer();
-                    }
-                } else {
-                    // Se Sharp não estiver disponível, usa o buffer original
-                    imageBuffer = avatarFile.buffer;
-                    console.warn('Sharp não disponível, usando imagem original sem redimensionamento');
-                }
-
-                if (s3Client) {
-                    // Upload para S3
-                    try {
-                        const key = `avatars/${Date.now()}_${path.basename(avatarFile.originalname || 'avatar')}`;
-                        const uploadCommand = new PutObjectCommand({ 
-                            Bucket: bucketName, 
-                            Key: key, 
-                            Body: imageBuffer, 
-                            ContentType: 'image/jpeg' 
-                        });
-                        await s3Client.send(uploadCommand);
-                        fotoUrl = `https://${bucketName}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`;
-                        console.log('✅ Foto enviada para S3:', fotoUrl);
-                    } catch (s3Error) {
-                        console.warn("Falha no upload da foto de perfil para o S3:", s3Error);
-                        // Continua para o fallback local
-                    }
-                }
-                
-                // Fallback: Salvar localmente se S3 não estiver configurado ou falhou
-                if (!s3Client || fotoUrl === 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png') {
-                    const uploadsDir = path.join(__dirname, '../public/uploads/avatars');
-                    
-                    // Cria o diretório se não existir
-                    if (!fs.existsSync(uploadsDir)) {
-                        fs.mkdirSync(uploadsDir, { recursive: true });
-                    }
-                    
-                    const fileName = `${Date.now()}_${path.basename(avatarFile.originalname || 'avatar.jpg')}`;
-                    const filePath = path.join(uploadsDir, fileName);
-                    
-                    // Salva o arquivo
-                    fs.writeFileSync(filePath, imageBuffer);
-                    
-                    // URL relativa para servir via express.static
-                    fotoUrl = `/uploads/avatars/${fileName}`;
-                    console.log('✅ Foto salva localmente:', fotoUrl);
-                }
-            } catch (uploadError) {
-                console.error('Erro ao processar upload da foto:', uploadError);
-                // Mantém a foto padrão em caso de erro
-            }
-        }
-        // --- Fim da Lógica de Upload ---
-
-        const salt = await bcrypt.genSalt(10);
-        const senhaHash = await bcrypt.hash(senha, salt);
-
-        let usuarioFinal;
-
-        if (atualizarUsuario) {
-            // Atualiza o usuário temporário com os dados completos
-            usuarioExistente.nome = nome;
-            usuarioExistente.idade = idade;
-            usuarioExistente.cidade = cidade;
-            usuarioExistente.estado = estado;
-            usuarioExistente.tipo = tipo;
-            usuarioExistente.atuacao = atuacao || null; // Atuacao é opcional para todos
-            usuarioExistente.telefone = telefone;
-            usuarioExistente.descricao = descricao;
-            usuarioExistente.senha = senhaHash; // Atualiza com a senha hash correta
-            usuarioExistente.foto = fotoUrl;
-            usuarioExistente.avatarUrl = fotoUrl;
-            usuarioExistente.tema = tema || 'light';
-            // Marca email como verificado ao finalizar o cadastro
-            usuarioExistente.emailVerificado = true;
-            usuarioExistente.codigoVerificacao = null;
-            usuarioExistente.codigoVerificacaoExpira = null;
-            
-            // Gera slug de perfil se ainda não existir
-            if (!usuarioExistente.slugPerfil) {
-                usuarioExistente.slugPerfil = await gerarSlugPerfil(nome);
-            }
-            
-            await usuarioExistente.save();
-            usuarioFinal = usuarioExistente;
-        } else {
-            // Cria novo usuário (caso não tenha passado pela verificação de email)
-            const slugPerfil = await gerarSlugPerfil(nome);
-
-            const newUser = new User({
-                nome,
-                idade,
-                cidade,
-                estado, 
-                tipo,
-                atuacao: atuacao || null, // Atuacao é opcional para todos
-                telefone,
-                descricao,
-                email: emailNormalizado,
-                senha: senhaHash,
-                foto: fotoUrl,
-                avatarUrl: fotoUrl,
-                slugPerfil,
-                tema: tema || 'light',
-                emailVerificado: true // Assumindo que já foi verificado antes de chegar aqui
-            });
-
-            await newUser.save();
-            usuarioFinal = newUser;
-        }
-
-        // Gera token de autenticação
-        const token = jwt.sign(
-            { 
-                id: usuarioFinal._id, 
-                email: usuarioFinal.email, 
-                tipo: usuarioFinal.tipo 
-            }, 
-            JWT_SECRET, 
-            { expiresIn: '1d' }
-        );
-        
-        // 🛑 ATUALIZADO: Envia o tema salvo
-        res.status(201).json({ 
-            success: true, 
-            message: 'Cadastro realizado com sucesso!',
-            token,
-            userId: usuarioFinal._id,
-            emailVerificado: usuarioFinal.emailVerificado,
-            userType: usuarioFinal.tipo,
-            userName: usuarioFinal.nome,
-            userPhotoUrl: usuarioFinal.avatarUrl,
-            userTheme: usuarioFinal.tema || 'light'
-        });
-    } catch (error) {
-        console.error('Erro ao cadastrar usuário:', error);
-        if (error.code === 11000) {
-            return res.status(409).json({ message: 'Este email já está cadastrado.' });
-        }
-        res.status(500).json({ message: 'Erro interno do servidor.' });
-    }
-});
-
-// 🆕 NOVO: Rota para solicitar código de redefinição de senha
-app.post('/api/esqueci-senha/solicitar', async (req, res) => {
-    try {
-        const { email } = req.body;
-        
-        if (!email) {
-            return res.status(400).json({ success: false, message: 'Email é obrigatório.' });
-        }
-
-        const emailNormalizado = email.toLowerCase().trim();
-        
-        // Verifica se o usuário existe e está verificado
-        const usuario = await User.findOne({ 
-            email: emailNormalizado,
-            emailVerificado: true
-        });
-
-        if (!usuario) {
-            // Por segurança, não revela se o email existe ou não
-            return res.json({ 
-                success: true, 
-                message: 'Se o email estiver cadastrado, você receberá um código de verificação.' 
-            });
-        }
-
-        // Gera código de verificação
-        const codigo = gerarCodigoVerificacao();
-        const expiraEm = new Date();
-        expiraEm.setMinutes(expiraEm.getMinutes() + 10); // Expira em 10 minutos
-
-        // Salva o código no usuário
-        usuario.codigoVerificacao = codigo;
-        usuario.codigoVerificacaoExpira = expiraEm;
-        await usuario.save();
-
-        // Envia código por email
-        try {
-            await enviarCodigoVerificacao(emailNormalizado, codigo);
-        } catch (emailError) {
-            console.error('Erro ao enviar email de redefinição:', emailError);
-            // Não bloqueia o processo - código já foi salvo
-        }
-
-        return res.json({ 
-            success: true, 
-            message: 'Se o email estiver cadastrado, você receberá um código de verificação.',
-            email: emailNormalizado
-        });
-    } catch (error) {
-        console.error('Erro ao solicitar redefinição de senha:', error);
-        res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
-    }
-});
-
-// 🆕 NOVO: Rota para validar código de redefinição (sem redefinir senha ainda)
-app.post('/api/esqueci-senha/validar-codigo', async (req, res) => {
-    try {
-        const { email, codigo } = req.body;
-        
-        if (!email || !codigo) {
-            return res.status(400).json({ success: false, message: 'Email e código são obrigatórios.' });
-        }
-
-        const emailNormalizado = email.toLowerCase().trim();
-        
-        // Busca o usuário
-        const usuario = await User.findOne({ 
-            email: emailNormalizado,
-            emailVerificado: true
-        });
-
-        if (!usuario) {
-            return res.status(404).json({ success: false, message: 'Usuário não encontrado.' });
-        }
-
-        // Verifica se o código está correto e não expirou
-        if (usuario.codigoVerificacao !== codigo) {
-            return res.status(400).json({ success: false, message: 'Código de verificação inválido.' });
-        }
-
-        if (usuario.codigoVerificacaoExpira && new Date() > usuario.codigoVerificacaoExpira) {
-            return res.status(400).json({ success: false, message: 'Código de verificação expirado. Solicite um novo código.' });
-        }
-
-        res.json({ 
-            success: true, 
-            message: 'Código válido!'
-        });
-    } catch (error) {
-        console.error('Erro ao validar código de redefinição:', error);
-        res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
-    }
-});
-
-// 🆕 NOVO: Rota para validar código e redefinir senha
-app.post('/api/esqueci-senha/redefinir', async (req, res) => {
-    try {
-        const { email, codigo, novaSenha } = req.body;
-        
-        if (!email || !codigo || !novaSenha) {
-            return res.status(400).json({ success: false, message: 'Email, código e nova senha são obrigatórios.' });
-        }
-
-        if (novaSenha.length < 6) {
-            return res.status(400).json({ success: false, message: 'A senha deve ter pelo menos 6 caracteres.' });
-        }
-
-        const emailNormalizado = email.toLowerCase().trim();
-        
-        // Busca o usuário
-        const usuario = await User.findOne({ 
-            email: emailNormalizado,
-            emailVerificado: true
-        });
-
-        if (!usuario) {
-            return res.status(404).json({ success: false, message: 'Usuário não encontrado.' });
-        }
-
-        // Verifica se o código está correto e não expirou
-        if (usuario.codigoVerificacao !== codigo) {
-            return res.status(400).json({ success: false, message: 'Código de verificação inválido.' });
-        }
-
-        if (usuario.codigoVerificacaoExpira && new Date() > usuario.codigoVerificacaoExpira) {
-            return res.status(400).json({ success: false, message: 'Código de verificação expirado. Solicite um novo código.' });
-        }
-
-        // Hash da nova senha
-        const salt = await bcrypt.genSalt(10);
-        const senhaHash = await bcrypt.hash(novaSenha, salt);
-
-        // Atualiza a senha e limpa o código
-        usuario.senha = senhaHash;
-        usuario.codigoVerificacao = null;
-        usuario.codigoVerificacaoExpira = null;
-        await usuario.save();
-
-        res.json({ 
-            success: true, 
-            message: 'Senha redefinida com sucesso! Você já pode fazer login.'
-        });
-    } catch (error) {
-        console.error('Erro ao redefinir senha:', error);
-        res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
-    }
-});
-
-// Rota para obter dados do usuário atual
-app.get('/api/user/me', authMiddleware, async (req, res) => {
-    try {
-        const userId = req.user.id;
-        const user = await User.findById(userId).select('-senha');
-        if (!user) {
-            return res.status(404).json({ success: false, message: 'Usuário não encontrado.' });
-        }
-        res.json(user.toObject());
-    } catch (error) {
-        console.error('Erro ao buscar usuário atual:', error);
-        res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
-    }
-});
-
-// Atualizar preferência de tema do usuário
-app.put('/api/user/theme', authMiddleware, async (req, res) => {
-    try {
-        const userId = req.user.id;
-        const tema = String(req.body?.tema || 'light').toLowerCase();
-        const temaFinal = tema === 'dark' ? 'dark' : 'light';
-
-        const user = await User.findByIdAndUpdate(
-            userId,
-            { $set: { tema: temaFinal } },
-            { new: true, runValidators: true }
-        ).select('tema');
-
-        if (!user) {
-            return res.status(404).json({ success: false, message: 'Usuário não encontrado.' });
-        }
-
-        res.json({ success: true, tema: user.tema });
-    } catch (error) {
-        console.error('Erro ao atualizar tema do usuário:', error);
-        res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
-    }
-});
-
-app.get('/api/usuario/me', authMiddleware, async (req, res) => {
-    try {
-        const userId = req.user.id;
-        const user = await User.findById(userId).select('-senha');
-        if (!user) {
-            return res.status(404).json({ success: false, message: 'Usuário não encontrado.' });
-        }
-        res.json(user.toObject());
-    } catch (error) {
-        console.error('Erro ao buscar usuário atual:', error);
-        res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
-    }
-});
-
-app.get('/api/usuario/:userId', authMiddleware, async (req, res) => {
-    try {
-        const { userId } = req.params;
-        const user = await User.findById(userId).select('-senha');
-        if (!user) {
-            return res.status(404).json({ success: false, message: 'Usuário não encontrado.' });
-        }
-        res.json({ success: true, usuario: user.toObject() });
-    } catch (error) {
-        console.error('Erro ao buscar usuário:', error);
-        res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
-    }
-});
-
-// Upload da imagem do anúncio (logo/cartaz). Retorna imagemUrl.
-app.post('/api/anuncios/upload-imagem', authMiddleware, uploadAdImage.single('imagem'), async (req, res) => {
-    try {
-        const file = req.file;
-        if (!file) {
-            return res.status(400).json({ success: false, message: 'Nenhuma imagem enviada.' });
-        }
-
-        const sharp = getSharp();
-        let imageBuffer = file.buffer;
-        if (sharp) {
-            imageBuffer = await sharp(file.buffer)
-                .resize(1200, 700, { fit: 'cover', withoutEnlargement: true })
-                .jpeg({ quality: 90, mozjpeg: true, progressive: true })
-                .toBuffer();
-        }
-
-        let imagemUrl = '';
-        if (s3Client && bucketName && process.env.AWS_REGION) {
-            try {
-                const safeBase = path.basename(file.originalname || 'anuncio.jpg').replace(/[^a-zA-Z0-9.\-_]/g, '_');
-                const key = `anuncios/${req.user.id}/${Date.now()}_${safeBase}`;
-                const uploadCommand = new PutObjectCommand({
-                    Bucket: bucketName,
-                    Key: key,
-                    Body: imageBuffer,
-                    ContentType: 'image/jpeg'
-                });
-                await s3Client.send(uploadCommand);
-                imagemUrl = `https://${bucketName}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`;
-            } catch (s3Error) {
-                console.warn('Falha no upload da imagem do anúncio para o S3:', s3Error.message);
-            }
-        }
-
-        if (!imagemUrl) {
-            const uploadsDir = path.join(__dirname, '../public/uploads/anuncios');
-            if (!fs.existsSync(uploadsDir)) {
-                fs.mkdirSync(uploadsDir, { recursive: true });
-            }
-            const fileName = `${Date.now()}_${path.basename(file.originalname || 'anuncio.jpg')}`;
-            const filePath = path.join(uploadsDir, fileName);
-            fs.writeFileSync(filePath, imageBuffer);
-            imagemUrl = `/uploads/anuncios/${fileName}`;
-        }
-
-        res.json({ success: true, imagemUrl });
-    } catch (error) {
-        console.error('Erro ao fazer upload da imagem do anúncio:', error);
-        res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
-    }
-});
-
-// Criar Anúncio (manual, sem pagamento integrado ainda)
 app.post('/api/anuncios', authMiddleware, async (req, res) => {
     try {
-        const { titulo, descricao, imagemUrl, linkUrl, cidade, estado, ativo, plano } = req.body;
+        const { titulo, descricao, imagemUrl, linkUrl, endereco, numero, cidade, estado, ativo, plano } = req.body;
+
         if (!titulo || String(titulo).trim().length === 0) {
             return res.status(400).json({ success: false, message: 'Título do anúncio é obrigatório.' });
         }
@@ -2248,6 +421,8 @@ app.post('/api/anuncios', authMiddleware, async (req, res) => {
             descricao: descricao ? String(descricao).trim() : '',
             imagemUrl: imagemUrl ? String(imagemUrl).trim() : '',
             linkUrl: linkUrl ? String(linkUrl).trim() : '',
+            endereco: endereco ? String(endereco).trim() : '',
+            numero: numero ? String(numero).trim() : '',
             cidade: cidade ? String(cidade).trim() : '',
             estado: estado ? String(estado).trim() : '',
             plano: planoFinal,
@@ -2268,114 +443,108 @@ app.post('/api/anuncios', authMiddleware, async (req, res) => {
 app.get('/api/anuncios', authMiddleware, async (req, res) => {
     try {
         const limitRaw = Number(req.query.limit);
-        const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 100) : 50;
-
+        const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 50) : 30;
         const anuncios = await AnuncioPago.find({ ownerId: req.user.id })
             .sort({ createdAt: -1 })
             .limit(limit)
             .lean();
-
         res.json({ success: true, anuncios });
     } catch (error) {
-        console.error('Erro ao listar anúncios:', error);
+        console.error('Erro ao buscar anúncios do usuário:', error);
         res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
     }
 });
 
-// Buscar anúncios do feed (prioridade: cidade+estado -> estado -> geral)
 app.get('/api/anuncios-feed', authMiddleware, async (req, res) => {
     try {
-        const user = await User.findById(req.user.id).select('cidade estado');
-
         const limitRaw = Number(req.query.limit);
         const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 50) : 30;
-
-        const now = new Date();
-        const baseFilter = {
+        const agora = new Date();
+        const anuncios = await AnuncioPago.find({
             ativo: true,
-            $and: [
-                { $or: [{ inicioEm: null }, { inicioEm: { $lte: now } }] },
-                { $or: [{ fimEm: null }, { fimEm: { $gte: now } }] }
-            ]
-        };
+            inicioEm: { $lte: agora },
+            fimEm: { $gte: agora }
+        })
+            .sort({ prioridade: -1, createdAt: -1 })
+            .limit(100)
+            .lean();
 
-        const selected = [];
-        const selectedIds = new Set();
-        const pushUnique = (items) => {
-            (items || []).forEach((it) => {
-                const id = String(it._id);
-                if (selectedIds.has(id)) return;
-                selectedIds.add(id);
-                selected.push(it);
-            });
-        };
-
-        const sortOrder = { prioridade: -1, createdAt: -1 };
-
-        if (user?.cidade && user?.estado) {
-            const cidadeRegex = new RegExp(`^${user.cidade}$`, 'i');
-            const estadoRegex = new RegExp(`^${user.estado}$`, 'i');
-
-            const locais = await AnuncioPago.find({ ...baseFilter, cidade: cidadeRegex, estado: estadoRegex })
-                .sort(sortOrder)
-                .limit(limit);
-            pushUnique(locais);
-
-            if (selected.length < limit) {
-                const estaduais = await AnuncioPago.find({ ...baseFilter, estado: estadoRegex })
-                    .sort(sortOrder)
-                    .limit(limit);
-                pushUnique(estaduais);
-            }
-        } else if (user?.estado) {
-            const estadoRegex = new RegExp(`^${user.estado}$`, 'i');
-            const estaduais = await AnuncioPago.find({ ...baseFilter, estado: estadoRegex })
-                .sort(sortOrder)
-                .limit(limit);
-            pushUnique(estaduais);
-        } else if (user?.cidade) {
-            const cidadeRegex = new RegExp(`^${user.cidade}$`, 'i');
-            const locais = await AnuncioPago.find({ ...baseFilter, cidade: cidadeRegex })
-                .sort(sortOrder)
-                .limit(limit);
-            pushUnique(locais);
-        }
-
-        if (selected.length < limit) {
-            const gerais = await AnuncioPago.find({ ...baseFilter })
-                .sort(sortOrder)
-                .limit(limit);
-            pushUnique(gerais);
-        }
+        const ownerIds = Array.from(new Set(anuncios.map(a => String(a.ownerId || '')).filter(Boolean)));
+        const owners = ownerIds.length > 0
+            ? await User.find({ _id: { $in: ownerIds } }).select('cidade estado').lean()
+            : [];
+        const ownerMap = new Map(owners.map(owner => [String(owner._id), owner]));
 
         const expanded = [];
-        for (const a of selected) {
-            const slots = a?.plano === 'premium' ? 3 : 1;
+        for (const anuncio of anuncios) {
+            const slots = anuncio?.plano === 'premium' ? 2 : 1;
+            const owner = anuncio?.ownerId ? ownerMap.get(String(anuncio.ownerId)) : null;
+            const cidadeFinal = anuncio?.cidade || owner?.cidade || '';
+            const estadoFinal = anuncio?.estado || owner?.estado || '';
             for (let i = 0; i < slots; i += 1) {
                 expanded.push({
-                    _id: a._id,
-                    _feedKey: `${String(a._id)}:${i}`,
-                    titulo: a.titulo,
-                    descricao: a.descricao,
-                    imagemUrl: a.imagemUrl,
-                    linkUrl: a.linkUrl,
-                    cidade: a.cidade,
-                    estado: a.estado,
-                    plano: a.plano
+                    _id: anuncio._id,
+                    _feedKey: `${String(anuncio._id)}:${i}`,
+                    titulo: anuncio.titulo,
+                    descricao: anuncio.descricao,
+                    imagemUrl: anuncio.imagemUrl,
+                    linkUrl: anuncio.linkUrl,
+                    endereco: anuncio.endereco || '',
+                    numero: anuncio.numero || '',
+                    cidade: cidadeFinal,
+                    estado: estadoFinal,
+                    ownerId: anuncio.ownerId,
+                    plano: anuncio.plano
                 });
             }
         }
 
-        const anuncios = expanded.slice(0, limit);
-
-        res.json({ success: true, anuncios });
+        res.json({ success: true, anuncios: expanded.slice(0, limit) });
     } catch (error) {
         console.error('Erro ao buscar anúncios do feed:', error);
         res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
     }
 });
 
-// Sugestões de cidades (autocomplete) - retorna cidades do banco conforme o usuário digita
+app.get('/api/user/me', authMiddleware, async (req, res) => {
+    try {
+        const usuario = await User.findById(req.user.id).select('-senha').lean();
+        if (!usuario) {
+            return res.status(404).json({ success: false, message: 'Usuário não encontrado.' });
+        }
+        res.json({ success: true, usuario });
+    } catch (error) {
+        console.error('Erro ao buscar usuário atual:', error);
+        res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
+    }
+});
+
+app.get('/api/usuario/me', authMiddleware, async (req, res) => {
+    try {
+        const usuario = await User.findById(req.user.id).select('-senha').lean();
+        if (!usuario) {
+            return res.status(404).json({ success: false, message: 'Usuário não encontrado.' });
+        }
+        res.json({ success: true, usuario });
+    } catch (error) {
+        console.error('Erro ao buscar usuário atual:', error);
+        res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
+    }
+});
+
+app.get('/api/usuario/:id', authMiddleware, async (req, res) => {
+    try {
+        const usuario = await User.findById(req.params.id).select('-senha').lean();
+        if (!usuario) {
+            return res.status(404).json({ success: false, message: 'Usuário não encontrado.' });
+        }
+        res.json({ success: true, usuario });
+    } catch (error) {
+        console.error('Erro ao buscar usuário:', error);
+        res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
+    }
+});
+
 app.get('/api/cidades', authMiddleware, async (req, res) => {
     try {
         const q = String(req.query.q || '').trim();
@@ -5125,6 +3294,125 @@ app.post('/api/pedidos-urgentes/:pedidoId/proposta', authMiddleware, async (req,
     }
 });
 
+// Buscar um pedido urgente por ID (dados básicos e foto)
+app.get('/api/pedidos-urgentes/:pedidoId', authMiddleware, async (req, res, next) => {
+    try {
+        const { pedidoId } = req.params;
+        if (!mongoose.Types.ObjectId.isValid(pedidoId)) {
+            return next();
+        }
+        let pedido = null;
+        try {
+            pedido = await PedidoUrgente.findById(pedidoId)
+                .populate('clienteId', 'nome foto avatarUrl cidade estado')
+                .populate('propostas.profissionalId', 'nome foto avatarUrl atuacao cidade estado')
+                .exec();
+        } catch (queryError) {
+            console.warn('⚠️ Falha ao buscar pedido urgente:', pedidoId, queryError?.message || queryError);
+        }
+
+        if (!pedido) {
+            return res.json({ success: false, message: 'Pedido não encontrado.', pedido: null });
+        }
+
+        const propostasFormatadas = (pedido.propostas || []).map(prop => ({
+            _id: prop._id,
+            profissionalId: prop.profissionalId?._id || prop.profissionalId,
+            usuarioId: prop.profissionalId?._id || prop.profissionalId,
+            valor: prop.valor,
+            tempoChegada: prop.tempoChegada,
+            observacoes: prop.observacoes,
+            status: prop.status,
+            dataProposta: prop.dataProposta,
+            profissional: prop.profissionalId
+        }));
+
+        res.json({
+            success: true,
+            pedido: {
+                _id: pedido._id,
+                servico: pedido.servico,
+                descricao: pedido.descricao,
+                foto: pedido.foto,
+                fotos: pedido.fotos || (pedido.foto ? [pedido.foto] : []),
+                localizacao: pedido.localizacao,
+                categoria: pedido.categoria,
+                clienteId: pedido.clienteId,
+                propostas: propostasFormatadas,
+                propostaSelecionada: pedido.propostaSelecionada,
+                status: pedido.status
+            }
+        });
+    } catch (error) {
+        console.error('Erro ao buscar pedido urgente:', error);
+        res.json({ success: false, message: 'Erro interno do servidor.', pedido: null });
+    }
+});
+
+// Aceitar Proposta de um Pedido Urgente (cliente)
+app.post('/api/pedidos-urgentes/:pedidoId/aceitar-proposta/:propostaId', authMiddleware, async (req, res) => {
+    try {
+        const { pedidoId } = req.params;
+        const { propostaId } = req.params;
+        const clienteId = req.user.id;
+
+        const pedido = await PedidoUrgente.findById(pedidoId);
+        if (!pedido) {
+            return res.status(404).json({ success: false, message: 'Pedido não encontrado.' });
+        }
+
+        if (pedido.clienteId.toString() !== clienteId) {
+            return res.status(403).json({ success: false, message: 'Apenas o criador do pedido pode aceitar propostas.' });
+        }
+
+        if (pedido.status !== 'aberto') {
+            return res.status(400).json({ success: false, message: 'Este pedido não está mais aceitando propostas.' });
+        }
+
+        const proposta = pedido.propostas.id(propostaId);
+        if (!proposta) {
+            return res.status(404).json({ success: false, message: 'Proposta não encontrada.' });
+        }
+
+        if (proposta.status !== 'pendente') {
+            return res.status(400).json({ success: false, message: 'Esta proposta não está mais pendente.' });
+        }
+
+        proposta.status = 'aceita';
+        pedido.propostaSelecionada = propostaId;
+        pedido.status = 'em_andamento';
+        await pedido.save();
+
+        // Notifica o profissional sobre a aceitação da proposta
+        try {
+            const profissional = await User.findById(proposta.profissionalId);
+            if (profissional) {
+                const titulo = 'Proposta aceita!';
+                const mensagem = `O cliente aceitou sua proposta de R$ ${proposta.valor.toFixed(2)} para o pedido: ${pedido.servico}`;
+                await criarNotificacao(
+                    profissional._id,
+                    'proposta_aceita',
+                    titulo,
+                    mensagem,
+                    { 
+                        pedidoId: pedido._id,
+                        propostaId: proposta._id,
+                        servico: pedido.servico
+                    },
+                    null
+                );
+            }
+        } catch (notifError) {
+            console.error('Erro ao criar notificação de aceitação de proposta:', notifError);
+        }
+
+        res.json({ success: true, message: 'Proposta aceita com sucesso!' });
+    } catch (error) {
+        console.error('Erro ao aceitar proposta:', error);
+        res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
+    }
+});
+
 // Listar Propostas de um Pedido Urgente (para o cliente)
 app.get('/api/pedidos-urgentes/:pedidoId/propostas', authMiddleware, async (req, res) => {
     try {
@@ -5161,278 +3449,8 @@ app.get('/api/pedidos-urgentes/:pedidoId/propostas', authMiddleware, async (req,
             }
         });
     } catch (error) {
-        console.error('Erro ao buscar propostas:', error);
-        res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
-    }
-});
-
-// Cancelar proposta enviada (profissional)
-app.post('/api/pedidos-urgentes/:pedidoId/cancelar-proposta', authMiddleware, async (req, res) => {
-    try {
-        const { pedidoId } = req.params;
-        const profissionalId = req.user.id;
-
-        const pedido = await PedidoUrgente.findById(pedidoId);
-        if (!pedido) {
-            return res.status(404).json({ success: false, message: 'Pedido urgente não encontrado.' });
-        }
-
-        // Só cancela se o pedido ainda estiver aberto
-        if (pedido.status !== 'aberto') {
-            return res.status(400).json({ success: false, message: 'Este pedido não aceita mais alterações de proposta.' });
-        }
-
-        const proposta = (pedido.propostas || []).find(
-            p => p && p.profissionalId && p.profissionalId.toString() === profissionalId
-        );
-        if (!proposta) {
-            return res.status(404).json({ success: false, message: 'Você não tem proposta neste pedido.' });
-        }
-
-        if (proposta.status !== 'pendente') {
-            return res.status(400).json({ success: false, message: 'Não é possível cancelar uma proposta que já foi processada.' });
-        }
-
-        proposta.status = 'cancelada';
-        await pedido.save();
-
-        // Apaga a notificação de "nova proposta" que chegou para o cliente (se existir)
-        try {
-            await Notificacao.deleteMany({
-                userId: pedido.clienteId,
-                tipo: 'proposta_pedido_urgente',
-                'dadosAdicionais.pedidoId': pedido._id,
-                'dadosAdicionais.propostaId': proposta._id,
-                'dadosAdicionais.profissionalId': profissionalId
-            });
-        } catch (delNotifErr) {
-            console.warn('⚠️ Falha ao deletar notificação de proposta do cliente:', delNotifErr);
-        }
-
-        return res.json({
-            success: true,
-            message: 'Proposta cancelada com sucesso.',
-            pedidoId: pedido._id,
-            propostaId: proposta._id
-        });
-    } catch (error) {
-        console.error('Erro ao cancelar proposta:', error);
-        res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
-    }
-});
-
-// Recusar Proposta de Pedido Urgente (cliente não gostou da proposta)
-app.post('/api/pedidos-urgentes/:pedidoId/recusar-proposta', authMiddleware, async (req, res) => {
-    try {
-        const { pedidoId } = req.params;
-        const { propostaId } = req.body;
-        const clienteId = req.user.id;
-
-        const pedido = await PedidoUrgente.findById(pedidoId);
-        if (!pedido) {
-            return res.status(404).json({ success: false, message: 'Pedido não encontrado.' });
-        }
-
-        if (pedido.clienteId.toString() !== clienteId) {
-            return res.status(403).json({ success: false, message: 'Apenas o criador do pedido pode recusar propostas.' });
-        }
-
-        const proposta = pedido.propostas.id(propostaId);
-        if (!proposta) {
-            return res.status(404).json({ success: false, message: 'Proposta não encontrada.' });
-        }
-
-        if (proposta.status === 'aceita') {
-            return res.status(400).json({ success: false, message: 'Não é possível recusar uma proposta já aceita.' });
-        }
-
-        proposta.status = 'rejeitada';
-        await pedido.save();
-
-        // Notifica o profissional que a proposta foi recusada
-        try {
-            const profissional = await User.findById(proposta.profissionalId);
-            const cliente = await User.findById(clienteId);
-            if (profissional && cliente) {
-                const titulo = 'Sua proposta foi recusada';
-                const mensagem = `${cliente.nome} recusou sua proposta para o pedido: ${pedido.servico}.`;
-                await criarNotificacao(
-                    proposta.profissionalId,
-                    'proposta_pedido_urgente',
-                    titulo,
-                    mensagem,
-                    {
-                        pedidoId: pedido._id,
-                        propostaId: proposta._id,
-                        servico: pedido.servico,
-                        status: 'rejeitada'
-                    },
-                    null
-                );
-            }
-        } catch (notifError) {
-            console.error('Erro ao criar notificação de proposta recusada:', notifError);
-        }
-
-        return res.json({ success: true, message: 'Proposta recusada com sucesso.', pedido });
-    } catch (error) {
-        console.error('Erro ao recusar proposta:', error);
-        res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
-    }
-});
-
-// Buscar um pedido urgente por ID (dados básicos e foto) - restringe a ObjectId para não conflitar com /ativos, /meus etc.
-app.get('/api/pedidos-urgentes/:pedidoId([a-fA-F0-9]{24})', authMiddleware, async (req, res) => {
-    try {
-        const { pedidoId } = req.params;
-        const pedido = await PedidoUrgente.findById(pedidoId)
-            .populate('clienteId', 'nome foto avatarUrl cidade estado')
-            .populate('propostas.profissionalId', 'nome foto avatarUrl atuacao cidade estado')
-            .exec();
-
-        if (!pedido) {
-            return res.status(404).json({ success: false, message: 'Pedido não encontrado.' });
-        }
-
-        // Prepara as propostas com usuarioId (alias de profissionalId para compatibilidade)
-        const propostasFormatadas = pedido.propostas.map(prop => ({
-            _id: prop._id,
-            profissionalId: prop.profissionalId?._id || prop.profissionalId,
-            usuarioId: prop.profissionalId?._id || prop.profissionalId, // Alias para compatibilidade
-            valor: prop.valor,
-            tempoChegada: prop.tempoChegada,
-            observacoes: prop.observacoes,
-            status: prop.status,
-            dataProposta: prop.dataProposta,
-            profissional: prop.profissionalId // Dados populados do profissional
-        }));
-
-        res.json({
-            success: true,
-            pedido: {
-                _id: pedido._id,
-                servico: pedido.servico,
-                descricao: pedido.descricao,
-                foto: pedido.foto,
-                fotos: pedido.fotos || (pedido.foto ? [pedido.foto] : []),
-                localizacao: pedido.localizacao,
-                categoria: pedido.categoria,
-                clienteId: pedido.clienteId,
-                propostas: propostasFormatadas,
-                propostaSelecionada: pedido.propostaSelecionada,
-                status: pedido.status
-            }
-        });
-    } catch (error) {
         console.error('Erro ao buscar pedido urgente:', error);
-        res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
-    }
-});
-
-// Aceitar Proposta de Pedido Urgente
-app.post('/api/pedidos-urgentes/:pedidoId/aceitar-proposta', authMiddleware, async (req, res) => {
-    try {
-        const { pedidoId } = req.params;
-        const { propostaId } = req.body;
-        const clienteId = req.user.id;
-
-        const pedido = await PedidoUrgente.findById(pedidoId);
-        if (!pedido) {
-            return res.status(404).json({ success: false, message: 'Pedido não encontrado.' });
-        }
-
-        if (pedido.clienteId.toString() !== clienteId) {
-            return res.status(403).json({ success: false, message: 'Apenas o criador do pedido pode aceitar propostas.' });
-        }
-
-        const proposta = pedido.propostas.id(propostaId);
-        if (!proposta) {
-            return res.status(404).json({ success: false, message: 'Proposta não encontrada.' });
-        }
-
-        // Rejeita outras propostas
-        pedido.propostas.forEach(p => {
-            if (p._id.toString() !== propostaId) {
-                p.status = 'rejeitada';
-            }
-        });
-
-        proposta.status = 'aceita';
-        pedido.propostaSelecionada = propostaId;
-
-        // Cria agendamento automaticamente
-        const dataHoraServico = pedido.dataAgendada || new Date(); // Se tiver horário agendado, usa ele
-
-        const agendamento = new Agendamento({
-            profissionalId: proposta.profissionalId,
-            clienteId,
-            dataHora: dataHoraServico,
-            servico: pedido.servico,
-            observacoes: `Pedido urgente: ${pedido.descricao || ''}. ${proposta.observacoes || ''}`,
-            endereco: pedido.localizacao,
-            status: 'confirmado'
-        });
-
-        await agendamento.save();
-
-        // Vincula o agendamento ao pedido e marca como em andamento
-        pedido.agendamentoId = agendamento._id;
-        pedido.status = 'em_andamento';
-        await pedido.save();
-
-        // Notifica o profissional que a proposta foi aceita
-        try {
-            const profissional = await User.findById(proposta.profissionalId);
-            if (profissional) {
-                const titulo = 'Sua proposta foi aceita!';
-                const mensagem = `Um usuário aceitou sua proposta para o pedido urgente: ${pedido.servico}. Prepare-se para o atendimento.`;
-                await criarNotificacao(
-                    proposta.profissionalId,
-                    'proposta_aceita',
-                    titulo,
-                    mensagem,
-                    {
-                        pedidoId: pedido._id,
-                        agendamentoId: agendamento._id
-                    },
-                    null
-                );
-            }
-        } catch (notifError) {
-            console.error('Erro ao criar notificação de proposta aceita para o profissional:', notifError);
-        }
-
-        // Notifica o usuário que a proposta foi aceita (para sincronização e atualização do modal)
-        try {
-            const cliente = await User.findById(clienteId);
-            if (cliente) {
-                const titulo = 'Proposta aceita!';
-                const mensagem = `Você aceitou a proposta para o pedido: ${pedido.servico}. O serviço está em andamento.`;
-                await criarNotificacao(
-                    clienteId,
-                    'proposta_aceita',
-                    titulo,
-                    mensagem,
-                    {
-                        pedidoId: pedido._id,
-                        agendamentoId: agendamento._id
-                    },
-                    null
-                );
-            }
-        } catch (notifError) {
-            console.error('Erro ao criar notificação de proposta aceita para o usuário:', notifError);
-        }
-        
-        res.json({ 
-            success: true, 
-            message: 'Proposta aceita! Agora é só aguardar o profissional.',
-            pedido,
-            agendamento
-        });
-    } catch (error) {
-        console.error('Erro ao aceitar proposta:', error);
-        res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
+        res.json({ success: false, message: 'Erro interno do servidor.', pedido: null });
     }
 });
 

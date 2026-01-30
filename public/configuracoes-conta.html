@@ -237,58 +237,11 @@
                             </label>
                         </div>
 
-                        <hr class="config-divider">
-
-                        <form id="form-criar-anuncio">
-                            <div class="form-group">
-                                <label for="anuncio-titulo">Título</label>
-                                <input type="text" id="anuncio-titulo" class="input-edicao" placeholder="Ex: Minha Loja" required>
-                            </div>
-
-                                <div class="form-group">
-                                    <label for="anuncio-descricao">Descrição</label>
-                                    <input type="text" id="anuncio-descricao" class="input-edicao" placeholder="Ex: Promoção da semana">
-                                </div>
-
-                                <div class="form-group">
-                                    <label for="anuncio-imagem-arquivo">Imagem de Fundo</label>
-                                    <input type="file" id="anuncio-imagem-arquivo" accept="image/*" required style="display:none;">
-                                    <div id="anuncio-imagem-picker" style="display:flex; align-items:center; gap: 12px;">
-                                        <button type="button" id="btn-anuncio-escolher-imagem" class="btn-ghost btn-ghost-icon">+</button>
-                                        <img id="anuncio-imagem-preview" src="" alt="Prévia da imagem" style="display:none; width: 260px; height: 160px; object-fit: cover; border-radius: 14px; border: 1px solid rgba(255,255,255,0.12); cursor: pointer;" />
-                                    </div>
-                                </div>
-
-                                <div class="form-group">
-                                    <label for="anuncio-link">URL do link</label>
-                                    <input type="text" id="anuncio-link" class="input-edicao" placeholder="https://...">
-                                </div>
-
-                                <div class="form-group">
-                                    <label for="anuncio-cidade">Cidade (opcional)</label>
-                                    <input type="text" id="anuncio-cidade" class="input-edicao" placeholder="Ex: Palmas">
-                                </div>
-
-                                <div class="form-group">
-                                    <label for="anuncio-estado">Estado/UF (opcional)</label>
-                                    <input type="text" id="anuncio-estado" class="input-edicao" placeholder="Ex: TO">
-                                </div>
-
-                                <div class="form-group">
-                                    <label for="anuncio-plano">Plano do anúncio (30 dias)</label>
-                                    <select id="anuncio-plano" class="input-edicao">
-                                        <option value="basico" selected>Básico</option>
-                                        <option value="premium">Premium (aparece mais vezes)</option>
-                                    </select>
-                                </div>
-
-                                <button type="submit" class="salvar-btn btn-ghost" style="margin-top: 10px;">
-                                    <span class="btn-text">Criar anúncio</span>
-                                    <span class="btn-spinner"></span>
-                                </button>
-
-                                <p id="msg-anuncio" class="config-descricao" style="margin-top: 10px;"></p>
-                            </form>
+                        <div class="config-actions" style="margin-top: 14px;">
+                            <button type="button" id="btn-abrir-criar-anuncio" class="salvar-btn btn-ghost">
+                                Criar anúncio
+                            </button>
+                        </div>
 
                         <hr class="config-divider">
                         <div id="lista-meus-anuncios" class="config-descricao"></div>
@@ -352,6 +305,123 @@
                         </div>
                     </div>
                 </section>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-criar-anuncio" class="modal-overlay hidden">
+        <div class="modal-content modal-grande">
+            <div class="modal-body">
+                <form id="form-criar-anuncio">
+                    <div class="form-group">
+                        <div class="form-label-row">
+                            <label for="anuncio-titulo">Empresa</label>
+                            <button type="button" id="btn-fechar-modal-anuncio" class="btn-ghost btn-ghost-icon btn-close-clean" aria-label="Fechar">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                        <input type="text" id="anuncio-titulo" class="input-edicao" placeholder="Ex: Minha Loja" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="anuncio-descricao">Descrição</label>
+                        <input type="text" id="anuncio-descricao" class="input-edicao" placeholder="Ex: Promoção da semana">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="anuncio-imagem-arquivo">Imagem de Fundo</label>
+                        <input type="file" id="anuncio-imagem-arquivo" accept="image/*" required style="display:none;">
+                        <div id="anuncio-imagem-picker" class="ad-image-picker">
+                            <button type="button" id="btn-anuncio-escolher-imagem" class="btn-ghost btn-ghost-icon ad-add-btn">+</button>
+                            <div class="ad-preview-wrap">
+                                <img id="anuncio-imagem-preview" src="" alt="Prévia da imagem" />
+                                <button type="button" id="btn-anuncio-remover-imagem" class="ad-remove-btn" aria-label="Remover imagem">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="anuncio-link">URL do link</label>
+                        <input type="text" id="anuncio-link" class="input-edicao" placeholder="https://...">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Endereço do anúncio</label>
+                        <div class="address-choice" role="radiogroup" aria-label="Endereço do anúncio">
+                            <label class="address-choice-card">
+                                <input type="radio" name="anuncio-endereco-opcao" value="perfil" checked>
+                                <span>Cidade do perfil</span>
+                            </label>
+                            <label class="address-choice-card">
+                                <input type="radio" name="anuncio-endereco-opcao" value="outro">
+                                <span>Outro endereço</span>
+                            </label>
+                        </div>
+                        <small class="address-choice-hint">Se escolher outro, você poderá informar cidade e estado abaixo.</small>
+                    </div>
+
+                    <div id="anuncio-endereco-base" class="form-group">
+                        <div class="form-row">
+                            <div class="form-col flex-2">
+                                <label for="anuncio-endereco">Endereço</label>
+                                <input type="text" id="anuncio-endereco" class="input-edicao" placeholder="Rua, avenida...">
+                            </div>
+                            <div class="form-col">
+                                <label for="anuncio-numero">Número</label>
+                                <input type="text" id="anuncio-numero" class="input-edicao" placeholder="Nº">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="anuncio-endereco-outro" class="form-group hidden">
+                        <div class="form-row">
+                            <div class="form-col">
+                                <label for="anuncio-cidade">Cidade</label>
+                                <input type="text" id="anuncio-cidade" class="input-edicao" placeholder="Ex: Palmas">
+                            </div>
+                            <div class="form-col">
+                                <label for="anuncio-estado">Estado/UF</label>
+                                <input type="text" id="anuncio-estado" class="input-edicao" placeholder="Ex: TO">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <div class="plan-cards" role="radiogroup" aria-label="Planos de anúncio">
+                            <label class="plan-card">
+                                <input type="radio" name="anuncio-plano-radio" value="basico" checked>
+                                <div class="plan-card-body">
+                                    <div class="plan-card-title">Básico</div>
+                                    <ul class="plan-card-list">
+                                        <li>Presença padrão no feed</li>
+                                        <li>Até 30 dias ativo</li>
+                                        <li>Ideal para começar</li>
+                                    </ul>
+                                </div>
+                            </label>
+                            <label class="plan-card">
+                                <input type="radio" name="anuncio-plano-radio" value="premium">
+                                <div class="plan-card-body">
+                                    <div class="plan-card-title">Premium 3 meses</div>
+                                    <ul class="plan-card-list">
+                                        <li>Prioridade de exibição</li>
+                                        <li>Mais visualizações</li>
+                                        <li>Melhor destaque visual</li>
+                                    </ul>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="salvar-btn btn-ghost" style="margin-top: 10px;">
+                        <span class="btn-text">Criar anúncio</span>
+                        <span class="btn-spinner"></span>
+                    </button>
+
+                    <p id="msg-anuncio" class="config-descricao" style="margin-top: 10px;"></p>
+                </form>
             </div>
         </div>
     </div>

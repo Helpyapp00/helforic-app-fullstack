@@ -172,10 +172,17 @@ document.addEventListener('DOMContentLoaded', () => {
     initDisponibilidadeMenu();
 
     const formCriarAnuncio = document.getElementById('form-criar-anuncio');
+    const btnAbrirCriarAnuncio = document.getElementById('btn-abrir-criar-anuncio');
+    const modalCriarAnuncio = document.getElementById('modal-criar-anuncio');
+    const btnFecharModalAnuncio = document.getElementById('btn-fechar-modal-anuncio');
     const msgAnuncio = document.getElementById('msg-anuncio');
     const adFileInput = document.getElementById('anuncio-imagem-arquivo');
     const adPickBtn = document.getElementById('btn-anuncio-escolher-imagem');
     const adPreviewImg = document.getElementById('anuncio-imagem-preview');
+    const adRemoveBtn = document.getElementById('btn-anuncio-remover-imagem');
+    const adImagePicker = document.getElementById('anuncio-imagem-picker');
+    const enderecoOutroBox = document.getElementById('anuncio-endereco-outro');
+    const enderecoOpcaoInputs = document.querySelectorAll('input[name="anuncio-endereco-opcao"]');
     let adPreviewObjectUrl = null;
 
     function clearAdPreview() {
@@ -185,12 +192,56 @@ document.addEventListener('DOMContentLoaded', () => {
         adPreviewObjectUrl = null;
         if (adPreviewImg) {
             adPreviewImg.src = '';
-            adPreviewImg.style.display = 'none';
+            adPreviewImg.removeAttribute('src');
         }
+        if (adImagePicker) adImagePicker.classList.remove('has-image');
     }
 
     function openAdFilePicker() {
         if (adFileInput) adFileInput.click();
+    }
+
+    function abrirModalCriarAnuncio() {
+        if (!modalCriarAnuncio) return;
+        modalCriarAnuncio.classList.remove('hidden');
+        if (window.syncModalScrollLock) window.syncModalScrollLock();
+    }
+
+    function syncEnderecoOpcao() {
+        if (!enderecoOutroBox) return;
+        const selected = document.querySelector('input[name="anuncio-endereco-opcao"]:checked')?.value || 'perfil';
+        enderecoOutroBox.classList.toggle('hidden', selected !== 'outro');
+        if (selected === 'perfil') {
+            const cidadeInput = document.getElementById('anuncio-cidade');
+            const estadoInput = document.getElementById('anuncio-estado');
+            if (cidadeInput) cidadeInput.value = '';
+            if (estadoInput) estadoInput.value = '';
+        }
+    }
+
+    function fecharModalCriarAnuncio() {
+        if (!modalCriarAnuncio) return;
+        modalCriarAnuncio.classList.add('hidden');
+        if (window.syncModalScrollLock) window.syncModalScrollLock();
+    }
+
+    if (btnAbrirCriarAnuncio) {
+        btnAbrirCriarAnuncio.addEventListener('click', abrirModalCriarAnuncio);
+    }
+    if (btnFecharModalAnuncio) {
+        btnFecharModalAnuncio.addEventListener('click', fecharModalCriarAnuncio);
+    }
+    if (modalCriarAnuncio) {
+        modalCriarAnuncio.addEventListener('click', (e) => {
+            if (e.target === modalCriarAnuncio) fecharModalCriarAnuncio();
+        });
+    }
+
+    if (enderecoOpcaoInputs && enderecoOpcaoInputs.length) {
+        enderecoOpcaoInputs.forEach((input) => {
+            input.addEventListener('change', syncEnderecoOpcao);
+        });
+        syncEnderecoOpcao();
     }
 
     if (adPickBtn) {
@@ -227,8 +278,15 @@ document.addEventListener('DOMContentLoaded', () => {
             adPreviewObjectUrl = URL.createObjectURL(file);
             if (adPreviewImg) {
                 adPreviewImg.src = adPreviewObjectUrl;
-                adPreviewImg.style.display = 'block';
             }
+            if (adImagePicker) adImagePicker.classList.add('has-image');
+        });
+    }
+
+    if (adRemoveBtn) {
+        adRemoveBtn.addEventListener('click', () => {
+            if (adFileInput) adFileInput.value = '';
+            clearAdPreview();
         });
     }
 
@@ -240,9 +298,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const titulo = document.getElementById('anuncio-titulo')?.value;
             const descricao = document.getElementById('anuncio-descricao')?.value;
             const linkUrl = document.getElementById('anuncio-link')?.value;
-            const cidade = document.getElementById('anuncio-cidade')?.value;
-            const estado = document.getElementById('anuncio-estado')?.value;
-            const plano = document.getElementById('anuncio-plano')?.value || 'basico';
+            const enderecoOpcao = document.querySelector('input[name="anuncio-endereco-opcao"]:checked')?.value || 'perfil';
+            const endereco = document.getElementById('anuncio-endereco')?.value;
+            const numero = document.getElementById('anuncio-numero')?.value;
+            const cidade = enderecoOpcao === 'outro' ? document.getElementById('anuncio-cidade')?.value : undefined;
+            const estado = enderecoOpcao === 'outro' ? document.getElementById('anuncio-estado')?.value : undefined;
+            const plano = document.querySelector('input[name="anuncio-plano-radio"]:checked')?.value || 'basico';
             const fileInput = document.getElementById('anuncio-imagem-arquivo');
             const file = fileInput && fileInput.files ? fileInput.files[0] : null;
 
@@ -284,7 +345,18 @@ document.addEventListener('DOMContentLoaded', () => {
                         'Content-Type': 'application/json',
                         ...getAuthHeaders()
                     },
-                    body: JSON.stringify({ titulo, descricao, imagemUrl, linkUrl, cidade, estado, plano, ativo: true })
+                    body: JSON.stringify({
+                        titulo,
+                        descricao,
+                        imagemUrl,
+                        linkUrl,
+                        endereco,
+                        numero,
+                        cidade,
+                        estado,
+                        plano,
+                        ativo: true
+                    })
                 });
                 const data = await resp.json().catch(() => ({}));
                 if (!resp.ok) {

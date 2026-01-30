@@ -897,7 +897,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const descricao = destaque?.descricao || destaque?.subtitle || destaque?.texto || '';
         const imagem = destaque?.imagemUrl || destaque?.imageUrl || destaque?.imagem || 'https://placehold.co/600x320?text=Anuncio';
         const link = destaque?.linkUrl || destaque?.url || destaque?.link;
-        const cidadeEstado = [destaque?.cidade, destaque?.estado].filter(Boolean).join(' - ');
+        const perfilUrl = destaque?.ownerId ? `/perfil.html?id=${destaque.ownerId}` : null;
+        const cidadeEstado = [destaque?.ownerCidade, destaque?.ownerEstado].filter(Boolean).join(' - ');
 
         const adEl = document.createElement('article');
         adEl.className = 'post anuncio-nativo-feed';
@@ -905,11 +906,17 @@ document.addEventListener('DOMContentLoaded', () => {
             <img src="${imagem}" alt="" class="anuncio-nativo-img">
             <div class="anuncio-nativo-overlay feed">
                 <div class="anuncio-nativo-badge">Anúncio</div>
-                <div class="anuncio-nativo-titulo">${titulo}</div>
+                ${perfilUrl ? `<a class="anuncio-nativo-titulo" href="${perfilUrl}">${titulo}</a>` : `<div class="anuncio-nativo-titulo">${titulo}</div>`}
                 ${descricao ? `<div class="anuncio-nativo-loja">${descricao}</div>` : ''}
                 ${cidadeEstado ? `<div class="anuncio-nativo-endereco">${cidadeEstado}</div>` : ''}
             </div>
         `;
+        const titleLink = adEl.querySelector('.anuncio-nativo-titulo[href]');
+        if (titleLink) {
+            titleLink.addEventListener('click', (event) => {
+                event.stopPropagation();
+            });
+        }
         adEl.addEventListener('click', () => {
             if (link) window.open(link, '_blank');
         });

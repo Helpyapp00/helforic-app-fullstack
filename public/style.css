@@ -2675,8 +2675,12 @@ textarea#post-content-input::placeholder { color: var(--text-placeholder); }
 }
 .anuncio-nativo-titulo {
     font-weight: 800;
-    font-size: 13px;
+    font-size: 16px;
     color: #38bdf8;
+    text-decoration: none;
+}
+.anuncio-nativo-titulo:hover {
+    text-decoration: underline;
 }
 .anuncio-nativo-loja {
     font-weight: 700;
@@ -2756,10 +2760,14 @@ textarea#post-content-input::placeholder { color: var(--text-placeholder); }
     overflow: hidden;
     padding: 0;
     border: 1px solid rgba(255,255,255,0.08);
+    min-height: 240px;
+    height: 260px;
 }
 .anuncio-nativo-feed .anuncio-nativo-img {
+    position: absolute;
+    inset: 0;
     width: 100%;
-    height: 220px;
+    height: 100%;
     object-fit: cover;
     display: block;
 }
@@ -3881,15 +3889,16 @@ textarea#post-content-input::placeholder { color: var(--text-placeholder); }
 
 
 /* --- Resto (Anúncio, Modais, Responsividade) --- */
-.anuncio { width: min(360px, 100%); flex: 0 1 auto; flex-shrink: 1; min-width: 250px; max-width: 360px; background: transparent; border-radius: 0; padding: 0; box-shadow: none; height: auto; position: static; top: auto; box-sizing: border-box; } 
+.anuncio { width: min(420px, 100%); flex: 0 1 auto; flex-shrink: 1; min-width: 260px; max-width: 420px; background: transparent; border-radius: 0; padding: 0; box-shadow: none; height: auto; position: static; top: auto; box-sizing: border-box; } 
 .anuncio h3 { display: none; } 
 .caixa-anuncio { background: transparent; border: none; border-radius: 0; padding: 0; text-align: center; color: var(--text-anuncio); font-size: 0.9em; overflow: hidden; display: flex; width: 100%; justify-content: center; } 
 .caixa-anuncio img,
 .caixa-anuncio iframe {
     width: 100%;
-    height: auto;
+    height: 100%;
     display: block;
     border-radius: 5px;
+    object-fit: cover;
 }
 .popup-escolha { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.6); display: flex; justify-content: center; align-items: center; z-index: 5000; }
 .popup-conteudo { background-color: var(--bg-secondary); padding: 30px; border-radius: 10px; text-align: center; box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3); max-width: 400px; width: 90%; } 
@@ -3899,8 +3908,185 @@ textarea#post-content-input::placeholder { color: var(--text-placeholder); }
 .oculto { display: none !important; }
 .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100dvh; background-color: rgba(0, 0, 0, 0.6); display: flex; justify-content: center; align-items: flex-start; z-index: 5000; padding: 20px; box-sizing: border-box; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
 
+/* Cards de plano (criar anúncio) */
+.plan-cards {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.plan-card {
+    position: relative;
+    display: flex;
+    gap: 12px;
+    padding: 14px;
+    border-radius: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.06);
+    cursor: pointer;
+    transition: border-color 0.2s ease, background 0.2s ease, transform 0.2s ease;
+    min-height: 120px;
+}
+
+.plan-card input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.plan-card-body {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.plan-card-title {
+    font-weight: 700;
+    font-size: 15px;
+}
+
+.plan-card-list {
+    margin: 0;
+    padding-left: 16px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    display: grid;
+    gap: 4px;
+}
+
+.plan-card:has(input:checked) {
+    border-color: rgba(0, 140, 255, 0.8);
+    background: rgba(0, 140, 255, 0.12);
+}
+
+.plan-card:hover {
+    transform: translateY(-1px);
+}
+
+/* Seleção de endereço (caixas pequenas) */
+.address-choice {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.address-choice-card {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    background: rgba(255, 255, 255, 0.04);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.address-choice-card input {
+    accent-color: var(--text-primary);
+}
+
+.address-choice-card:has(input:checked) {
+    border-color: rgba(34, 197, 94, 0.7);
+    background: rgba(34, 197, 94, 0.12);
+}
+
+.address-choice-hint {
+    display: block;
+    margin-top: 6px;
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+/* Picker de imagem do anúncio */
+.ad-image-picker {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    position: relative;
+}
+
+.ad-image-picker .ad-preview-wrap {
+    position: relative;
+    width: fit-content;
+    max-width: 360px;
+    min-width: 180px;
+    height: 200px;
+    border-radius: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.04);
+    overflow: hidden;
+    display: none;
+    cursor: pointer;
+}
+
+.ad-image-picker .ad-preview-wrap img {
+    width: 100%;
+    height: 100%;
+    max-width: 100%;
+    margin: 0 auto;
+    object-fit: cover;
+    object-position: center;
+    display: block;
+}
+
+.ad-image-picker .ad-remove-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    border: none;
+    background: rgba(0, 0, 0, 0.6);
+    color: #fff;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    opacity: 0;
+    transform: translateY(-4px);
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.ad-image-picker.has-image .ad-preview-wrap {
+    display: block;
+}
+
+.ad-image-picker.has-image .ad-add-btn {
+    display: none;
+}
+
+.ad-image-picker.has-image .ad-remove-btn {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+@media (max-width: 520px) {
+    .plan-cards {
+        gap: 10px;
+    }
+
+    .plan-card {
+        padding: 12px;
+        min-height: 110px;
+    }
+
+    .plan-card-list {
+        font-size: 12px;
+    }
+}
+
 /* Modal "Criar Pedido Urgente": não bloquear header e barra inferior */
 #modal-pedido-urgente.modal-overlay {
+    z-index: 1700;
+}
+
+/* Modal "Criar Anúncio": deixa o header superior livre (pode cobrir) e respeita barra inferior */
+#modal-criar-anuncio.modal-overlay {
     z-index: 1700;
 }
 
@@ -3919,6 +4105,11 @@ textarea#post-content-input::placeholder { color: var(--text-placeholder); }
         top: var(--header-height, 70px);
         height: calc(100dvh - var(--header-height, 70px));
     }
+
+    #modal-criar-anuncio.modal-overlay {
+        top: 0;
+        height: 100dvh;
+    }
 }
 
 @media (max-width: 768px) {
@@ -3932,6 +4123,14 @@ textarea#post-content-input::placeholder { color: var(--text-placeholder); }
 
     #modal-preciso-agora.modal-overlay {
         top: var(--header-height, 70px);
+        bottom: var(--bottom-nav-height, 56px);
+        height: auto;
+        padding-top: 12px;
+        padding-bottom: 12px;
+    }
+
+    #modal-criar-anuncio.modal-overlay {
+        top: 0;
         bottom: var(--bottom-nav-height, 56px);
         height: auto;
         padding-top: 12px;
@@ -4331,11 +4530,52 @@ textarea#post-content-input::placeholder { color: var(--text-placeholder); }
 }
 .modal-grande h2 { text-align: center; margin-bottom: 20px; color: var(--text-primary); }
 .modal-grande .form-group { margin-bottom: 15px; }
+.form-label-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 2px;
+}
+.form-row {
+    display: flex;
+    gap: 12px;
+    align-items: flex-end;
+    flex-wrap: wrap;
+}
+
+.form-col {
+    flex: 1 1 140px;
+    min-width: 140px;
+}
+
+.form-col.flex-2 {
+    flex: 2 1 220px;
+}
 .modal-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
     margin-bottom: 20px;
+}
+.modal-header-anuncio {
+    margin-bottom: 12px;
+    border-bottom: none !important;
+    padding-bottom: 0 !important;
+    justify-content: space-between;
+}
+
+.modal-title-anuncio {
+    margin: 0;
+    font-size: 18px;
+}
+
+.btn-close-clean {
+    border: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    padding: 6px !important;
+    font-size: 14px !important;
 }
 .modal-grande .form-group label { display: block; margin-bottom: 5px; color: var(--text-primary); font-weight: bold; }
 .modal-grande .form-group input,
