@@ -351,6 +351,20 @@ const timeProjetoSchema = new mongoose.Schema({
 
 const TimeProjeto = mongoose.models.TimeProjeto || mongoose.model('TimeProjeto', timeProjetoSchema);
 
+const timeLocalSchema = new mongoose.Schema({
+    liderId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    nome: { type: String },
+    descricao: { type: String },
+    categoria: { type: String },
+    cidade: { type: String },
+    estado: { type: String },
+    nivelMedio: { type: Number },
+    projetosCompletos: { type: Number },
+    membros: [{ type: Object }]
+}, { timestamps: true, strict: false });
+
+const TimeLocal = mongoose.models.TimeLocal || mongoose.model('TimeLocal', timeLocalSchema);
+
 const pedidoUrgenteSchema = new mongoose.Schema({}, { timestamps: true, strict: false });
 const PedidoUrgente = mongoose.models.PedidoUrgente || mongoose.model('PedidoUrgente', pedidoUrgenteSchema);
 
