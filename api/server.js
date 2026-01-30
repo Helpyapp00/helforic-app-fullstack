@@ -111,6 +111,16 @@ app.use(express.static(path.join(__dirname, '../public')));
 
 mongoose.set('strictPopulate', false);
 
+app.use('/api', async (req, res, next) => {
+    try {
+        await initializeServices();
+        return next();
+    } catch (error) {
+        console.error('❌ Erro ao inicializar serviços para API:', error);
+        return res.status(503).json({ success: false, message: 'Serviço indisponível no momento.' });
+    }
+});
+
 app.get('/login', (req, res) => {
     res.sendFile(path.join(__dirname, '../public/login.html'));
 });
