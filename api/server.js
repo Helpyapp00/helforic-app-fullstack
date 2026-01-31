@@ -121,6 +121,52 @@ app.use('/api', async (req, res, next) => {
     }
 });
 
+app.get('/api/geocodificar-reversa', async (req, res) => {
+    try {
+        const lat = Number(req.query.lat);
+        const lon = Number(req.query.lon);
+        const accuracy = Number(req.query.accuracy);
+
+        if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+            return res.status(400).json({ success: false, message: 'Latitude/longitude inválidas.' });
+        }
+
+        const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}&addressdetails=1`;
+
+        const data = await new Promise((resolve, reject) => {
+            const request = https.get(url, {
+                headers: {
+                    'User-Agent': 'HelpyApp/1.0 (contact@helpyapp.net)'
+                }
+            }, (response) => {
+                let body = '';
+                response.on('data', (chunk) => {
+                    body += chunk;
+                });
+                response.on('end', () => {
+                    if (!response.statusCode || response.statusCode >= 400) {
+                        return reject(new Error(`Nominatim status ${response.statusCode}`));
+                    }
+                    try {
+                        const parsed = JSON.parse(body);
+                        return resolve(parsed);
+                    } catch (parseError) {
+                        return reject(parseError);
+                    }
+                });
+            });
+            request.on('error', reject);
+        });
+
+        const normalized = applyLocationOverrideIfNeeded(lat, lon, data, accuracy);
+
+        return res.json({ success: true, data: normalized });
+    } catch (error) {
+        console.error('Erro ao geocodificar reversa:', error);
+        return res.status(500).json({ success: false, message: 'Erro ao buscar endereço.' });
+    }
+});
+
 app.get('/login', (req, res) => {
     res.sendFile(path.join(__dirname, '../public/login.html'));
 });
