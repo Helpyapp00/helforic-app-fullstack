@@ -799,6 +799,22 @@ document.addEventListener('DOMContentLoaded', () => {
                                 }
                             }
                         }
+                    }
+
+                    // Se ainda não achou número, tenta achar em outras partes do display_name
+                    if (!numero && partes.length > 1) {
+                        for (let i = 1; i < partes.length; i += 1) {
+                            const parte = partes[i];
+                            const matchNum = parte.match(/\b((?:[Nn])?\d{1,6}\s*[A-Za-z]?(?:[-/]\d{1,6}\s*[A-Za-z]?)?)\b/);
+                            if (matchNum && matchNum[1]) {
+                                const numEncontrado = normalizarNumeroEndereco(matchNum[1]);
+                                if (numEncontrado) {
+                                    numero = numEncontrado;
+                                    console.log('✅ Número encontrado em parte posterior do display_name:', numero);
+                                    break;
+                                }
+                            }
+                        }
                     } else {
                         // Se não tem número na primeira parte, pode ser apenas bairro/hamlet
                         // Nesse caso, não usa como rua, mas pode usar como bairro
