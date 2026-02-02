@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Configurações - Helpy</title>
     <link rel="icon" href="/icons/logoicon.png" type="image/png">
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+    <link rel="preload" href="/imagens/default-user.png" as="image">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="/style.css">
     <link rel="stylesheet" href="/perfil.css">
@@ -22,7 +24,7 @@
     </script>
     <header>
         <div class="logo-box">
-            <img src="/imagens/logohelpy.png" alt="Logo Helpy"> <h1>Helpy</h1>
+            <img src="/imagens/logohelpy.png" alt="Logo Helpy" loading="lazy" decoding="async"> <h1>Helpy</h1>
         </div>
         <div class="header-actions">
             <!-- Botão de busca (mobile) -->
@@ -39,7 +41,7 @@
             </div>
         </div>
         <div class="user-info">
-            <img id="user-avatar-header" src="imagens/default-user.png" alt="Avatar" class="user-avatar-header">
+            <img id="user-avatar-header" src="imagens/default-user.png" alt="Avatar" class="user-avatar-header" loading="lazy" decoding="async">
             <span id="user-name-header">Carregando...</span>
             <button id="logout-button">Sair</button>
         </div>
@@ -114,7 +116,7 @@
             <!-- Mobile: usuário + sair (aparece só em telas menores via CSS) -->
             <div class="config-mobile-userbar" aria-label="Usuário logado">
                 <div class="config-mobile-userleft">
-                    <img id="config-user-avatar" class="config-mobile-avatar" src="imagens/default-user.png" alt="Avatar do usuário">
+                    <img id="config-user-avatar" class="config-mobile-avatar" src="imagens/default-user.png" alt="Avatar do usuário" loading="lazy" decoding="async">
                     <span id="config-user-name" class="config-mobile-name">Usuário</span>
                     <div class="config-mobile-logout-wrap">
                         <button id="logout-button-mobile" class="config-mobile-logout" type="button">Sair</button>

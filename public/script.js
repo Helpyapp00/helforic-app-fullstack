@@ -258,7 +258,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 currentPathIndex++;
                 if (currentPathIndex < logoPaths.length) {
                     console.log(`🔄 Tentando carregar logo do caminho: ${logoPaths[currentPathIndex]}`);
-                    logoImg.src = logoPaths[currentPathIndex] + '?t=' + Date.now();
+                    logoImg.src = logoPaths[currentPathIndex];
                 } else {
                     console.error('❌ Não foi possível carregar o logo de nenhum caminho disponível');
                 }
@@ -267,7 +267,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // Verifica se a imagem já foi carregada corretamente
             if (!logoImg.complete || logoImg.naturalHeight === 0) {
                 // Se não carregou, força reload com o primeiro caminho
-                logoImg.src = logoPaths[0] + '?t=' + Date.now();
+                logoImg.src = logoPaths[0];
             }
             
             // Garante que a imagem está visível
@@ -600,14 +600,13 @@ document.addEventListener('DOMContentLoaded', () => {
             } else if (!storedPhotoUrl.includes('pixabay')) {
                 // Remove src primeiro para forçar reload completo
                 userAvatarHeader.src = '';
-                
-                // Adiciona timestamp para evitar cache e garantir carregamento fresco
-                const separator = storedPhotoUrl.includes('?') ? '&' : '?';
-                const freshUrl = storedPhotoUrl + separator + '_t=' + Date.now();
-                
+
+                // Usa a URL salva (sem cache-bust em toda navegação)
+                const freshUrl = storedPhotoUrl;
+
                 // Pré-carrega a imagem SEM usar crossOrigin (evita erros de CORS com S3)
                 const preloadImg = new Image();
-                
+
                 preloadImg.onload = function () {
                     userAvatarHeader.src = freshUrl;
                     userAvatarHeader.loading = 'eager';
@@ -702,7 +701,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const card = document.createElement('div');
             card.className = 'thumb-destaque';
             card.innerHTML = `
-                <img src="${foto}" alt="Foto de ${profissional.nome || 'Profissional'}">
+                <img src="${foto}" alt="Foto de ${profissional.nome || 'Profissional'}" loading="lazy" decoding="async">
                 <div class="thumb-overlay"></div>
                 <div class="thumb-info-overlay">
                     <div class="thumb-profissao">${profissao}</div>
@@ -903,7 +902,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const adEl = document.createElement('article');
         adEl.className = 'post anuncio-nativo-feed';
         adEl.innerHTML = `
-            <img src="${imagem}" alt="" class="anuncio-nativo-img">
+            <img src="${imagem}" alt="" class="anuncio-nativo-img" loading="lazy" decoding="async">
             <div class="anuncio-nativo-overlay feed">
                 <div class="anuncio-nativo-badge">Anúncio</div>
                 ${perfilUrl ? `<a class="anuncio-nativo-titulo" href="${perfilUrl}">${titulo}</a>` : `<div class="anuncio-nativo-titulo">${titulo}</div>`}
@@ -954,9 +953,9 @@ document.addEventListener('DOMContentLoaded', () => {
         let mediaHTML = '';
         if (post.mediaUrl) {
             if (post.mediaType === 'video') {
-                mediaHTML = `<video src="${post.mediaUrl}" class="post-video" controls></video>`;
+                mediaHTML = `<video src="${post.mediaUrl}" class="post-video" controls preload="metadata"></video>`;
             } else if (post.mediaType === 'image') {
-                mediaHTML = `<img src="${post.mediaUrl}" alt="Imagem da postagem" class="post-image">`;
+                mediaHTML = `<img src="${post.mediaUrl}" alt="Imagem da postagem" class="post-image" loading="lazy" decoding="async">`;
             }
         }
 
@@ -990,7 +989,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return `
             <div class="comment" data-comment-id="${comment._id}">
                 <a href="/perfil.html?id=${comment.userId._id}" style="text-decoration: none; color: inherit;">
-                    <img src="${commentPhoto.includes('pixabay') ? 'imagens/default-user.png' : commentPhoto}" alt="Avatar" class="comment-avatar" style="cursor: pointer;">
+                    <img src="${commentPhoto.includes('pixabay') ? 'imagens/default-user.png' : commentPhoto}" alt="Avatar" class="comment-avatar" style="cursor: pointer;" loading="lazy" decoding="async">
                 </a>
                 <div class="comment-body-container">
                     <div class="comment-body">
@@ -1052,7 +1051,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return `
             <div class="comment comment-hidden" data-comment-id="${comment._id}" data-comment-index="${index + 2}">
                 <a href="/perfil.html?id=${comment.userId._id}" style="text-decoration: none; color: inherit;">
-                    <img src="${commentPhoto.includes('pixabay') ? 'imagens/default-user.png' : commentPhoto}" alt="Avatar" class="comment-avatar" style="cursor: pointer;">
+                    <img src="${commentPhoto.includes('pixabay') ? 'imagens/default-user.png' : commentPhoto}" alt="Avatar" class="comment-avatar" style="cursor: pointer;" loading="lazy" decoding="async">
                 </a>
                 <div class="comment-body-container">
                     <div class="comment-body">
@@ -1106,7 +1105,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         postElement.innerHTML = `
             <div class="post-header">
-                <img src="${postAuthorPhoto}" alt="Avatar" class="post-avatar" data-userid="${post.userId._id}">
+                <img src="${postAuthorPhoto}" alt="Avatar" class="post-avatar" data-userid="${post.userId._id}" loading="lazy" decoding="async">
                 <div class="post-meta">
                     <span class="user-name" data-userid="${post.userId._id}">${postAuthorName}</span>
                     <div>
@@ -1392,7 +1391,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return `
         <div class="reply" data-reply-id="${reply._id}">
             <a href="/perfil.html?id=${reply.userId._id}" style="text-decoration: none; color: inherit;">
-                <img src="${replyPhoto.includes('pixabay') ? 'imagens/default-user.png' : replyPhoto}" alt="Avatar" class="reply-avatar" style="cursor: pointer;">
+                <img src="${replyPhoto.includes('pixabay') ? 'imagens/default-user.png' : replyPhoto}" alt="Avatar" class="reply-avatar" style="cursor: pointer;" loading="lazy" decoding="async">
             </a>
             <div class="reply-body-container">
                 <div class="reply-body">
@@ -2634,7 +2633,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const newCommentHTML = `
                 <div class="comment" data-comment-id="${comment._id}">
                     <a href="/perfil.html?id=${comment.userId._id}" style="text-decoration: none; color: inherit;">
-                        <img src="${commentPhoto.includes('pixabay') ? 'imagens/default-user.png' : commentPhoto}" alt="Avatar" class="comment-avatar" style="cursor: pointer;">
+                        <img src="${commentPhoto.includes('pixabay') ? 'imagens/default-user.png' : commentPhoto}" alt="Avatar" class="comment-avatar" style="cursor: pointer;" loading="lazy" decoding="async">
                     </a>
                     <div class="comment-body-container">
                         <div class="comment-body">
@@ -7716,6 +7715,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- INICIALIZAÇÃO ---
+    const deferNonCriticalInit = (fn) => {
+        if (typeof requestIdleCallback === 'function') {
+            requestIdleCallback(fn, { timeout: 1200 });
+        } else {
+            setTimeout(fn, 400);
+        }
+    };
     (async () => {
     if (!token || !userId) {
             const isLoginPath = path.endsWith('/login') || path.endsWith('/login.html');
@@ -7740,11 +7746,11 @@ document.addEventListener('DOMContentLoaded', () => {
             loadHeaderInfo();
             fetchPosts(); 
         }
-            if (destaquesScroll) {
-                fetchDestaques();
+        if (destaquesScroll) {
+            deferNonCriticalInit(() => fetchDestaques());
         }
         if (timesContainer) {
-            carregarTimesLocais();
+            deferNonCriticalInit(() => carregarTimesLocais());
             
             // Verifica se há parâmetro para abrir candidatos (vindo de notificação)
             const urlParams = new URLSearchParams(window.location.search);
