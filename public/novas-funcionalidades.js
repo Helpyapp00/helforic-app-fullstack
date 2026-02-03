@@ -2054,6 +2054,10 @@ document.addEventListener('DOMContentLoaded', () => {
             // Converte para string se necessário
             clienteId = clienteId ? String(clienteId) : '';
             const ehMeuPedido = clienteId === userIdStr;
+            const nomeClienteFallback = (ehMeuPedido ? (localStorage.getItem('userName') || 'Você') : 'Cliente');
+            const fotoClienteFallback = (ehMeuPedido ? (localStorage.getItem('userPhotoUrl') || 'imagens/default-user.png') : 'imagens/default-user.png');
+            const nomeCliente = cliente && typeof cliente === 'object' ? (cliente.nome || nomeClienteFallback) : nomeClienteFallback;
+            const fotoCliente = cliente && typeof cliente === 'object' ? (cliente.avatarUrl || cliente.foto || fotoClienteFallback) : fotoClienteFallback;
             const tempoRestante = Math.max(0, Math.ceil((new Date(pedido.dataExpiracao) - new Date()) / 60000));
             const tipoAtendimento = pedido.tipoAtendimento || 'urgente';
 
@@ -2082,8 +2086,8 @@ document.addEventListener('DOMContentLoaded', () => {
             return `
                 <div class="pedido-urgente-card" data-pedido-id="${pedido._id}" style="overflow: visible !important; overflow-x: visible !important; overflow-y: visible !important; max-height: none !important; height: auto !important;">
                     <div class="pedido-cliente-header">
-                        <img src="${cliente?.avatarUrl || cliente?.foto || 'imagens/default-user.png'}" 
-                             alt="${cliente?.nome || 'Cliente'}" 
+                        <img src="${fotoCliente}" 
+                             alt="${nomeCliente}" 
                              class="avatar-pequeno-pedido clickable-avatar"
                              data-cliente-id="${clienteId}"
                              style="cursor: pointer;">
@@ -2091,7 +2095,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             <div class="nome-cliente-clickable" 
                                  data-cliente-id="${clienteId}"
                                  style="font-weight: 600; color: var(--primary-color); cursor: pointer; transition: color 0.2s;">
-                                ${cliente?.nome || 'Cliente'}
+                                ${nomeCliente}
                             </div>
                         </div>
                         <div style="display: flex; align-items: center; gap: 8px; position: relative;">
@@ -2452,11 +2456,13 @@ document.addEventListener('DOMContentLoaded', () => {
                             setTimeout(() => toast.remove(), 2500);
                             // Recarrega a lista de pedidos
                             await carregarPedidosUrgentes();
+                            await carregarServicosAtivos(null, window.mostrandoCanceladosServicosAtivos);
                         } else {
                             // Se o pedido já foi cancelado, não mostra erro, apenas recarrega
                             if (data.message && (data.message.includes('cancelado') || data.message.includes('já foi'))) {
                                 modalInline.remove();
                                 await carregarPedidosUrgentes();
+                                await carregarServicosAtivos(null, window.mostrandoCanceladosServicosAtivos);
                             } else {
                                 alert(data.message || 'Erro ao cancelar pedido.');
                                 modalInline.remove();

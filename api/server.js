@@ -43,6 +43,16 @@ const { S3Client, PutObjectCommand, DeleteObjectCommand } = require('@aws-sdk/cl
 const { URL } = require('url');
 const http = require('http');
 const https = require('https');
+let visionClient = null;
+
+if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+    try {
+        const vision = require('@google-cloud/vision');
+        visionClient = new vision.ImageAnnotatorClient();
+    } catch (error) {
+        visionClient = null;
+    }
+}
 
 const upload = multer({
     storage: multer.memoryStorage(),
@@ -109,6 +119,56 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, '../public')));
 
+const INTERESSE_KEYWORDS_BASE = [
+    'pintura',
+    'lanche',
+    'lanchonete',
+    'cabelo',
+    'sobrancelha',
+    'unha',
+    'massagem',
+    'encanador',
+    'eletricista',
+    'mecanico',
+    'oficina',
+    'assistencia',
+    'barbearia',
+    'construcao',
+    'reforma',
+    'projeto'
+];
+
+function normalizeKeyword(value) {
+    return String(value || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .trim();
+}
+
+function extractInterestKeywords(texto) {
+    const normalized = normalizeKeyword(texto);
+    if (!normalized) return [];
+
+    const tokens = normalized
+        .split(/[^a-z0-9]+/i)
+        .map(token => token.trim())
+        .filter(token => token.length >= 3);
+
+    const baseSet = new Set(INTERESSE_KEYWORDS_BASE.map(k => normalizeKeyword(k)));
+    const keywords = new Set();
+
+    tokens.forEach(token => {
+        if (baseSet.has(token)) keywords.add(token);
+    });
+
+    baseSet.forEach(keyword => {
+        if (normalized.includes(keyword)) keywords.add(keyword);
+    });
+
+    return Array.from(keywords);
+}
+
 mongoose.set('strictPopulate', false);
 
 app.use('/api', async (req, res, next) => {
@@ -172,6 +232,10 @@ app.get('/login', (req, res) => {
 });
 
 app.get('/perfil/:slug', (req, res) => {
+    res.sendFile(path.join(__dirname, '../public/perfil.html'));
+});
+
+app.get('/perfil', (req, res) => {
     res.sendFile(path.join(__dirname, '../public/perfil.html'));
 });
 
@@ -363,6 +427,19 @@ const notificacaoSchema = new mongoose.Schema({
 }, { timestamps: true, strict: false });
 
 const Notificacao = mongoose.models.Notificacao || mongoose.model('Notificacao', notificacaoSchema);
+
+const moderationLogSchema = new mongoose.Schema({
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    tipo: { type: String },
+    motivo: { type: String },
+    detalhe: { type: String },
+    mediaType: { type: String },
+    texto: { type: String },
+    origem: { type: String },
+    ip: { type: String }
+}, { timestamps: true, strict: false });
+
+const ModerationLog = mongoose.models.ModerationLog || mongoose.model('ModerationLog', moderationLogSchema);
 
 const postagemSchema = new mongoose.Schema({
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
@@ -712,6 +789,7 @@ app.get('/api/user-posts/:userId', authMiddleware, async (req, res) => {
                 select: 'nome foto avatarUrl'
             })
             .exec();
+
         res.json(posts);
     } catch (error) {
         console.error('Erro ao buscar postagens do usuário:', error);
@@ -719,51 +797,30 @@ app.get('/api/user-posts/:userId', authMiddleware, async (req, res) => {
     }
 });
 
-
-// Curtir/Descurtir Postagem
-app.post('/api/posts/:postId/like', authMiddleware, async (req, res) => {
+app.post('/api/interesses/registrar', authMiddleware, async (req, res) => {
     try {
-        const { postId } = req.params;
-        const userId = req.user.id;
-        const post = await Postagem.findById(postId);
-        if (!post) {
-            return res.status(404).json({ success: false, message: 'Postagem não encontrada.' });
+        const texto = String(req.body?.texto || '').trim();
+        if (!texto) {
+            return res.status(400).json({ success: false, message: 'Texto inválido.' });
         }
-        const likeIndex = post.likes.indexOf(userId);
-        const isLiking = likeIndex === -1; // Se não está na lista, está curtindo
-        
-        if (likeIndex > -1) {
-            post.likes.splice(likeIndex, 1); // Descurtir
-        } else {
-            post.likes.push(userId); // Curtir
-            
-            // Cria notificação para o dono do post (se não for ele mesmo)
-            if (post.userId.toString() !== userId.toString()) {
-                try {
-                    const usuarioQueCurtiu = await User.findById(userId).select('nome');
-                    const nomeUsuario = usuarioQueCurtiu?.nome || 'Alguém';
-                    
-                    await criarNotificacao(
-                        post.userId,
-                        'post_curtido',
-                        'Nova curtida no seu post',
-                        `${nomeUsuario} curtiu seu post`,
-                        {
-                            postId: post._id.toString(),
-                            usuarioId: userId.toString(),
-                            usuarioNome: nomeUsuario
-                        },
-                        null
-                    );
-                } catch (notifError) {
-                    console.error('Erro ao criar notificação de curtida:', notifError);
-                }
-            }
+
+        const keywords = extractInterestKeywords(texto);
+        if (keywords.length === 0) {
+            return res.json({ success: true, termos: [] });
         }
-        await post.save();
-        res.json({ success: true, likes: post.likes });
+
+        const updates = keywords.map((termo) =>
+            InteresseUsuario.findOneAndUpdate(
+                { userId: req.user.id, termo },
+                { $inc: { score: 1 }, $set: { lastSeenAt: new Date() } },
+                { upsert: true, new: true, setDefaultsOnInsert: true }
+            )
+        );
+
+        await Promise.all(updates);
+        res.json({ success: true, termos: keywords });
     } catch (error) {
-        console.error('Erro ao curtir postagem:', error);
+        console.error('Erro ao registrar interesses:', error);
         res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
     }
 });
@@ -1334,7 +1391,7 @@ app.get('/api/destaques-servicos', authMiddleware, async (req, res) => {
 
         const filter = {
             tipo: 'trabalhador',
-            mediaAvaliacao: { $gte: 4.5 },
+            mediaAvaliacao: { $gte: 4.7 },
             totalAvaliacoes: { $gte: 50 }
         };
 
@@ -3120,6 +3177,7 @@ app.post('/api/pedidos-urgentes', authMiddleware, upload.array('fotos', 10), han
             tipoAtendimento: tipoAt,
             prazoHoras: horas,
             dataAgendada: dataAgendadaDate,
+            status: 'aberto',
             dataExpiracao
         };
         
@@ -3559,11 +3617,13 @@ app.post('/api/pedidos-urgentes/:pedidoId/cancelar', authMiddleware, async (req,
 
         pedido.status = 'cancelado';
         // Marca propostas pendentes como canceladas
-        pedido.propostas.forEach(p => {
-            if (p.status === 'pendente') {
-                p.status = 'cancelada';
-            }
-        });
+        if (Array.isArray(pedido.propostas)) {
+            pedido.propostas.forEach(p => {
+                if (p.status === 'pendente') {
+                    p.status = 'cancelada';
+                }
+            });
+        }
 
         await pedido.save();
 
@@ -3784,8 +3844,27 @@ app.get('/api/pedidos-urgentes', authMiddleware, async (req, res) => {
             });
         }
 
-        console.log(`📤 Retornando ${pedidosFiltrados.length} pedidos filtrados (de ${pedidos.length} total)`);
-        res.json({ success: true, pedidos: pedidosFiltrados });
+        const pedidosComCliente = await Promise.all(pedidosFiltrados.map(async (pedido) => {
+            const pedidoPlain = typeof pedido.toObject === 'function' ? pedido.toObject() : { ...pedido };
+            const clienteAtual = pedidoPlain.clienteId;
+            const clienteIdFinal = typeof clienteAtual === 'object' && clienteAtual !== null
+                ? (clienteAtual._id || clienteAtual.id)
+                : clienteAtual;
+
+            if (!clienteIdFinal) return pedidoPlain;
+            if (typeof clienteAtual === 'object' && clienteAtual !== null && clienteAtual.nome) return pedidoPlain;
+
+            const cliente = await User.findById(clienteIdFinal)
+                .select('_id nome foto avatarUrl cidade estado')
+                .lean();
+            if (cliente) {
+                pedidoPlain.clienteId = cliente;
+            }
+            return pedidoPlain;
+        }));
+
+        console.log(`📤 Retornando ${pedidosComCliente.length} pedidos filtrados (de ${pedidos.length} total)`);
+        res.json({ success: true, pedidos: pedidosComCliente });
     } catch (error) {
         console.error('Erro ao buscar pedidos urgentes:', error);
         res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
@@ -3832,10 +3911,14 @@ app.get('/api/pedidos-urgentes/meus', authMiddleware, async (req, res) => {
         const pedidosExpirados = [];
 
         pedidos.forEach(p => {
-            const expirado = p.dataExpiracao && p.dataExpiracao <= agora && p.status === 'aberto';
+            const statusAtual = p.status || 'aberto';
+            const expirado = p.dataExpiracao && p.dataExpiracao <= agora && statusAtual === 'aberto';
+            const cancelado = statusAtual === 'cancelado';
+            const concluido = statusAtual === 'concluido';
             const plain = p.toObject();
+            plain.status = statusAtual;
             plain.expirado = expirado;
-            if (expirado) {
+            if (expirado || cancelado || concluido) {
                 pedidosExpirados.push(plain);
             } else {
                 pedidosAtivos.push(plain);
@@ -5521,6 +5604,36 @@ app.get('/api/admin/dashboard', authMiddleware, async (req, res) => {
         });
     } catch (error) {
         console.error('Erro ao buscar dashboard:', error);
+        res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
+    }
+});
+
+app.get('/api/admin/moderation-logs', authMiddleware, async (req, res) => {
+    try {
+        const adminId = req.user.id;
+        const user = await User.findById(adminId);
+        if (!user || !user.isAdmin) {
+            return res.status(403).json({ success: false, message: 'Apenas administradores podem acessar os logs.' });
+        }
+
+        const limitRaw = Number(req.query.limit);
+        const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 200) : 50;
+        const filtroUserId = req.query.userId ? String(req.query.userId) : null;
+        const filtroMotivo = req.query.motivo ? String(req.query.motivo) : null;
+
+        const query = {};
+        if (filtroUserId) query.userId = filtroUserId;
+        if (filtroMotivo) query.motivo = filtroMotivo;
+
+        const logs = await ModerationLog.find(query)
+            .sort({ createdAt: -1 })
+            .limit(limit)
+            .populate('userId', 'nome email tipo')
+            .lean();
+
+        res.json({ success: true, logs });
+    } catch (error) {
+        console.error('Erro ao buscar logs de moderação:', error);
         res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
     }
 });

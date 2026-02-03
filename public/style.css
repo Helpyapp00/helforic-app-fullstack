@@ -870,6 +870,161 @@ textarea#post-content-input::placeholder { color: var(--text-placeholder); }
 .post { background: var(--bg-secondary); border-radius: 8px; padding: 15px; margin-bottom: 20px; box-shadow: 0 2px 5px var(--shadow-color); word-wrap: break-word; position: relative; transition: opacity 0.3s ease, transform 0.3s ease, height 0.3s ease; max-width: 100%; box-sizing: border-box; overflow: visible !important; overflow-x: hidden !important; overflow-y: visible !important; max-height: none !important; } 
 .post.hidden { opacity: 0; transform: scale(0.95); height: 0; padding: 0; margin: 0; overflow: hidden; border: none; }
 
+.feed-usuario-card,
+.feed-empresa-card {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.feed-usuario-media,
+.feed-empresa-media {
+    position: relative;
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.post-author-line {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.post-header-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+
+.feed-nivel-badge {
+    position: relative;
+    width: 24px;
+    height: 32px;
+    display: grid;
+    place-items: start center;
+}
+
+.feed-nivel-selo {
+    width: 22px;
+    height: 22px;
+    object-fit: contain;
+    z-index: 3;
+}
+
+.feed-fita-nivel {
+    position: absolute;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 26px;
+    height: 20px;
+    display: grid;
+    place-items: center;
+    z-index: 2;
+}
+
+.feed-fita-nivel-img {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    z-index: 1;
+}
+
+.feed-nivel-texto {
+    position: relative;
+    z-index: 2;
+    font-weight: 700;
+    font-size: 11px;
+    color: var(--bg-primary);
+    transform: translateY(-2px);
+}
+
+.feed-rating-inline {
+    font-size: 12px;
+    font-weight: 600;
+    color: #f59e0b;
+}
+
+.feed-usuario-media img,
+.feed-usuario-media video,
+.feed-empresa-media img,
+.feed-empresa-media video {
+    width: 100%;
+    border-radius: 12px;
+    display: block;
+    object-fit: cover;
+}
+
+.feed-rating-badge {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    background: rgba(17, 24, 39, 0.88);
+    color: #fbbf24;
+    font-weight: 700;
+    font-size: 12px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    backdrop-filter: blur(6px);
+}
+
+.feed-level-badge {
+    position: absolute;
+    bottom: 12px;
+    left: 12px;
+    background: rgba(37, 99, 235, 0.9);
+    color: #fff;
+    font-weight: 600;
+    font-size: 11px;
+    padding: 5px 10px;
+    border-radius: 999px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.feed-usuario-texto,
+.feed-empresa-texto {
+    margin: 0;
+    font-size: 15px;
+    color: var(--text-primary);
+}
+
+
+.feed-empresa-info {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.feed-empresa-endereco {
+    font-size: 13px;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.feed-empresa-whatsapp {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border-radius: 999px;
+    background: #25d366;
+    color: #fff;
+    font-weight: 600;
+    text-decoration: none;
+    font-size: 13px;
+    width: fit-content;
+}
+
+.feed-empresa-whatsapp:hover {
+    background: #1ebe57;
+}
+
 /* Garantir que postagens antigas não apareçam no grid de miniaturas */
 .postagens-grid .post {
     display: none !important;

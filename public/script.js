@@ -303,6 +303,15 @@ document.addEventListener('DOMContentLoaded', () => {
             if (darkModeToggle) darkModeToggle.checked = false;
         }
         updateSendCommentIcons();
+        updateFeedLevelBadgesTheme();
+    }
+
+    function updateFeedLevelBadgesTheme() {
+        const isDark = htmlElement.classList.contains('dark-mode');
+        document.querySelectorAll('.feed-fita-nivel-img').forEach((img) => {
+            const nextSrc = isDark ? img.dataset.srcDark : img.dataset.srcLight;
+            if (nextSrc) img.src = nextSrc;
+        });
     }
 
     // Carregar tema salvo do localStorage
@@ -693,9 +702,10 @@ document.addEventListener('DOMContentLoaded', () => {
         destaquesScroll.innerHTML = '';
 
         lista.forEach(item => {
-            const profissional = item.user || {};
+            const profissional = item.user || item.userId || {};
             const foto = profissional.foto || profissional.avatarUrl || 'imagens/default-user.png';
             const nota = item.mediaAvaliacao || profissional.mediaAvaliacao || 0;
+            const isEmpresa = profissional.tipo === 'empresa';
             const profissao = profissional.atuacao || 'Profissional';
             
             const card = document.createElement('div');
@@ -704,7 +714,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <img src="${foto}" alt="Foto de ${profissional.nome || 'Profissional'}" loading="lazy" decoding="async">
                 <div class="thumb-overlay"></div>
                 <div class="thumb-info-overlay">
-                    <div class="thumb-profissao">${profissao}</div>
+                    ${isEmpresa ? '' : `<div class="thumb-profissao">${profissao}</div>`}
                     <div class="thumb-avaliacao">
                         <i class="fas fa-star" style="color:#f5a623;"></i> 
                         <span>${nota.toFixed(1)}</span>
@@ -712,8 +722,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
             `;
             card.addEventListener('click', () => {
-                if (profissional._id) {
-                    window.location.href = `/perfil.html?id=${profissional._id}`;
+                const perfilId = profissional._id || item.userId || item.idUser;
+                if (perfilId) {
+                    window.location.href = `/perfil.html?id=${perfilId}`;
                 }
             });
             destaquesScroll.appendChild(card);
@@ -853,6 +864,51 @@ document.addEventListener('DOMContentLoaded', () => {
     let adsCursorFeed = 0;
     let adsLoadedFeed = false;
 
+    let feedInterestQueue = new Set();
+    let feedInterestTimer = null;
+    let feedInterestObserver = null;
+
+    function queueFeedInterest(texto) {
+        if (!texto || !token) return;
+        feedInterestQueue.add(texto);
+        if (feedInterestTimer) return;
+        feedInterestTimer = setTimeout(async () => {
+            const payloads = Array.from(feedInterestQueue);
+            feedInterestQueue.clear();
+            feedInterestTimer = null;
+            for (const text of payloads) {
+                try {
+                    await fetch('/api/interesses/registrar', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify({ texto: text })
+                    });
+                } catch (error) {
+                    console.warn('Falha ao registrar interesse:', error);
+                }
+            }
+        }, 1200);
+    }
+
+    function setupFeedInterestObserver() {
+        if (!('IntersectionObserver' in window)) return;
+        if (feedInterestObserver) return;
+        feedInterestObserver = new IntersectionObserver((entries) => {
+            entries.forEach((entry) => {
+                if (!entry.isIntersecting) return;
+                const postEl = entry.target;
+                const text = postEl.dataset.postContent || '';
+                if (text) {
+                    queueFeedInterest(text);
+                }
+                feedInterestObserver.unobserve(postEl);
+            });
+        }, { threshold: 0.55 });
+    }
+
     async function fetchAdsFeed() {
         if (adsLoadedFeed) return;
         try {
@@ -929,11 +985,14 @@ document.addEventListener('DOMContentLoaded', () => {
         postElement.className = 'post';
         postElement.dataset.postId = post._id;
         postElement.dataset.userType = post.userId.tipo;
+        postElement.dataset.postContent = post.content || '';
 
         const isPostOwner = (post.userId._id === userId);
         if (isPostOwner) {
             postElement.classList.add('is-owner');
         }
+
+        const isEmpresa = post.userId.tipo === 'empresa';
 
         const postAuthorPhoto = (post.userId.foto && !post.userId.foto.includes('pixabay'))
                                 ? post.userId.foto
@@ -944,6 +1003,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const postAuthorName = post.userId.nome || 'Usuário Anônimo';
         const postAuthorCity = post.userId.cidade || '';
         const postAuthorState = post.userId.estado || '';
+        const postAuthorPhone = post.userId.telefone || '';
+        const postAuthorEndereco = post.userId.endereco || '';
+        const postAuthorRating = typeof post.userId.mediaAvaliacao === 'number'
+            ? post.userId.mediaAvaliacao
+            : null;
+        const postAuthorLevel = post.userId.gamificacao?.nivel || null;
 
         let deleteButton = '';
         if (isPostOwner) {
@@ -958,6 +1023,36 @@ document.addEventListener('DOMContentLoaded', () => {
                 mediaHTML = `<img src="${post.mediaUrl}" alt="Imagem da postagem" class="post-image" loading="lazy" decoding="async">`;
             }
         }
+
+        const levelBadge = postAuthorLevel
+            ? `
+                <div class="feed-nivel-badge" data-theme-switch>
+                    <img src="/imagens/selo.png" alt="Selo" class="feed-nivel-selo" loading="lazy" decoding="async">
+                    <div class="feed-fita-nivel">
+                        <img
+                            src="/imagens/fitadeseloescuro.png"
+                            data-src-light="/imagens/fitadeseloclaro.png"
+                            data-src-dark="/imagens/fitadeseloescuro.png"
+                            alt="Fita Nível"
+                            class="feed-fita-nivel-img"
+                            loading="lazy"
+                            decoding="async"
+                        >
+                        <span class="feed-nivel-texto">${postAuthorLevel}</span>
+                    </div>
+                </div>
+            `
+            : '';
+        const ratingInline = postAuthorRating !== null
+            ? `<span class="feed-rating-inline">★ ${postAuthorRating.toFixed(1)}</span>`
+            : '';
+
+        const enderecoTexto = [postAuthorEndereco, postAuthorCity, postAuthorState]
+            .filter(Boolean)
+            .join(postAuthorEndereco ? ' · ' : ', ');
+        const whatsappLink = postAuthorPhone
+            ? `https://wa.me/55${String(postAuthorPhone).replace(/\D/g, '')}`
+            : '';
 
         const isLiked = post.likes.includes(userId);
 
@@ -1103,21 +1198,44 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const comentariosVisiveis = '';
 
+        const conteudoPrincipal = isEmpresa
+            ? `
+                <div class="feed-empresa-card">
+                    ${mediaHTML ? `<div class="feed-empresa-media">${mediaHTML}</div>` : ''}
+                    <div class="feed-empresa-info">
+                        <p class="feed-empresa-texto">${post.content}</p>
+                        ${enderecoTexto ? `<div class="feed-empresa-endereco"><i class="fas fa-map-marker-alt"></i> ${enderecoTexto}</div>` : ''}
+                        ${whatsappLink ? `<a class="feed-empresa-whatsapp" href="${whatsappLink}" target="_blank" rel="noopener"><i class="fab fa-whatsapp"></i> WhatsApp direto</a>` : ''}
+                    </div>
+                </div>
+            `
+            : `
+                <div class="feed-usuario-card">
+                    <p class="feed-usuario-texto">${post.content}</p>
+                    ${mediaHTML ? `<div class="feed-usuario-media">${mediaHTML}</div>` : ''}
+                </div>
+            `;
+
         postElement.innerHTML = `
             <div class="post-header">
                 <img src="${postAuthorPhoto}" alt="Avatar" class="post-avatar" data-userid="${post.userId._id}" loading="lazy" decoding="async">
                 <div class="post-meta">
-                    <span class="user-name" data-userid="${post.userId._id}">${postAuthorName}</span>
+                    <div class="post-author-line">
+                        <span class="user-name" data-userid="${post.userId._id}">${postAuthorName}</span>
+                        ${ratingInline}
+                    </div>
                     <div>
                        <span class="post-date-display">${postDate}</span>
                        <span class="post-author-city">${citySeparator}</span>
                     </div>
                 </div>
-                ${deleteButton}
+                <div class="post-header-actions">
+                    ${levelBadge}
+                    ${deleteButton}
+                </div>
             </div>
             <div class="post-content">
-                <p>${post.content}</p>
-                ${mediaHTML}
+                ${conteudoPrincipal}
             </div>
             <div class="post-actions">
                 <button class="action-btn btn-like ${isLiked ? 'liked' : ''}" data-post-id="${post._id}">
@@ -1149,6 +1267,10 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
         `;
 
+        if (postElement.dataset.postContent) {
+            queueFeedInterest(postElement.dataset.postContent);
+        }
+
         return postElement;
     }
 
@@ -1169,6 +1291,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!postEl) continue;
                 postsContainer.appendChild(postEl);
                 renderedPostsCountFeed += 1;
+
+                setupFeedInterestObserver();
+                if (feedInterestObserver) {
+                    feedInterestObserver.observe(postEl);
+                }
 
                 if (isMobileAds && renderedPostsCountFeed % 4 === 0) {
                     const ad = pickNextAdFeed();
@@ -1450,6 +1577,14 @@ document.addEventListener('DOMContentLoaded', () => {
         document.querySelectorAll('.btn-like').forEach(btn => btn.addEventListener('click', handleLikePost));
         document.querySelectorAll('.btn-comment').forEach(btn => btn.addEventListener('click', toggleCommentSection));
         document.querySelectorAll('.btn-send-comment').forEach(btn => btn.addEventListener('click', handleSendComment));
+        document.querySelectorAll('.feed-empresa-whatsapp').forEach(link => {
+            link.addEventListener('click', () => {
+                const postEl = link.closest('.post');
+                if (postEl?.dataset?.postContent) {
+                    queueFeedInterest(postEl.dataset.postContent);
+                }
+            });
+        });
         
         // Auto-resize e Enter para enviar comentários
         document.querySelectorAll('.comment-input').forEach(textarea => {
