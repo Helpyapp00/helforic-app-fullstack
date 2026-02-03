@@ -3559,7 +3559,6 @@ app.get('/api/pedidos-urgentes/:pedidoId/propostas', authMiddleware, async (req,
             return res.status(403).json({ success: false, message: 'Acesso negado.' });
         }
 
-        // Não mostra propostas canceladas (profissional cancelou antes de aceitar/recusar)
         const propostasVisiveis = (pedido.propostas || []).filter(p => p && p.status !== 'cancelada');
 
         res.json({ 
@@ -3597,143 +3596,40 @@ app.post('/api/pedidos-urgentes/:pedidoId/cancelar', authMiddleware, async (req,
             return res.status(403).json({ success: false, message: 'Apenas o criador do pedido pode cancelar o pedido.' });
         }
 
-        // Permite cancelar pedidos que não têm proposta aceita (independente do status, exceto já cancelados ou concluídos)
         const temPropostaAceita = pedido.propostas && pedido.propostas.some(p => 
             p.status === 'aceita' || p.status === 'aceito' || p.status === 'em_andamento'
         );
-        
+
         if (pedido.status === 'cancelado') {
             return res.status(400).json({ success: false, message: 'Este pedido já foi cancelado.' });
         }
-        
+
         if (pedido.status === 'concluido') {
             return res.status(400).json({ success: false, message: 'Não é possível cancelar um pedido já concluído.' });
         }
-        
-        // Se tem proposta aceita, deve usar a rota cancelar-servico
+
         if (temPropostaAceita) {
             return res.status(400).json({ success: false, message: 'Este pedido tem proposta aceita. Use a opção "Cancelar serviço" em vez de "Apagar serviço".' });
         }
 
-        pedido.status = 'cancelado';
-        // Marca propostas pendentes como canceladas
-        if (Array.isArray(pedido.propostas)) {
-            pedido.propostas.forEach(p => {
-                if (p.status === 'pendente') {
-                    p.status = 'cancelada';
-                }
-            });
+        if (!Array.isArray(pedido.propostas)) {
+            pedido.propostas = [];
         }
+        pedido.propostas.forEach(p => {
+            if (p.status === 'pendente') {
+                p.status = 'cancelada';
+            }
+        });
 
-        await pedido.save();
+        const pedidoAtualizado = await PedidoUrgente.findByIdAndUpdate(
+            pedidoId,
+            { $set: { status: 'cancelado', propostas: pedido.propostas } },
+            { new: true }
+        );
 
-        return res.json({ success: true, message: 'Pedido cancelado com sucesso.', pedido });
+        return res.json({ success: true, message: 'Pedido cancelado com sucesso.', pedido: pedidoAtualizado || pedido });
     } catch (error) {
         console.error('Erro ao cancelar pedido urgente:', error);
-        res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
-    }
-});
-
-// Cancelar serviço de pedido urgente após aceito (cliente ou profissional)
-app.post('/api/pedidos-urgentes/:pedidoId/cancelar-servico', authMiddleware, async (req, res) => {
-    try {
-        const { pedidoId } = req.params;
-        const { motivo } = req.body;
-        const userId = req.user.id;
-
-        const pedido = await PedidoUrgente.findById(pedidoId);
-        if (!pedido) {
-            return res.status(404).json({ success: false, message: 'Pedido não encontrado.' });
-        }
-
-        // Verifica se já está cancelado
-        if (pedido.status === 'cancelado') {
-            return res.status(400).json({ success: false, message: 'Este pedido já foi cancelado.' });
-        }
-
-        // Verifica se já está concluído
-        if (pedido.status === 'concluido') {
-            return res.status(400).json({ success: false, message: 'Não é possível cancelar um pedido já concluído.' });
-        }
-
-        // Tenta encontrar proposta aceita pela propostaSelecionada
-        let propostaAceita = null;
-        if (pedido.propostaSelecionada) {
-            propostaAceita = pedido.propostas.id(pedido.propostaSelecionada);
-        }
-        
-        // Se não encontrou pela propostaSelecionada, procura por status
-        if (!propostaAceita) {
-            propostaAceita = pedido.propostas.find(prop => 
-                prop.status === 'aceita' || prop.status === 'aceito' || prop.status === 'em_andamento'
-            );
-        }
-
-        // Permite cancelar se tiver proposta aceita OU se estiver em andamento
-        const temPropostaAceita = propostaAceita && (propostaAceita.status === 'aceita' || propostaAceita.status === 'aceito' || propostaAceita.status === 'em_andamento');
-        const estaEmAndamento = pedido.status === 'em_andamento';
-        
-        if (!temPropostaAceita && !estaEmAndamento) {
-            console.log(`⚠️ Tentativa de cancelar pedido ${pedidoId}: status=${pedido.status}, temPropostaAceita=${temPropostaAceita}, propostaSelecionada=${pedido.propostaSelecionada}`);
-            return res.status(400).json({ success: false, message: 'Somente serviços em andamento ou com proposta aceita podem ser cancelados.' });
-        }
-
-        const clienteId = pedido.clienteId.toString();
-        let profissionalId = null;
-        
-        // Se tem proposta aceita, obtém o profissionalId dela
-        if (propostaAceita) {
-            profissionalId = propostaAceita.profissionalId.toString();
-        }
-
-        // Apenas o criador do pedido ou o profissional responsável podem cancelar
-        if (profissionalId) {
-            if (userId !== clienteId && userId !== profissionalId) {
-                return res.status(403).json({ success: false, message: 'Você não tem permissão para cancelar este serviço.' });
-            }
-        } else {
-            // Se não tem profissionalId, permite cancelar apenas para o criador do pedido
-            if (userId !== clienteId) {
-                return res.status(403).json({ success: false, message: 'Apenas o criador do pedido pode cancelar este serviço.' });
-            }
-        }
-
-        pedido.status = 'cancelado';
-        pedido.motivoCancelamento = motivo || null;
-        pedido.canceladoPor = userId;
-        await pedido.save();
-
-        // Cancela agendamento relacionado, se existir
-        if (pedido.agendamentoId) {
-            await Agendamento.findByIdAndUpdate(pedido.agendamentoId, { status: 'cancelado' });
-        }
-
-        // Notifica a outra parte sobre o cancelamento (se tiver profissional)
-        if (profissionalId) {
-            try {
-                const outroLadoId = userId === clienteId ? profissionalId : clienteId;
-                const titulo = 'Serviço cancelado';
-                const mensagem = `O serviço "${pedido.servico}" foi cancelado. Motivo: ${motivo || 'não informado.'}`;
-                await criarNotificacao(
-                    outroLadoId,
-                    'servico_cancelado',
-                    titulo,
-                    mensagem,
-                    {
-                        pedidoId: pedido._id,
-                        canceladoPor: userId,
-                        motivo: motivo || null
-                    },
-                    null
-                );
-            } catch (notifError) {
-                console.error('Erro ao criar notificação de cancelamento de serviço:', notifError);
-            }
-        }
-
-        res.json({ success: true, message: 'Serviço cancelado com sucesso.' });
-    } catch (error) {
-        console.error('Erro ao cancelar serviço de pedido urgente:', error);
         res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
     }
 });
