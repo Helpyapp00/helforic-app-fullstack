@@ -217,7 +217,7 @@
                     const pedidoIdBtn = btn.dataset.pedidoId;
                     if (confirm('Tem certeza que deseja concluir este serviço?')) {
                         try {
-                            const response = await fetch(`/api/pedidos-urgentes/${pedidoIdBtn}/concluir`, {
+                            const response = await fetch(`/api/pedidos-urgentes/${pedidoIdBtn}/concluir-servico`, {
                                 method: 'POST',
                                 headers: {
                                     'Authorization': `Bearer ${token}`
@@ -248,7 +248,7 @@
                     const pedidoIdBtn = btn.dataset.pedidoId;
                     if (confirm('Tem certeza que deseja cancelar este serviço?')) {
                         try {
-                            const response = await fetch(`/api/pedidos-urgentes/${pedidoIdBtn}/cancelar`, {
+                            const response = await fetch(`/api/pedidos-urgentes/${pedidoIdBtn}/cancelar-servico`, {
                                 method: 'POST',
                                 headers: {
                                     'Authorization': `Bearer ${token}`
@@ -735,6 +735,7 @@
         }
         
         const listaNotificacoes = document.getElementById('lista-notificacoes');
+        const badgeNotificacoesMobile = document.getElementById('badge-notificacoes-mobile');
         const btnMarcarTodasLidas = document.getElementById('btn-marcar-todas-lidas');
         const btnLimparNotificacoes = document.getElementById('btn-limpar-notificacoes');
         const btnSelecionarTudo = document.getElementById('btn-selecionar-tudo');
@@ -743,6 +744,7 @@
         dlog('Elementos encontrados (debug):', {
             btnNotificacoes: !!btnNotificacoes,
             badgeNotificacoes: !!badgeNotificacoes,
+            badgeNotificacoesMobile: !!badgeNotificacoesMobile,
             modalNotificacoes: !!modalNotificacoes,
             listaNotificacoes: !!listaNotificacoes,
             btnMarcarTodasLidas: !!btnMarcarTodasLidas,
@@ -819,6 +821,14 @@
                         badgeNotificacoes.style.display = 'none';
                     }
                 }
+                if (badgeNotificacoesMobile) {
+                    if (data.totalNaoLidas > 0) {
+                        badgeNotificacoesMobile.textContent = data.totalNaoLidas > 99 ? '99+' : data.totalNaoLidas;
+                        badgeNotificacoesMobile.style.display = 'flex';
+                    } else {
+                        badgeNotificacoesMobile.style.display = 'none';
+                    }
+                }
 
                 // Lista, se modal aberto
                 // Busca o modal dinamicamente para garantir que a referência está atualizada
@@ -848,6 +858,14 @@
                                 badgeNotificacoes.style.display = 'flex';
                             } else {
                                 badgeNotificacoes.style.display = 'none';
+                            }
+                        }
+                        if (badgeNotificacoesMobile) {
+                            if (data.totalNaoLidas > 0) {
+                                badgeNotificacoesMobile.textContent = data.totalNaoLidas > 99 ? '99+' : data.totalNaoLidas;
+                                badgeNotificacoesMobile.style.display = 'flex';
+                            } else {
+                                badgeNotificacoesMobile.style.display = 'none';
                             }
                         }
                         return; // Sai da função sem recarregar a lista
@@ -1023,7 +1041,7 @@
                                     
                                     if (lidaResponse.ok) {
                                         // Atualiza o badge imediatamente
-                                        if (badgeNotificacoes && typeof carregarNotificacoes === 'function') {
+                                        if ((badgeNotificacoes || badgeNotificacoesMobile) && typeof carregarNotificacoes === 'function') {
                                             // Verifica se há uma mensagem de erro sendo exibida (usando flag global também)
                                             const mensagemProposta = document.getElementById('mensagem-proposta-respondida');
                                             const temMensagem = (mensagemProposta && mensagemProposta.style.display !== 'none') || window.temMensagemErroNotificacao;
@@ -1040,12 +1058,22 @@
                                                     });
                                                     if (resp.ok) {
                                                         const data = await resp.json();
-                                                        if (data.success && badgeNotificacoes) {
-                                                            if (data.totalNaoLidas > 0) {
-                                                                badgeNotificacoes.textContent = data.totalNaoLidas > 99 ? '99+' : data.totalNaoLidas;
-                                                                badgeNotificacoes.style.display = 'flex';
-                                                            } else {
-                                                                badgeNotificacoes.style.display = 'none';
+                                                        if (data.success) {
+                                                            if (badgeNotificacoes) {
+                                                                if (data.totalNaoLidas > 0) {
+                                                                    badgeNotificacoes.textContent = data.totalNaoLidas > 99 ? '99+' : data.totalNaoLidas;
+                                                                    badgeNotificacoes.style.display = 'flex';
+                                                                } else {
+                                                                    badgeNotificacoes.style.display = 'none';
+                                                                }
+                                                            }
+                                                            if (badgeNotificacoesMobile) {
+                                                                if (data.totalNaoLidas > 0) {
+                                                                    badgeNotificacoesMobile.textContent = data.totalNaoLidas > 99 ? '99+' : data.totalNaoLidas;
+                                                                    badgeNotificacoesMobile.style.display = 'flex';
+                                                                } else {
+                                                                    badgeNotificacoesMobile.style.display = 'none';
+                                                                }
                                                             }
                                                         }
                                                     }

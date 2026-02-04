@@ -177,16 +177,20 @@ body.mobile-sidebar-open {
     appearance: none;
     border: none;
     background: transparent;
-    cursor: pointer;
-    line-height: 1;
-    padding: 10px 10px;
-    border-radius: 999px;
-    color: var(--text-primary);
     display: inline-flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
-    flex: 1 1 0;
+    gap: 4px;
+    color: var(--text-primary);
+    font-weight: 600;
+    font-size: 12px;
+    padding: 6px 8px;
+    border-radius: 12px;
+    transition: background 0.2s ease;
+    cursor: pointer;
     min-width: 44px; /* área de toque */
+    position: relative;
 }
 
 .mobile-bottom-nav .mbn-btn i {
@@ -762,6 +766,24 @@ html.dark-mode #filtro-cidade-btn { color: #ffffff; border-color: #ffffff; }
 
 .switch .slider.round:before {
     border-radius: 50%;
+}
+
+.badge-notificacoes-mobile {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    background: #dc3545;
+    color: #fff;
+    border-radius: 999px;
+    min-width: 18px;
+    height: 18px;
+    font-size: 11px;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 0 4px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+    pointer-events: none;
 }
 
 /* Área Central do Feed */

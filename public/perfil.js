@@ -1177,18 +1177,36 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         } else {
             console.log('⚠️ Não foi possível identificar pedidoId/agendamentoId para marcar como avaliado');
+            const chavePermanente = `avaliacaoPerfil:${loggedInUserId}-${profileId || profileIdFromUrl || slugFromPath || 'desconhecido'}:permanente`;
+            localStorage.setItem(chavePermanente, '1');
+            avaliacaoJaFeitaCache = true;
         }
-        
-        // Marca também como permanente para visitas normais
-        const chavePermanente = `avaliacaoPerfil:${loggedInUserId}-${profileId || profileIdFromUrl || slugFromPath || 'desconhecido'}:permanente`;
-        localStorage.setItem(chavePermanente, '1');
-        
-        // Atualiza o cache
-        avaliacaoJaFeitaCache = true;
         
         if (estrelas) {
             sessionStorage.setItem(chaveStars, String(estrelas));
             localStorage.setItem(chaveStars, String(estrelas));
+        }
+    };
+
+    const desmarcarAvaliacaoFeita = (pedidoIdForcado = null, agendamentoIdForcado = null) => {
+        try {
+            if (!avaliacaoSessionKey) atualizarChavesAvaliacao();
+            sessionStorage.removeItem(avaliacaoSessionKey);
+            localStorage.removeItem(avaliacaoSessionKey);
+
+            const pedidoIdFinal = pedidoIdForcado || pedidoIdAvaliacao || pedidoIdUltimoServicoConcluido;
+            const agendamentoIdFinal = agendamentoIdForcado || agendamentoIdAvaliacao || agendamentoIdUltimoServico;
+            if (pedidoIdFinal || agendamentoIdFinal) {
+                const chaveServico = pedidoIdFinal
+                    ? `avaliacaoServico:${loggedInUserId}-${pedidoIdFinal}`
+                    : `avaliacaoServico:${loggedInUserId}-${agendamentoIdFinal}`;
+                localStorage.removeItem(chaveServico);
+                sessionStorage.removeItem(chaveServico);
+            }
+
+            avaliacaoJaFeitaCache = null;
+        } catch (e) {
+            console.warn('Falha ao desmarcar avaliação no storage:', e);
         }
     };
 
@@ -5468,18 +5486,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (btnEnviarAvaliacao) {
                 btnEnviarAvaliacao.click();
             }
-            // Após enviar via lembrete, evita reabrir
-            // Usa os IDs da URL (não do localStorage) quando vem de notificação
-            const pedidoIdParaMarcar = pedidoIdAvaliacao; // SEMPRE da URL quando vem de notificação
-            const agendamentoIdParaMarcar = agendamentoIdAvaliacao; // SEMPRE da URL quando vem de notificação
-            marcarAvaliacaoFeita(selectedStar, pedidoIdParaMarcar || null, agendamentoIdParaMarcar || null);
-            
-            // Fecha o modal flutuante
-            const modalLembrete = document.getElementById('modal-lembrete-avaliacao');
-            if (modalLembrete) {
-                modalLembrete.classList.add('hidden');
-                document.body.style.overflow = '';
-            }
         });
 
         // Função para fechar o modal (declarada antes de ser usada)
@@ -6477,6 +6483,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 fetchUserProfile();
             } catch (error) {
                 console.error('Erro ao enviar avaliação:', error);
+                if (isFluxoServico) {
+                    try {
+                        desmarcarAvaliacaoFeita(pedidoUrgenteIdFinal || null, agendamentoIdFinal || null);
+                    } catch (_) {}
+                }
                 alert(error.message);
             }
         });

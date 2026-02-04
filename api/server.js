@@ -428,6 +428,29 @@ const notificacaoSchema = new mongoose.Schema({
 
 const Notificacao = mongoose.models.Notificacao || mongoose.model('Notificacao', notificacaoSchema);
 
+// Helper central para criar notificações
+async function criarNotificacao(userId, tipo, titulo, mensagem, dadosAdicionais = {}, link = null) {
+    try {
+        if (!userId) return null;
+        const userIdObjectId = mongoose.Types.ObjectId.isValid(userId)
+            ? new mongoose.Types.ObjectId(userId)
+            : userId;
+        const notificacao = new Notificacao({
+            userId: userIdObjectId,
+            tipo,
+            titulo,
+            mensagem,
+            dadosAdicionais: dadosAdicionais || {},
+            link
+        });
+        await notificacao.save();
+        return notificacao;
+    } catch (error) {
+        console.error('Erro ao criar notificação:', error);
+        return null;
+    }
+}
+
 const moderationLogSchema = new mongoose.Schema({
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     tipo: { type: String },
@@ -1960,8 +1983,23 @@ app.post('/api/avaliacao-verificada', authMiddleware, async (req, res) => {
                 return res.status(403).json({ success: false, message: 'Você não pode avaliar este serviço.' });
             }
 
+            // Verifica se tem proposta aceita antes de concluir/avaliar
+            const propostaAceitaParaAvaliacao = pedido.propostas?.find(prop =>
+                prop.status === 'aceita' || prop.status === 'aceito' || prop.status === 'em_andamento'
+            );
+            if (!propostaAceitaParaAvaliacao) {
+                return res.status(400).json({ success: false, message: 'Este pedido não tem proposta aceita.' });
+            }
+
+            // Permite avaliar se estiver concluído; se estiver em andamento, conclui automaticamente
             if (pedido.status !== 'concluido') {
-                return res.status(400).json({ success: false, message: 'O serviço precisa estar concluído para ser avaliado.' });
+                if (pedido.status === 'em_andamento') {
+                    pedido.status = 'concluido';
+                    await pedido.save();
+                    console.log(' Pedido urgente marcado como concluído antes de criar avaliação (auto):', pedidoUrgenteId);
+                } else {
+                    return res.status(400).json({ success: false, message: 'O serviço precisa estar concluído para ser avaliado.' });
+                }
             }
 
             // IMPORTANTE: Extrai o profissionalId da proposta aceita do pedido
@@ -3293,7 +3331,6 @@ app.post('/api/pedidos-urgentes', authMiddleware, upload.array('fotos', 10), han
         });
     } catch (error) {
         console.error('❌ Erro ao criar pedido urgente:', error);
-        console.error('Tipo do erro:', typeof error);
         console.error('Mensagem do erro:', error.message);
         console.error('Stack trace:', error.stack);
         
@@ -3302,15 +3339,14 @@ app.post('/api/pedidos-urgentes', authMiddleware, upload.array('fotos', 10), han
             console.error('⚠️ Resposta já foi enviada, não é possível enviar erro');
             return;
         }
-        
-        // Retorna mensagem de erro mais específica em desenvolvimento
-        const errorMessage = process.env.NODE_ENV === 'development' 
-            ? `Erro ao criar pedido urgente: ${error.message || 'Erro desconhecido'}` 
+
+        const errorMessage = process.env.NODE_ENV === 'development'
+            ? `Erro ao criar pedido urgente: ${error.message || 'Erro desconhecido'}`
             : 'Erro interno do servidor ao criar pedido urgente.';
-        
+
         try {
-            res.status(500).json({ 
-                success: false, 
+            res.status(500).json({
+                success: false,
                 message: errorMessage,
                 error: process.env.NODE_ENV === 'development' ? (error.message || String(error)) : undefined
             });
@@ -3320,7 +3356,114 @@ app.post('/api/pedidos-urgentes', authMiddleware, upload.array('fotos', 10), han
     }
 });
 
-// Enviar Proposta Rápida para Pedido Urgente
+app.get('/api/pedidos-urgentes', authMiddleware, async (req, res) => {
+    try {
+        const { categoria, q } = req.query;
+        const now = new Date();
+
+        const query = {
+            status: 'aberto',
+            dataExpiracao: { $gt: now }
+        };
+
+        if (categoria && String(categoria).trim()) {
+            query.categoria = { $regex: String(categoria).trim(), $options: 'i' };
+        }
+
+        if (q && String(q).trim()) {
+            const qStr = String(q).trim();
+            query.$or = [
+                { servico: { $regex: qStr, $options: 'i' } },
+                { descricao: { $regex: qStr, $options: 'i' } },
+                { categoria: { $regex: qStr, $options: 'i' } },
+                { 'localizacao.cidade': { $regex: qStr, $options: 'i' } },
+                { 'localizacao.estado': { $regex: qStr, $options: 'i' } }
+            ];
+        }
+
+        const pedidosRaw = await PedidoUrgente.find(query)
+            .sort({ createdAt: -1 })
+            .lean()
+            .exec();
+
+        const pedidos = await Promise.all(
+            (pedidosRaw || []).map(async (p) => {
+                try {
+                    const clienteIdValue = p?.clienteId?._id || p?.clienteId;
+                    const clienteIdStr = clienteIdValue ? String(clienteIdValue) : '';
+                    if (clienteIdStr && mongoose.Types.ObjectId.isValid(clienteIdStr)) {
+                        const cliente = await User.findById(clienteIdStr)
+                            .select('_id nome foto avatarUrl cidade estado')
+                            .lean();
+                        return { ...p, clienteId: cliente || p.clienteId };
+                    }
+                    return p;
+                } catch (_) {
+                    return p;
+                }
+            })
+        );
+
+        res.json({ success: true, pedidos, pedidosAtivos: pedidos, pedidosExpirados: [] });
+    } catch (error) {
+        console.error('Erro ao listar pedidos urgentes:', error);
+        res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
+    }
+});
+
+app.get('/api/pedidos-urgentes/meus', authMiddleware, async (req, res) => {
+    try {
+        const clienteId = req.user.id;
+        const now = new Date();
+
+        const clienteIdObj = mongoose.Types.ObjectId.isValid(clienteId)
+            ? new mongoose.Types.ObjectId(clienteId)
+            : null;
+        const clienteQuery = clienteIdObj ? { $in: [clienteIdObj, clienteId] } : clienteId;
+
+        const pedidosAllRaw = await PedidoUrgente.find({ clienteId: clienteQuery })
+            .sort({ updatedAt: -1 })
+            .lean()
+            .exec();
+
+        const pedidosAll = await Promise.all(
+            (pedidosAllRaw || []).map(async (p) => {
+                try {
+                    const clienteIdValue = p?.clienteId?._id || p?.clienteId;
+                    const clienteIdStr = clienteIdValue ? String(clienteIdValue) : '';
+                    if (clienteIdStr && mongoose.Types.ObjectId.isValid(clienteIdStr)) {
+                        const cliente = await User.findById(clienteIdStr)
+                            .select('_id nome foto avatarUrl cidade estado')
+                            .lean();
+                        return { ...p, clienteId: cliente || p.clienteId };
+                    }
+                    return p;
+                } catch (_) {
+                    return p;
+                }
+            })
+        );
+
+        const pedidosAtivos = (pedidosAll || []).filter(p => {
+            if (!p || p.status === 'cancelado') return false;
+            if (p.status !== 'aberto' && p.status !== 'em_andamento') return false;
+            if (p.status === 'aberto' && p.dataExpiracao && new Date(p.dataExpiracao) <= now) return false;
+            return true;
+        });
+
+        const pedidosExpirados = (pedidosAll || []).filter(p => {
+            if (!p || p.status !== 'aberto') return false;
+            if (!p.dataExpiracao) return false;
+            return new Date(p.dataExpiracao) <= now;
+        });
+
+        res.json({ success: true, pedidos: pedidosAtivos, pedidosAtivos, pedidosExpirados });
+    } catch (error) {
+        console.error('Erro ao listar meus pedidos urgentes:', error);
+        res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
+    }
+});
+
 app.post('/api/pedidos-urgentes/:pedidoId/proposta', authMiddleware, async (req, res) => {
     try {
         const { pedidoId } = req.params;
@@ -3337,8 +3480,7 @@ app.post('/api/pedidos-urgentes/:pedidoId/proposta', authMiddleware, async (req,
             return res.status(404).json({ success: false, message: 'Pedido urgente não encontrado.' });
         }
 
-        // Impede que o próprio criador envie proposta para o seu pedido
-        if (pedido.clienteId.toString() === profissionalId) {
+        if (pedido.clienteId && pedido.clienteId.toString() === profissionalId) {
             return res.status(400).json({ success: false, message: 'Você não pode enviar proposta para um pedido criado por você.' });
         }
 
@@ -3346,13 +3488,16 @@ app.post('/api/pedidos-urgentes/:pedidoId/proposta', authMiddleware, async (req,
             return res.status(400).json({ success: false, message: 'Este pedido não está mais aceitando propostas.' });
         }
 
-        if (new Date() > pedido.dataExpiracao) {
+        if (pedido.dataExpiracao && new Date() > new Date(pedido.dataExpiracao)) {
             return res.status(400).json({ success: false, message: 'Este pedido expirou.' });
         }
 
-        // Verifica se já enviou proposta (permite reenviar caso tenha sido rejeitada/cancelada)
+        if (!Array.isArray(pedido.propostas)) {
+            pedido.propostas = [];
+        }
+
         let propostaIdParaNotificacao = null;
-        const propostaExistente = pedido.propostas.find(p => p.profissionalId.toString() === profissionalId);
+        const propostaExistente = pedido.propostas.find(p => (p?.profissionalId || '').toString() === profissionalId);
         if (propostaExistente) {
             if (propostaExistente.status === 'rejeitada' || propostaExistente.status === 'cancelada') {
                 propostaExistente.valor = valor;
@@ -3360,48 +3505,42 @@ app.post('/api/pedidos-urgentes/:pedidoId/proposta', authMiddleware, async (req,
                 propostaExistente.observacoes = observacoes;
                 propostaExistente.status = 'pendente';
                 propostaExistente.dataProposta = new Date();
-                propostaIdParaNotificacao = propostaExistente._id;
+                propostaIdParaNotificacao = propostaExistente._id || propostaExistente.profissionalId;
             } else {
                 return res.status(400).json({ success: false, message: 'Você já enviou uma proposta para este pedido.' });
             }
         } else {
+            const novaPropostaId = new mongoose.Types.ObjectId();
             pedido.propostas.push({
-                profissionalId,
+                _id: novaPropostaId,
+                profissionalId: mongoose.Types.ObjectId.isValid(profissionalId)
+                    ? new mongoose.Types.ObjectId(profissionalId)
+                    : profissionalId,
                 valor,
                 tempoChegada,
                 observacoes,
-                status: 'pendente'
+                status: 'pendente',
+                dataProposta: new Date()
             });
-            propostaIdParaNotificacao = pedido.propostas[pedido.propostas.length - 1]._id;
+            propostaIdParaNotificacao = novaPropostaId;
         }
 
+        pedido.markModified('propostas');
         await pedido.save();
+        await PedidoUrgente.updateOne(
+            { _id: pedido._id },
+            { $set: { propostas: pedido.propostas } }
+        );
 
-        // Cria notificação para o usuário sobre a nova proposta
         try {
-            const cliente = await User.findById(pedido.clienteId);
-            if (cliente) {
-                // Remove notificações antigas dessa mesma proposta (evita duplicidade ao reenviar)
-                try {
-                    await Notificacao.deleteMany({
-                        userId: pedido.clienteId,
-                        tipo: 'proposta_pedido_urgente',
-                        'dadosAdicionais.pedidoId': pedido._id,
-                        'dadosAdicionais.propostaId': propostaIdParaNotificacao,
-                        'dadosAdicionais.profissionalId': profissionalId
-                    });
-                } catch (delNotifErr) {
-                    console.warn('⚠️ Falha ao limpar notificações antigas de proposta:', delNotifErr);
-                }
-
-                const titulo = 'Nova proposta recebida!';
-                const mensagem = `${profissional.nome} enviou uma proposta de R$ ${valor.toFixed(2)} para seu pedido: ${pedido.servico}`;
+            const clienteIdFinal = pedido.clienteId?._id || pedido.clienteId;
+            if (clienteIdFinal) {
                 await criarNotificacao(
-                    pedido.clienteId,
+                    clienteIdFinal,
                     'proposta_pedido_urgente',
-                    titulo,
-                    mensagem,
-                    { 
+                    'Nova proposta recebida!',
+                    `${profissional.nome} enviou uma proposta de R$ ${Number(valor || 0).toFixed(2)} para seu pedido: ${pedido.servico}`,
+                    {
                         pedidoId: pedido._id,
                         propostaId: propostaIdParaNotificacao,
                         profissionalId: profissionalId,
@@ -3412,9 +3551,8 @@ app.post('/api/pedidos-urgentes/:pedidoId/proposta', authMiddleware, async (req,
             }
         } catch (notifError) {
             console.error('Erro ao criar notificação de proposta:', notifError);
-            // Não falha a operação principal se a notificação falhar
         }
-        
+
         res.json({ success: true, message: 'Proposta enviada com sucesso!' });
     } catch (error) {
         console.error('Erro ao enviar proposta:', error);
@@ -3422,37 +3560,61 @@ app.post('/api/pedidos-urgentes/:pedidoId/proposta', authMiddleware, async (req,
     }
 });
 
-// Buscar um pedido urgente por ID (dados básicos e foto)
-app.get('/api/pedidos-urgentes/:pedidoId', authMiddleware, async (req, res, next) => {
+app.get('/api/pedidos-urgentes/:pedidoId/propostas', authMiddleware, async (req, res) => {
     try {
         const { pedidoId } = req.params;
+
         if (!mongoose.Types.ObjectId.isValid(pedidoId)) {
-            return next();
-        }
-        let pedido = null;
-        try {
-            pedido = await PedidoUrgente.findById(pedidoId)
-                .populate('clienteId', 'nome foto avatarUrl cidade estado')
-                .populate('propostas.profissionalId', 'nome foto avatarUrl atuacao cidade estado')
-                .exec();
-        } catch (queryError) {
-            console.warn('⚠️ Falha ao buscar pedido urgente:', pedidoId, queryError?.message || queryError);
+            return res.status(400).json({ success: false, message: 'ID inválido.' });
         }
 
+        const pedido = await PedidoUrgente.findById(pedidoId).lean().exec();
         if (!pedido) {
-            return res.json({ success: false, message: 'Pedido não encontrado.', pedido: null });
+            return res.status(404).json({ success: false, message: 'Pedido não encontrado.' });
         }
 
-        const propostasFormatadas = (pedido.propostas || []).map(prop => ({
-            _id: prop._id,
-            profissionalId: prop.profissionalId?._id || prop.profissionalId,
-            usuarioId: prop.profissionalId?._id || prop.profissionalId,
-            valor: prop.valor,
-            tempoChegada: prop.tempoChegada,
-            observacoes: prop.observacoes,
-            status: prop.status,
-            dataProposta: prop.dataProposta,
-            profissional: prop.profissionalId
+        let clientePopulado = pedido.clienteId;
+        try {
+            const clienteIdValue = pedido?.clienteId?._id || pedido?.clienteId;
+            const clienteIdStr = clienteIdValue ? String(clienteIdValue) : '';
+            if (clienteIdStr && mongoose.Types.ObjectId.isValid(clienteIdStr)) {
+                const cliente = await User.findById(clienteIdStr)
+                    .select('_id nome foto avatarUrl cidade estado telefone')
+                    .lean();
+                clientePopulado = cliente || pedido.clienteId;
+            }
+        } catch (_) {
+            clientePopulado = pedido.clienteId;
+        }
+
+        const propostasFormatadas = await Promise.all((pedido.propostas || []).map(async (prop) => {
+            const profissionalIdFinal = prop.profissionalId?._id || prop.profissionalId;
+            const propostaIdFinal = prop._id || profissionalIdFinal;
+            let profissionalPopulado = prop.profissional || prop.profissionalId;
+
+            try {
+                const profIdStr = profissionalIdFinal ? String(profissionalIdFinal) : '';
+                if (profIdStr && mongoose.Types.ObjectId.isValid(profIdStr)) {
+                    const profissional = await User.findById(profIdStr)
+                        .select('_id nome foto avatarUrl atuacao cidade estado gamificacao mediaAvaliacao totalAvaliacoes telefone')
+                        .lean();
+                    profissionalPopulado = profissional || profissionalPopulado;
+                }
+            } catch (_) {
+                profissionalPopulado = prop.profissional || prop.profissionalId;
+            }
+
+            return {
+                _id: propostaIdFinal,
+                profissionalId: profissionalPopulado,
+                usuarioId: profissionalIdFinal,
+                valor: prop.valor,
+                tempoChegada: prop.tempoChegada,
+                observacoes: prop.observacoes,
+                status: prop.status,
+                dataProposta: prop.dataProposta,
+                profissional: profissionalPopulado
+            };
         }));
 
         res.json({
@@ -3465,15 +3627,98 @@ app.get('/api/pedidos-urgentes/:pedidoId', authMiddleware, async (req, res, next
                 fotos: pedido.fotos || (pedido.foto ? [pedido.foto] : []),
                 localizacao: pedido.localizacao,
                 categoria: pedido.categoria,
-                clienteId: pedido.clienteId,
+                clienteId: clientePopulado,
+                propostaSelecionada: pedido.propostaSelecionada,
+                status: pedido.status,
+                createdAt: pedido.createdAt,
+                dataExpiracao: pedido.dataExpiracao
+            },
+            propostas: propostasFormatadas
+        });
+    } catch (error) {
+        console.error('Erro ao carregar propostas do pedido urgente:', error);
+        return res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
+    }
+});
+
+app.get('/api/pedidos-urgentes/:pedidoId', authMiddleware, async (req, res, next) => {
+    try {
+        const { pedidoId } = req.params;
+
+        if (!mongoose.Types.ObjectId.isValid(pedidoId)) {
+            return next();
+        }
+
+        const pedido = await PedidoUrgente.findById(pedidoId).lean().exec();
+        if (!pedido) {
+            return res.json({ success: false, message: 'Pedido não encontrado.', pedido: null });
+        }
+
+        let clientePopulado = pedido.clienteId;
+        try {
+            const clienteIdValue = pedido?.clienteId?._id || pedido?.clienteId;
+            const clienteIdStr = clienteIdValue ? String(clienteIdValue) : '';
+            if (clienteIdStr && mongoose.Types.ObjectId.isValid(clienteIdStr)) {
+                const cliente = await User.findById(clienteIdStr)
+                    .select('_id nome foto avatarUrl cidade estado')
+                    .lean();
+                clientePopulado = cliente || pedido.clienteId;
+            }
+        } catch (_) {
+            clientePopulado = pedido.clienteId;
+        }
+
+        const propostasFormatadas = await Promise.all((pedido.propostas || []).map(async (prop) => {
+            const profissionalIdFinal = prop.profissionalId?._id || prop.profissionalId;
+            const propostaIdFinal = prop._id || profissionalIdFinal;
+            let profissionalPopulado = prop.profissionalId;
+
+            try {
+                const profIdStr = profissionalIdFinal ? String(profissionalIdFinal) : '';
+                if (profIdStr && mongoose.Types.ObjectId.isValid(profIdStr)) {
+                    const profissional = await User.findById(profIdStr)
+                        .select('_id nome foto avatarUrl atuacao cidade estado')
+                        .lean();
+                    profissionalPopulado = profissional || profissionalPopulado;
+                }
+            } catch (_) {
+                profissionalPopulado = prop.profissionalId;
+            }
+
+            return {
+                _id: propostaIdFinal,
+                profissionalId: profissionalIdFinal,
+                usuarioId: profissionalIdFinal,
+                valor: prop.valor,
+                tempoChegada: prop.tempoChegada,
+                observacoes: prop.observacoes,
+                status: prop.status,
+                dataProposta: prop.dataProposta,
+                profissional: profissionalPopulado
+            };
+        }));
+
+        res.json({
+            success: true,
+            pedido: {
+                _id: pedido._id,
+                servico: pedido.servico,
+                descricao: pedido.descricao,
+                foto: pedido.foto,
+                fotos: pedido.fotos || (pedido.foto ? [pedido.foto] : []),
+                localizacao: pedido.localizacao,
+                categoria: pedido.categoria,
+                clienteId: clientePopulado,
                 propostas: propostasFormatadas,
                 propostaSelecionada: pedido.propostaSelecionada,
-                status: pedido.status
+                status: pedido.status,
+                createdAt: pedido.createdAt,
+                dataExpiracao: pedido.dataExpiracao
             }
         });
     } catch (error) {
         console.error('Erro ao buscar pedido urgente:', error);
-        res.json({ success: false, message: 'Erro interno do servidor.', pedido: null });
+        return res.json({ success: false, message: 'Erro interno do servidor.', pedido: null });
     }
 });
 
@@ -3497,23 +3742,38 @@ app.post('/api/pedidos-urgentes/:pedidoId/aceitar-proposta/:propostaId', authMid
             return res.status(400).json({ success: false, message: 'Este pedido não está mais aceitando propostas.' });
         }
 
-        const proposta = pedido.propostas.id(propostaId);
+        const propostas = Array.isArray(pedido.propostas) ? pedido.propostas : [];
+        const propostaIndex = propostas.findIndex(p =>
+            (p?._id || '').toString() === propostaId ||
+            (p?.profissionalId || '').toString() === propostaId
+        );
+        const proposta = propostaIndex >= 0 ? propostas[propostaIndex] : null;
         if (!proposta) {
             return res.status(404).json({ success: false, message: 'Proposta não encontrada.' });
         }
 
-        if (proposta.status !== 'pendente') {
+        if (proposta.status && proposta.status !== 'pendente') {
             return res.status(400).json({ success: false, message: 'Esta proposta não está mais pendente.' });
         }
 
-        proposta.status = 'aceita';
-        pedido.propostaSelecionada = propostaId;
-        pedido.status = 'em_andamento';
-        await pedido.save();
+        const propostaIdFinal = proposta._id || new mongoose.Types.ObjectId();
+        const setUpdate = {
+            [`propostas.${propostaIndex}.status`]: 'aceita',
+            status: 'em_andamento',
+            propostaSelecionada: propostaIdFinal
+        };
+        if (!proposta._id) {
+            setUpdate[`propostas.${propostaIndex}._id`] = propostaIdFinal;
+        }
+        await PedidoUrgente.updateOne(
+            { _id: pedido._id },
+            { $set: setUpdate }
+        );
 
         // Notifica o profissional sobre a aceitação da proposta
         try {
-            const profissional = await User.findById(proposta.profissionalId);
+            const profissionalIdFinal = proposta.profissionalId?._id || proposta.profissionalId;
+            const profissional = profissionalIdFinal ? await User.findById(profissionalIdFinal) : null;
             if (profissional) {
                 const titulo = 'Proposta aceita!';
                 const mensagem = `O cliente aceitou sua proposta de R$ ${proposta.valor.toFixed(2)} para o pedido: ${pedido.servico}`;
@@ -3524,7 +3784,7 @@ app.post('/api/pedidos-urgentes/:pedidoId/aceitar-proposta/:propostaId', authMid
                     mensagem,
                     { 
                         pedidoId: pedido._id,
-                        propostaId: proposta._id,
+                        propostaId: propostaIdFinal,
                         servico: pedido.servico
                     },
                     null
@@ -3537,1144 +3797,6 @@ app.post('/api/pedidos-urgentes/:pedidoId/aceitar-proposta/:propostaId', authMid
         res.json({ success: true, message: 'Proposta aceita com sucesso!' });
     } catch (error) {
         console.error('Erro ao aceitar proposta:', error);
-        res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
-    }
-});
-
-// Listar Propostas de um Pedido Urgente (para o cliente)
-app.get('/api/pedidos-urgentes/:pedidoId/propostas', authMiddleware, async (req, res) => {
-    try {
-        const { pedidoId } = req.params;
-        const clienteId = req.user.id;
-
-        const pedido = await PedidoUrgente.findById(pedidoId)
-            .populate('propostas.profissionalId', 'nome foto avatarUrl atuacao cidade estado gamificacao mediaAvaliacao totalAvaliacoes')
-            .exec();
-
-        if (!pedido) {
-            return res.status(404).json({ success: false, message: 'Pedido não encontrado.' });
-        }
-
-        if (pedido.clienteId.toString() !== clienteId) {
-            return res.status(403).json({ success: false, message: 'Acesso negado.' });
-        }
-
-        const propostasVisiveis = (pedido.propostas || []).filter(p => p && p.status !== 'cancelada');
-
-        res.json({ 
-            success: true, 
-            propostas: propostasVisiveis,
-            pedido: {
-                _id: pedido._id,
-                servico: pedido.servico,
-                descricao: pedido.descricao,
-                foto: pedido.foto,
-                categoria: pedido.categoria,
-                localizacao: pedido.localizacao,
-                tipoAtendimento: pedido.tipoAtendimento,
-                dataAgendada: pedido.dataAgendada
-            }
-        });
-    } catch (error) {
-        console.error('Erro ao buscar pedido urgente:', error);
-        res.json({ success: false, message: 'Erro interno do servidor.', pedido: null });
-    }
-});
-
-// Cancelar Pedido Urgente (cliente)
-app.post('/api/pedidos-urgentes/:pedidoId/cancelar', authMiddleware, async (req, res) => {
-    try {
-        const { pedidoId } = req.params;
-        const clienteId = req.user.id;
-
-        const pedido = await PedidoUrgente.findById(pedidoId);
-        if (!pedido) {
-            return res.status(404).json({ success: false, message: 'Pedido não encontrado.' });
-        }
-
-        if (pedido.clienteId.toString() !== clienteId) {
-            return res.status(403).json({ success: false, message: 'Apenas o criador do pedido pode cancelar o pedido.' });
-        }
-
-        const temPropostaAceita = pedido.propostas && pedido.propostas.some(p => 
-            p.status === 'aceita' || p.status === 'aceito' || p.status === 'em_andamento'
-        );
-
-        if (pedido.status === 'cancelado') {
-            return res.status(400).json({ success: false, message: 'Este pedido já foi cancelado.' });
-        }
-
-        if (pedido.status === 'concluido') {
-            return res.status(400).json({ success: false, message: 'Não é possível cancelar um pedido já concluído.' });
-        }
-
-        if (temPropostaAceita) {
-            return res.status(400).json({ success: false, message: 'Este pedido tem proposta aceita. Use a opção "Cancelar serviço" em vez de "Apagar serviço".' });
-        }
-
-        if (!Array.isArray(pedido.propostas)) {
-            pedido.propostas = [];
-        }
-        pedido.propostas.forEach(p => {
-            if (p.status === 'pendente') {
-                p.status = 'cancelada';
-            }
-        });
-
-        const pedidoAtualizado = await PedidoUrgente.findByIdAndUpdate(
-            pedidoId,
-            { $set: { status: 'cancelado', propostas: pedido.propostas } },
-            { new: true }
-        );
-
-        return res.json({ success: true, message: 'Pedido cancelado com sucesso.', pedido: pedidoAtualizado || pedido });
-    } catch (error) {
-        console.error('Erro ao cancelar pedido urgente:', error);
-        res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
-    }
-});
-
-// Deletar Pedido Urgente (apenas para o criador do pedido)
-app.delete('/api/pedidos-urgentes/:pedidoId', authMiddleware, async (req, res) => {
-    try {
-        const { pedidoId } = req.params;
-        const userId = req.user.id;
-
-        const pedido = await PedidoUrgente.findById(pedidoId);
-        if (!pedido) {
-            return res.status(404).json({ success: false, message: 'Pedido não encontrado.' });
-        }
-
-        // Apenas o criador do pedido pode deletar
-        if (pedido.clienteId.toString() !== userId) {
-            return res.status(403).json({ success: false, message: 'Você não tem permissão para deletar este pedido.' });
-        }
-
-        await PedidoUrgente.findByIdAndDelete(pedidoId);
-
-        res.json({ success: true, message: 'Pedido deletado com sucesso.' });
-    } catch (error) {
-        console.error('Erro ao deletar pedido urgente:', error);
-        res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
-    }
-});
-
-// Listar Pedidos Urgentes Disponíveis (para profissionais)
-app.get('/api/pedidos-urgentes', authMiddleware, async (req, res) => {
-    try {
-        const { categoria, cidade } = req.query;
-        const profissionalId = req.user.id;
-
-        const profissional = await User.findById(profissionalId);
-        if (!profissional) {
-            return res.status(404).json({ success: false, message: 'Usuário não encontrado.' });
-        }
-
-        let query = { 
-            status: 'aberto',
-            dataExpiracao: { $gt: new Date() }, // Apenas pedidos não expirados
-            clienteId: { $ne: profissionalId } // Não mostrar pedidos criados por este profissional
-        };
-
-        // Filtra por categoria apenas se especificado explicitamente
-        if (categoria) {
-            query.categoria = categoria;
-        }
-
-        const pedidos = await PedidoUrgente.find(query)
-            .populate('clienteId', '_id nome foto avatarUrl cidade estado')
-            .sort({ createdAt: -1 })
-            .exec();
-
-        console.log(`📦 API /api/pedidos-urgentes - Profissional ${profissionalId}: ${pedidos.length} pedidos encontrados (query: ${JSON.stringify(query)})`);
-        console.log(`📋 Profissional atuacao: ${profissional.atuacao || 'N/A'}`);
-        if (pedidos.length > 0) {
-            pedidos.forEach(p => {
-                console.log(`  - Pedido ${p._id}: status=${p.status}, categoria=${p.categoria}, servico=${p.servico}, cidade=${p.localizacao?.cidade}, dataExpiracao=${p.dataExpiracao}`);
-            });
-        }
-
-        // Filtra por profissão (atuacao) de forma flexível, se nenhuma categoria foi informada
-        let pedidosFiltrados = pedidos;
-        if (!categoria && profissional.atuacao) {
-            const atuacaoNorm = profissional.atuacao
-                .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-                .toLowerCase().trim();
-
-            const filtraPorAtuacao = (texto) => {
-                if (!texto) return false;
-                const norm = String(texto)
-                    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-                    .toLowerCase().trim();
-                return norm.includes(atuacaoNorm) || atuacaoNorm.includes(norm);
-            };
-
-            const porProfissao = pedidos.filter(p => 
-                filtraPorAtuacao(p.categoria) || filtraPorAtuacao(p.servico)
-            );
-
-            console.log(`🔍 Filtro por profissão: ${porProfissao.length} pedidos encontrados (de ${pedidos.length} total)`);
-            
-            // Se o filtro por profissão trouxer algum resultado, usa ele;
-            // senão, mantém a lista completa para não esconder tudo.
-            if (porProfissao.length > 0) {
-                pedidosFiltrados = porProfissao;
-                console.log(`✅ Usando filtro por profissão (${pedidosFiltrados.length} pedidos)`);
-            } else {
-                console.log(`⚠️ Filtro por profissão não encontrou resultados, mantendo lista completa (${pedidosFiltrados.length} pedidos)`);
-            }
-        } else {
-            console.log(`ℹ️ Filtro por profissão não aplicado (categoria=${categoria}, atuacao=${profissional.atuacao || 'N/A'})`);
-        }
-
-        // Filtra por cidade se especificado
-        if (cidade) {
-            const normalizeString = (str) => {
-                return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
-            };
-            const cidadeNormalizada = normalizeString(cidade);
-            pedidosFiltrados = pedidosFiltrados.filter(pedido => {
-                const cidadePedido = pedido.localizacao?.cidade || '';
-                return normalizeString(cidadePedido).includes(cidadeNormalizada) ||
-                       cidadeNormalizada.includes(normalizeString(cidadePedido));
-            });
-        }
-
-        const pedidosComCliente = await Promise.all(pedidosFiltrados.map(async (pedido) => {
-            const pedidoPlain = typeof pedido.toObject === 'function' ? pedido.toObject() : { ...pedido };
-            const clienteAtual = pedidoPlain.clienteId;
-            const clienteIdFinal = typeof clienteAtual === 'object' && clienteAtual !== null
-                ? (clienteAtual._id || clienteAtual.id)
-                : clienteAtual;
-
-            if (!clienteIdFinal) return pedidoPlain;
-            if (typeof clienteAtual === 'object' && clienteAtual !== null && clienteAtual.nome) return pedidoPlain;
-
-            const cliente = await User.findById(clienteIdFinal)
-                .select('_id nome foto avatarUrl cidade estado')
-                .lean();
-            if (cliente) {
-                pedidoPlain.clienteId = cliente;
-            }
-            return pedidoPlain;
-        }));
-
-        console.log(`📤 Retornando ${pedidosComCliente.length} pedidos filtrados (de ${pedidos.length} total)`);
-        res.json({ success: true, pedidos: pedidosComCliente });
-    } catch (error) {
-        console.error('Erro ao buscar pedidos urgentes:', error);
-        res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
-    }
-});
-
-// Listar Pedidos Urgentes do Cliente (seus próprios pedidos)
-app.get('/api/pedidos-urgentes/meus', authMiddleware, async (req, res) => {
-    try {
-        const clienteId = req.user.id;
-        const { status } = req.query;
-
-        const cliente = await User.findById(clienteId);
-        if (!cliente) {
-            return res.status(404).json({ success: false, message: 'Usuário não encontrado.' });
-        }
-
-        let query = { clienteId };
-        
-        // Filtra por status se especificado
-        if (status) {
-            query.status = status;
-        }
-
-        const pedidos = await PedidoUrgente.find(query)
-            .populate('clienteId', '_id nome foto avatarUrl cidade estado')
-            .populate('propostas.profissionalId', '_id nome foto avatarUrl atuacao cidade estado gamificacao mediaAvaliacao totalAvaliacoes')
-            .sort({ createdAt: -1 })
-            .exec();
-
-        console.log(`📦 API /api/pedidos-urgentes/meus - Cliente ${clienteId}: ${pedidos.length} pedidos encontrados`);
-        if (pedidos.length > 0) {
-            pedidos.forEach(p => {
-                const propostasAceitas = (p.propostas || []).filter(prop => prop.status === 'aceita' || prop.status === 'aceito' || prop.status === 'em_andamento');
-                console.log(`  - Pedido ${p._id}: status=${p.status}, dataExpiracao=${p.dataExpiracao}, servico=${p.servico}, propostasAceitas=${propostasAceitas.length}, totalPropostas=${(p.propostas || []).length}`);
-                if (propostasAceitas.length > 0) {
-                    console.log(`    ✓ Propostas aceitas: ${propostasAceitas.map(prop => `${prop._id} (status: ${prop.status})`).join(', ')}`);
-                }
-            });
-        }
-
-        const agora = new Date();
-        const pedidosAtivos = [];
-        const pedidosExpirados = [];
-
-        pedidos.forEach(p => {
-            const statusAtual = p.status || 'aberto';
-            const expirado = p.dataExpiracao && p.dataExpiracao <= agora && statusAtual === 'aberto';
-            const cancelado = statusAtual === 'cancelado';
-            const concluido = statusAtual === 'concluido';
-            const plain = p.toObject();
-            plain.status = statusAtual;
-            plain.expirado = expirado;
-            if (expirado || cancelado || concluido) {
-                pedidosExpirados.push(plain);
-            } else {
-                pedidosAtivos.push(plain);
-            }
-        });
-
-        console.log(`📦 API /api/pedidos-urgentes/meus - Ativos: ${pedidosAtivos.length}, Expirados: ${pedidosExpirados.length}`);
-
-        res.json({ success: true, pedidos, pedidosAtivos, pedidosExpirados });
-    } catch (error) {
-        console.error('Erro ao buscar pedidos urgentes do cliente:', error);
-        res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
-    }
-});
-
-// Rotas de Vagas-Relâmpago REMOVIDAS - funcionalidade descontinuada
-
-// 🆕 NOVO: Rotas de Times Locais (COMPATIBILIDADE - mantido para não quebrar código existente)
-// Criar Time de Projeto - 🆕 ATUALIZADO: Permite profissionais também
-app.post('/api/times-projeto', authMiddleware, async (req, res) => {
-    try {
-        const { titulo, descricao, localizacao, profissionaisNecessarios } = req.body;
-        const criadorId = req.user.id;
-        
-        // Valida se todos os profissionais têm valor base ou "A Combinar"
-        if (!profissionaisNecessarios || profissionaisNecessarios.length === 0) {
-            return res.status(400).json({ success: false, message: 'É necessário adicionar pelo menos um profissional.' });
-        }
-        
-        for (const prof of profissionaisNecessarios) {
-            const aCombinar = prof.aCombinar || false;
-            if (!aCombinar && (!prof.valorBase || prof.valorBase <= 0)) {
-                return res.status(400).json({ success: false, message: `Valor base é obrigatório e deve ser maior que zero para o profissional "${prof.tipo}" ou marque "A Combinar".` });
-            }
-        }
-        
-        const criador = await User.findById(criadorId);
-        if (!criador) {
-            return res.status(404).json({ success: false, message: 'Usuário não encontrado.' });
-        }
-        
-        // Garante que cada profissional tenha valorBase como número ou null
-        const profissionaisComValor = profissionaisNecessarios.map(prof => ({
-            tipo: prof.tipo,
-            quantidade: parseInt(prof.quantidade) || 1,
-            valorBase: prof.aCombinar ? null : parseFloat(prof.valorBase),
-            aCombinar: prof.aCombinar || false
-        }));
-        
-        const novoTime = new TimeProjeto({
-            clienteId: criadorId, // Mantém compatibilidade, mas agora pode ser profissional também
-            titulo,
-            descricao,
-            localizacao,
-            profissionaisNecessarios: profissionaisComValor
-        });
-        
-        await novoTime.save();
-        
-        res.status(201).json({ success: true, message: 'Time de projeto criado com sucesso!', time: novoTime });
-    } catch (error) {
-        console.error('Erro ao criar time de projeto:', error);
-        res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
-    }
-});
-
-// Listar Times de Projeto (por cidade) - 🆕 ATUALIZADO: Busca flexível
-app.get('/api/times-projeto', authMiddleware, async (req, res) => {
-    try {
-        const { cidade, status = 'aberto' } = req.query;
-        const userId = req.user.id;
-
-        // Busca equipes ocultas do usuário
-        const user = await User.findById(userId).select('equipesConcluidasOcultas');
-        const equipesOcultas = user?.equipesConcluidasOcultas || [];
-        const equipesOcultasIds = equipesOcultas.map(id => id.toString());
-
-        // Por padrão, só mostra times abertos (não concluídos)
-        let query = { status: status === 'concluido' ? 'concluido' : 'aberto' };
-        
-        // Se for buscar concluídas, filtra as ocultas
-        if (status === 'concluido' && equipesOcultasIds.length > 0) {
-            query._id = { $nin: equipesOcultas };
-        }
-        
-        if (cidade) {
-            // 🆕 Busca flexível (sem acento, case-insensitive)
-            const normalizeString = (str) => {
-                return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
-            };
-            const cidadeNormalizada = normalizeString(cidade);
-
-            // Busca todos os times e filtra
-            let todosTimes = await TimeProjeto.find({ status }).exec();
-            
-            // Filtra equipes ocultas se for concluído
-            if (status === 'concluido' && equipesOcultasIds.length > 0) {
-                todosTimes = todosTimes.filter(time => {
-                    const timeId = time._id.toString();
-                    return !equipesOcultasIds.includes(timeId);
-                });
-            }
-            
-            const timesFiltrados = todosTimes.filter(time => {
-                if (!time.localizacao || !time.localizacao.cidade) return false;
-                return normalizeString(time.localizacao.cidade).includes(cidadeNormalizada) ||
-                       cidadeNormalizada.includes(normalizeString(time.localizacao.cidade));
-            });
-
-            await TimeProjeto.populate(timesFiltrados, [
-                { path: 'clienteId', select: 'nome foto avatarUrl cidade estado' },
-                { path: 'candidatos.profissionalId', select: 'nome foto avatarUrl atuacao' }
-            ]);
-
-            return res.json({ success: true, times: timesFiltrados });
-        }
-
-        const times = await TimeProjeto.find(query)
-            .populate('clienteId', 'nome foto avatarUrl cidade estado')
-            .populate('candidatos.profissionalId', 'nome foto avatarUrl atuacao cidade estado')
-            .sort({ createdAt: -1 })
-            .exec();
-
-        res.json({ success: true, times });
-    } catch (error) {
-        console.error('Erro ao buscar times de projeto:', error);
-        res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
-    }
-});
-
-// Ocultar equipe concluída (apenas para o usuário, não deleta do banco)
-// IMPORTANTE: Esta rota deve vir ANTES da rota /:timeId para funcionar corretamente
-app.post('/api/times-projeto/:timeId/ocultar', authMiddleware, async (req, res) => {
-    try {
-        const { timeId } = req.params;
-        const userId = req.user.id;
-
-        console.log(`[OCULTAR] Ocultando equipe - TimeId: ${timeId}, UserId: ${userId}`);
-
-        const time = await TimeProjeto.findById(timeId);
-        if (!time) {
-            return res.status(404).json({ success: false, message: 'Equipe não encontrada.' });
-        }
-
-        // Verifica se a equipe está concluída
-        if (time.status !== 'concluido') {
-            return res.status(400).json({ success: false, message: 'Apenas equipes concluídas podem ser ocultadas.' });
-        }
-
-        // Adiciona a equipe à lista de ocultas do usuário
-        const user = await User.findById(userId);
-        if (!user) {
-            return res.status(404).json({ success: false, message: 'Usuário não encontrado.' });
-        }
-
-        // Verifica se já está oculta
-        const timeIdObj = new mongoose.Types.ObjectId(timeId);
-        if (!user.equipesConcluidasOcultas) {
-            user.equipesConcluidasOcultas = [];
-        }
-
-        const jaOculta = user.equipesConcluidasOcultas.some(id => id.toString() === timeId);
-        if (!jaOculta) {
-            user.equipesConcluidasOcultas.push(timeIdObj);
-            await user.save();
-            console.log(`[OCULTAR] Equipe ocultada com sucesso - TimeId: ${timeId}`);
-        }
-
-        res.json({ success: true, message: 'Equipe ocultada com sucesso!' });
-    } catch (error) {
-        console.error('Erro ao ocultar equipe:', error);
-        res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
-    }
-});
-
-// Buscar um Time de Projeto específico por ID
-app.get('/api/times-projeto/:timeId', authMiddleware, async (req, res) => {
-    try {
-        const { timeId } = req.params;
-        
-        const time = await TimeProjeto.findById(timeId)
-            .populate('clienteId', 'nome foto avatarUrl telefone')
-            .populate('candidatos.profissionalId', 'nome foto avatarUrl atuacao');
-        
-        if (!time) {
-            return res.status(404).json({ success: false, message: 'Time de projeto não encontrado.' });
-        }
-        
-        res.json({ success: true, time });
-    } catch (error) {
-        console.error('Erro ao buscar time:', error);
-        res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
-    }
-});
-
-// Candidatar-se a um Time de Projeto
-app.post('/api/times-projeto/:timeId/candidatar', authMiddleware, async (req, res) => {
-    try {
-        const { timeId } = req.params;
-        const { tipo } = req.body;
-        const profissionalId = req.user.id;
-        
-        const [profissional, time] = await Promise.all([
-            User.findById(profissionalId),
-            TimeProjeto.findById(timeId).populate('clienteId', 'nome')
-        ]);
-        if (!profissional) {
-            return res.status(404).json({ success: false, message: 'Usuário não encontrado.' });
-        }
-        
-        if (!time) {
-            return res.status(404).json({ success: false, message: 'Time de projeto não encontrado.' });
-        }
-        
-        if (time.status !== 'aberto') {
-            return res.status(400).json({ success: false, message: 'Este projeto não está mais aceitando candidatos.' });
-        }
-        
-        // Verifica se já se candidatou para este tipo de profissional específico
-        const jaCandidatou = time.candidatos.some(
-            c => c.profissionalId.toString() === profissionalId && c.status === 'pendente' && c.tipo === tipo
-        );
-        
-        if (jaCandidatou) {
-            return res.status(400).json({ success: false, message: `Você já se candidatou como "${tipo}" a este projeto.` });
-        }
-        
-        // Encontra o valor base do tipo de profissional específico
-        const profissionalNecessario = time.profissionaisNecessarios.find(p => p.tipo === tipo);
-        
-        if (!profissionalNecessario) {
-            return res.status(400).json({ success: false, message: `Tipo de profissional "${tipo}" não encontrado neste projeto.` });
-        }
-        
-        const aCombinar = profissionalNecessario.aCombinar || !profissionalNecessario.valorBase;
-        const valorBase = profissionalNecessario.valorBase || 0;
-        
-        if (aCombinar) {
-            return res.status(400).json({ success: false, message: `Este profissional está marcado como "A Combinar". Por favor, envie uma proposta com seu valor.` });
-        }
-        
-        // Aceita o valor base - Cria candidatura pendente de confirmação do perfil
-        const novoCandidato = {
-            profissionalId,
-            tipo: tipo || profissional.atuacao,
-            status: 'pendente', // Fica pendente até o cliente confirmar o perfil
-            valor: valorBase,
-            tipoCandidatura: 'aceite'
-        };
-        
-        time.candidatos.push(novoCandidato);
-        await time.save();
-        
-        // Pega o ID do candidato recém-criado
-        const candidatoId = time.candidatos[time.candidatos.length - 1]._id.toString();
-        
-        // Cria notificação para o usuário CONFIRMAR O PERFIL (não aceita direto)
-        try {
-            let clienteId;
-            if (time.clienteId && typeof time.clienteId === 'object' && time.clienteId._id) {
-                clienteId = time.clienteId._id.toString();
-            } else if (time.clienteId) {
-                clienteId = time.clienteId.toString();
-            } else {
-                throw new Error('clienteId não encontrado no time');
-            }
-            
-            if (clienteId !== profissionalId.toString()) {
-                const nomeProfissional = profissional.nome || 'Um profissional';
-                const tituloNotificacao = 'Confirme o perfil do candidato';
-                const mensagemNotificacao = `${nomeProfissional} aceitou o valor de R$ ${valorBase.toFixed(2)}/dia para ${tipo || 'profissional'} na equipe "${time.titulo}". Confirme o perfil para aceitar.`;
-                
-                console.log('📢 Criando notificação de confirmação de perfil:', {
-                    clienteId,
-                    tipo: 'confirmar_perfil_time',
-                    timeId: time._id.toString(),
-                    candidatoId,
-                    profissionalId: profissionalId.toString()
-                });
-                
-                const notificacaoCriada = await criarNotificacao(
-                    clienteId,
-                    'confirmar_perfil_time', // Nova notificação para confirmar perfil
-                    tituloNotificacao,
-                    mensagemNotificacao,
-                    {
-                        timeId: time._id.toString(),
-                        candidatoId: candidatoId, // ID específico do candidato
-                        profissionalId: profissionalId.toString(),
-                        profissionalNome: nomeProfissional,
-                        tipoProfissional: tipo,
-                        valorAceito: valorBase
-                    },
-                    null
-                );
-                
-                if (notificacaoCriada) {
-                    console.log('✅ Notificação de confirmação de perfil criada com sucesso:', notificacaoCriada._id);
-                } else {
-                    console.error('❌ Falha ao criar notificação de confirmação de perfil - criarNotificacao retornou null');
-                }
-            } else {
-                console.log('⚠️ Profissional é o próprio cliente, não criando notificação');
-            }
-        } catch (notifError) {
-            console.error('❌ Erro ao criar notificação de confirmação de perfil:', notifError);
-            console.error('Stack trace:', notifError.stack);
-        }
-        
-        res.json({ success: true, message: 'Candidatura realizada com sucesso!' });
-    } catch (error) {
-        console.error('Erro ao candidatar-se:', error);
-        res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
-    }
-});
-
-// Enviar contraproposta para um Time de Projeto
-app.post('/api/times-projeto/:timeId/contraproposta', authMiddleware, async (req, res) => {
-    try {
-        const { timeId } = req.params;
-        const { tipo, valor, justificativa } = req.body;
-        const profissionalId = req.user.id;
-        
-        if (!valor || valor <= 0) {
-            return res.status(400).json({ success: false, message: 'Valor da contraproposta é obrigatório e deve ser maior que zero.' });
-        }
-        
-        if (!justificativa || justificativa.trim().length === 0) {
-            return res.status(400).json({ success: false, message: 'Justificativa é obrigatória.' });
-        }
-        
-        const [profissional, time] = await Promise.all([
-            User.findById(profissionalId),
-            TimeProjeto.findById(timeId).populate('clienteId', 'nome')
-        ]);
-        if (!profissional) {
-            return res.status(404).json({ success: false, message: 'Usuário não encontrado.' });
-        }
-        
-        if (!time) {
-            return res.status(404).json({ success: false, message: 'Time de projeto não encontrado.' });
-        }
-        
-        if (time.status !== 'aberto') {
-            return res.status(400).json({ success: false, message: 'Este projeto não está mais aceitando candidatos.' });
-        }
-        
-        // Verifica se já se candidatou para este tipo de profissional específico
-        const jaCandidatou = time.candidatos.some(
-            c => c.profissionalId.toString() === profissionalId && c.status === 'pendente' && c.tipo === tipo
-        );
-        
-        if (jaCandidatou) {
-            return res.status(400).json({ success: false, message: `Você já se candidatou como "${tipo}" a este projeto.` });
-        }
-        
-        // Verifica se o tipo de profissional existe no projeto
-        const profissionalNecessario = time.profissionaisNecessarios.find(p => p.tipo === tipo);
-        if (!profissionalNecessario) {
-            return res.status(400).json({ success: false, message: `Tipo de profissional "${tipo}" não encontrado neste projeto.` });
-        }
-        
-        // Adiciona contraproposta - APENAS cria notificação de contraproposta (não candidatura)
-        const novaContraproposta = {
-            profissionalId,
-            tipo: tipo || profissional.atuacao,
-            status: 'pendente',
-            valor: parseFloat(valor),
-            justificativa: justificativa.trim(),
-            tipoCandidatura: 'contraproposta'
-        };
-        
-        time.candidatos.push(novaContraproposta);
-        await time.save();
-        
-        // Pega o ID do candidato recém-criado
-        const candidatoId = time.candidatos[time.candidatos.length - 1]._id.toString();
-        
-        // Cria APENAS notificação de contraproposta (não candidatura)
-        try {
-            let clienteId;
-            if (time.clienteId && typeof time.clienteId === 'object' && time.clienteId._id) {
-                clienteId = time.clienteId._id.toString();
-            } else if (time.clienteId) {
-                clienteId = time.clienteId.toString();
-            } else {
-                throw new Error('clienteId não encontrado no time');
-            }
-            
-            if (clienteId !== profissionalId.toString()) {
-                const nomeProfissional = profissional.nome || 'Um profissional';
-                const tituloNotificacao = 'Nova contraproposta na sua equipe';
-                const mensagemNotificacao = `${nomeProfissional} enviou uma contraproposta de R$ ${parseFloat(valor).toFixed(2)}/dia para o tipo "${tipo}" na equipe "${time.titulo}"`;
-                
-                await criarNotificacao(
-                    clienteId,
-                    'contraproposta_time', // APENAS contraproposta_time, não candidatura_time
-                    tituloNotificacao,
-                    mensagemNotificacao,
-                    {
-                        timeId: time._id.toString(),
-                        candidatoId: candidatoId, // ID específico do candidato
-                        profissionalId: profissionalId.toString(),
-                        profissionalNome: nomeProfissional,
-                        tipoProfissional: tipo,
-                        valorProposto: parseFloat(valor),
-                        justificativa: justificativa.trim()
-                    },
-                    null
-                );
-            }
-        } catch (notifError) {
-            console.error('Erro ao criar notificação de contraproposta:', notifError);
-        }
-        
-        res.json({ success: true, message: 'Contraproposta enviada com sucesso!' });
-    } catch (error) {
-        console.error('Erro ao enviar contraproposta:', error);
-        res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
-    }
-});
-
-// Cancelar candidatura em Time de Projeto
-app.delete('/api/times-projeto/:timeId/candidatar', authMiddleware, async (req, res) => {
-    try {
-        const { timeId } = req.params;
-        const profissionalId = req.user.id;
-
-        console.log(`[DELETE] Cancelando candidatura - TimeId: ${timeId}, ProfissionalId: ${profissionalId}`);
-
-        const time = await TimeProjeto.findById(timeId);
-        if (!time) {
-            console.log(`[DELETE] Time não encontrado: ${timeId}`);
-            return res.status(404).json({ success: false, message: 'Time de projeto não encontrado.' });
-        }
-
-        // Remove a candidatura do profissional (remove qualquer candidatura, não apenas pendente)
-        const candidatoIndex = time.candidatos.findIndex(
-            c => c.profissionalId.toString() === profissionalId
-        );
-
-        if (candidatoIndex === -1) {
-            console.log(`[DELETE] Candidatura não encontrada para profissional ${profissionalId}`);
-            return res.status(400).json({ success: false, message: 'Você não possui candidatura neste projeto.' });
-        }
-
-        // Remove a candidatura
-        const candidatoRemovido = time.candidatos.splice(candidatoIndex, 1)[0];
-        await time.save();
-
-        console.log(`[DELETE] Candidatura removida com sucesso - Tipo: ${candidatoRemovido.tipo}, Status: ${candidatoRemovido.status}`);
-
-        res.json({ success: true, message: 'Candidatura cancelada com sucesso!' });
-    } catch (error) {
-        console.error('Erro ao cancelar candidatura:', error);
-        res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
-    }
-});
-
-// Deletar time de projeto (apenas o criador pode deletar)
-app.delete('/api/times-projeto/:timeId', authMiddleware, async (req, res) => {
-    try {
-        const { timeId } = req.params;
-        const userId = req.user.id;
-
-        console.log(`[DELETE] Deletando time - TimeId: ${timeId}, UserId: ${userId}`);
-
-        const time = await TimeProjeto.findById(timeId).populate('clienteId');
-        if (!time) {
-            console.log(`[DELETE] Time não encontrado: ${timeId}`);
-            return res.status(404).json({ success: false, message: 'Time de projeto não encontrado.' });
-        }
-
-        // Verifica se o usuário é o criador do time
-        const criadorId = time.clienteId?._id?.toString() || time.clienteId?.toString() || time.clienteId;
-        if (criadorId !== userId) {
-            console.log(`[DELETE] Acesso negado - UserId: ${userId}, CriadorId: ${criadorId}`);
-            return res.status(403).json({ success: false, message: 'Apenas o criador do time pode deletá-lo.' });
-        }
-
-        // Deleta o time
-        await TimeProjeto.findByIdAndDelete(timeId);
-
-        console.log(`[DELETE] Time deletado com sucesso - TimeId: ${timeId}`);
-
-        res.json({ success: true, message: 'Time deletado com sucesso!' });
-    } catch (error) {
-        console.error('Erro ao deletar time:', error);
-        res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
-    }
-});
-
-// Aceitar/Recusar candidato em Time de Projeto
-app.put('/api/times-projeto/:timeId/candidatos/:candidatoId', authMiddleware, async (req, res) => {
-    try {
-        const { timeId, candidatoId } = req.params;
-        const { acao } = req.body; // 'aceitar' ou 'recusar'
-        const userId = req.user.id;
-
-        const time = await TimeProjeto.findById(timeId);
-        if (!time) {
-            return res.status(404).json({ success: false, message: 'Time de projeto não encontrado.' });
-        }
-
-        // Verifica se o usuário é o dono do time
-        if (time.clienteId.toString() !== userId) {
-            return res.status(403).json({ success: false, message: 'Apenas o dono do projeto pode aceitar/recusar candidatos.' });
-        }
-
-        const candidatoIndex = time.candidatos.findIndex(c => c._id.toString() === candidatoId);
-        if (candidatoIndex === -1) {
-            return res.status(404).json({ success: false, message: 'Candidato não encontrado.' });
-        }
-
-        if (acao === 'aceitar') {
-            const candidato = time.candidatos[candidatoIndex];
-            const tipoProfissional = candidato.tipo;
-            
-            // Marca candidato como aceito
-            time.candidatos[candidatoIndex].status = 'aceito';
-            
-            // Remove a vaga do tipo de profissional aceito de profissionaisNecessarios
-            const profissionalIndex = time.profissionaisNecessarios.findIndex(p => p.tipo === tipoProfissional);
-            if (profissionalIndex !== -1) {
-                const profissionalNecessario = time.profissionaisNecessarios[profissionalIndex];
-                // Reduz a quantidade ou remove se for 1
-                if (profissionalNecessario.quantidade > 1) {
-                    profissionalNecessario.quantidade -= 1;
-                } else {
-                    // Remove completamente a vaga
-                    time.profissionaisNecessarios.splice(profissionalIndex, 1);
-                }
-            }
-            
-            // Cria notificação para o profissional que foi aceito
-            try {
-                const profissionalId = candidato.profissionalId;
-                
-                // Busca dados do profissional e do cliente
-                const [profissional, cliente] = await Promise.all([
-                    User.findById(profissionalId).select('nome'),
-                    User.findById(time.clienteId).select('nome telefone')
-                ]);
-                
-                if (profissional && profissionalId.toString() !== userId.toString()) {
-                    const tituloNotificacao = 'Você agora faz parte da Equipe!';
-                    const mensagemNotificacao = `Você agora faz parte da Equipe de "${time.titulo}"!`;
-                    
-                    await criarNotificacao(
-                        profissionalId,
-                        'proposta_time_aceita',
-                        tituloNotificacao,
-                        mensagemNotificacao,
-                        {
-                            timeId: time._id.toString(),
-                            candidatoId: candidato._id.toString(),
-                            valorAceito: candidato.valor || 0,
-                            tipoProfissional: candidato.tipo || '',
-                            clienteNome: cliente?.nome || 'Cliente',
-                            clienteTelefone: cliente?.telefone || '',
-                            enderecoCompleto: (() => {
-                                const enderecoParts = [];
-                                if (time.localizacao.rua) enderecoParts.push(time.localizacao.rua);
-                                if (time.localizacao.numero) enderecoParts.push(`Nº ${time.localizacao.numero}`);
-                                if (time.localizacao.bairro) enderecoParts.push(time.localizacao.bairro);
-                                if (time.localizacao.cidade) enderecoParts.push(time.localizacao.cidade);
-                                if (time.localizacao.estado) enderecoParts.push(time.localizacao.estado);
-                                return enderecoParts.length > 0
-                                    ? enderecoParts.join(', ')
-                                    : `${time.localizacao.bairro}, ${time.localizacao.cidade} - ${time.localizacao.estado}`;
-                            })()
-                        },
-                        null
-                    );
-                }
-            } catch (notifError) {
-                console.error('Erro ao criar notificação de proposta aceita:', notifError);
-            }
-        } else if (acao === 'recusar') {
-            // Salva informações do candidato antes de remover
-            const candidatoRecusado = time.candidatos[candidatoIndex];
-            const profissionalIdRecusado = candidatoRecusado.profissionalId;
-
-            // Cria notificação para o profissional que foi recusado
-            try {
-                if (profissionalIdRecusado) {
-                    const [profissionalRecusado, cliente] = await Promise.all([
-                        User.findById(profissionalIdRecusado).select('nome'),
-                        User.findById(time.clienteId).select('nome')
-                    ]);
-                    const nomeProfissional = profissionalRecusado?.nome || 'Você';
-                    const nomeCliente = cliente?.nome || 'O usuário';
-
-                    const tituloNotificacao = 'Candidatura recusada';
-                    const mensagemNotificacao = `${nomeCliente} recusou sua candidatura para a equipe "${time.titulo}".`;
-
-                    await criarNotificacao(
-                        profissionalIdRecusado.toString(),
-                        'candidatura_recusada_time',
-                        tituloNotificacao,
-                        mensagemNotificacao,
-                        {
-                            timeId: time._id.toString(),
-                            candidatoId: candidatoId,
-                            clienteId: time.clienteId.toString(),
-                            clienteNome: nomeCliente,
-                            tituloEquipe: time.titulo
-                        },
-                        null
-                    );
-
-                    console.log('✅ Notificação de recusa criada para profissional:', profissionalIdRecusado.toString());
-                }
-            } catch (notifError) {
-                console.error('Erro ao criar notificação de recusa:', notifError);
-            }
-
-            // Remove completamente o candidato do array quando recusado
-            time.candidatos.splice(candidatoIndex, 1);
-        } else {
-            return res.status(400).json({ success: false, message: 'Ação inválida. Use "aceitar" ou "recusar".' });
-        }
-
-        await time.save();
-        res.json({ success: true, message: `Candidato ${acao === 'aceitar' ? 'aceito' : 'recusado'} com sucesso!` });
-    } catch (error) {
-        console.error('Erro ao processar candidato:', error);
-        res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
-    }
-});
-
-// Confirmar perfil de candidato (quando profissional aceita o valor)
-app.post('/api/times-projeto/:timeId/candidatos/:candidatoId/confirmar-perfil', authMiddleware, async (req, res) => {
-    try {
-        const { timeId, candidatoId } = req.params;
-        const { acao } = req.body; // 'aceitar' ou 'recusar'
-        const userId = req.user.id;
-
-        const time = await TimeProjeto.findById(timeId);
-        if (!time) {
-            return res.status(404).json({ success: false, message: 'Time de projeto não encontrado.' });
-        }
-
-        // Verifica se o usuário é o dono do time
-        if (time.clienteId.toString() !== userId) {
-            return res.status(403).json({ success: false, message: 'Apenas o dono do projeto pode confirmar perfis.' });
-        }
-
-        const candidatoIndex = time.candidatos.findIndex(c => c._id.toString() === candidatoId);
-        if (candidatoIndex === -1) {
-            return res.status(404).json({ success: false, message: 'Candidato não encontrado.' });
-        }
-
-        const candidato = time.candidatos[candidatoIndex];
-
-        // Só pode confirmar se o candidato aceitou o valor (não contraproposta)
-        if (candidato.tipoCandidatura !== 'aceite') {
-            return res.status(400).json({ success: false, message: 'Esta ação só é válida para candidatos que aceitaram o valor proposto.' });
-        }
-
-        if (acao === 'aceitar') {
-            const tipoProfissional = candidato.tipo;
-
-            // Marca candidato como aceito
-            time.candidatos[candidatoIndex].status = 'aceito';
-
-            // Remove a vaga do tipo de profissional aceito de profissionaisNecessarios
-            const profissionalIndex = time.profissionaisNecessarios.findIndex(p => p.tipo === tipoProfissional);
-            if (profissionalIndex !== -1) {
-                const profissionalNecessario = time.profissionaisNecessarios[profissionalIndex];
-                // Reduz a quantidade ou remove se for 1
-                if (profissionalNecessario.quantidade > 1) {
-                    profissionalNecessario.quantidade -= 1;
-                } else {
-                    // Remove completamente a vaga
-                    time.profissionaisNecessarios.splice(profissionalIndex, 1);
-                }
-            }
-
-            // Se não há mais profissionais necessários, marca o time como concluído
-            if (time.profissionaisNecessarios.length === 0) {
-                time.status = 'concluido';
-            }
-
-            // Cria notificação para o profissional que foi aceito
-            try {
-                const profissionalId = candidato.profissionalId;
-                const [profissional, cliente] = await Promise.all([
-                    User.findById(profissionalId).select('nome'),
-                    User.findById(time.clienteId).select('nome telefone')
-                ]);
-
-                if (profissional && profissionalId.toString() !== userId.toString()) {
-                    const tituloNotificacao = 'Você agora faz parte da Equipe!';
-                    const mensagemNotificacao = `Você agora faz parte da Equipe de "${time.titulo}"!`;
-
-                    await criarNotificacao(
-                        profissionalId,
-                        'proposta_time_aceita',
-                        tituloNotificacao,
-                        mensagemNotificacao,
-                        {
-                            timeId: time._id.toString(),
-                            candidatoId: candidato._id.toString(),
-                            valorAceito: candidato.valor || 0,
-                            tipoProfissional: candidato.tipo || '',
-                            clienteNome: cliente?.nome || 'Cliente',
-                            clienteTelefone: cliente?.telefone || '',
-                            enderecoCompleto: (() => {
-                                const enderecoParts = [];
-                                if (time.localizacao.rua) enderecoParts.push(time.localizacao.rua);
-                                if (time.localizacao.numero) enderecoParts.push(`Nº ${time.localizacao.numero}`);
-                                if (time.localizacao.bairro) enderecoParts.push(time.localizacao.bairro);
-                                if (time.localizacao.cidade) enderecoParts.push(time.localizacao.cidade);
-                                if (time.localizacao.estado) enderecoParts.push(time.localizacao.estado);
-                                return enderecoParts.length > 0
-                                    ? enderecoParts.join(', ')
-                                    : `${time.localizacao.bairro}, ${time.localizacao.cidade} - ${time.localizacao.estado}`;
-                            })()
-                        },
-                        null
-                    );
-                }
-            } catch (notifError) {
-                console.error('Erro ao criar notificação de proposta aceita:', notifError);
-            }
-        } else if (acao === 'recusar') {
-            const candidatoRecusado = time.candidatos[candidatoIndex];
-            const profissionalIdRecusado = candidatoRecusado.profissionalId;
-
-            // Cria notificação para o profissional que foi recusado
-            try {
-                if (profissionalIdRecusado) {
-                    const [profissionalRecusado, cliente] = await Promise.all([
-                        User.findById(profissionalIdRecusado).select('nome'),
-                        User.findById(time.clienteId).select('nome')
-                    ]);
-                    const nomeProfissional = profissionalRecusado?.nome || 'Você';
-                    const nomeCliente = cliente?.nome || 'O usuário';
-
-                    const tituloNotificacao = 'Candidatura recusada';
-                    const mensagemNotificacao = `${nomeCliente} recusou sua candidatura para a equipe "${time.titulo}".`;
-
-                    await criarNotificacao(
-                        profissionalIdRecusado.toString(),
-                        'candidatura_recusada_time',
-                        tituloNotificacao,
-                        mensagemNotificacao,
-                        {
-                            timeId: time._id.toString(),
-                            candidatoId: candidatoId,
-                            clienteId: time.clienteId.toString(),
-                            clienteNome: nomeCliente,
-                            tituloEquipe: time.titulo
-                        },
-                        null
-                    );
-
-                    console.log('✅ Notificação de recusa criada para profissional:', profissionalIdRecusado.toString());
-                }
-            } catch (notifError) {
-                console.error('Erro ao criar notificação de recusa:', notifError);
-            }
-
-            // Remove completamente o candidato do array quando recusado
-            time.candidatos.splice(candidatoIndex, 1);
-        } else {
-            return res.status(400).json({ success: false, message: 'Ação inválida. Use "aceitar" ou "recusar".' });
-        }
-
-        await time.save();
-        res.json({ success: true, message: `Perfil ${acao === 'aceitar' ? 'confirmado' : 'recusado'} com sucesso!` });
-    } catch (error) {
-        console.error('Erro ao confirmar perfil:', error);
-        res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
-    }
-});
-
-// 🆕 NOVO: Rotas de Agendador Helpy
-// Definir horários disponíveis
-app.post('/api/agenda/horarios', authMiddleware, async (req, res) => {
-    try {
-        const { horarios } = req.body; // Array de {diaSemana, horaInicio, horaFim}
-        const profissionalId = req.user.id;
-        
-        const profissional = await User.findById(profissionalId);
-        if (!profissional) {
-            return res.status(404).json({ success: false, message: 'Usuário não encontrado.' });
-        }
-        
-        // Remove horários antigos
-        await HorarioDisponivel.deleteMany({ profissionalId });
-        
-        // Adiciona novos horários
-        const novosHorarios = horarios.map(h => ({
-            profissionalId,
-            diaSemana: h.diaSemana,
-            horaInicio: h.horaInicio,
-            horaFim: h.horaFim,
-            disponivel: true
-        }));
-        
-        await HorarioDisponivel.insertMany(novosHorarios);
-        
-        res.json({ success: true, message: 'Horários atualizados com sucesso!' });
-    } catch (error) {
-        console.error('Erro ao definir horários:', error);
-        res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
-    }
-});
-
-// Buscar horários disponíveis de um profissional
-app.get('/api/agenda/:profissionalId/horarios', authMiddleware, async (req, res) => {
-    try {
-        const { profissionalId } = req.params;
-        const horarios = await HorarioDisponivel.find({ profissionalId, disponivel: true }).exec();
-        res.json({ success: true, horarios });
-    } catch (error) {
-        console.error('Erro ao buscar horários:', error);
-        res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
-    }
-});
-
-// Criar agendamento
-app.post('/api/agenda/agendamento', authMiddleware, async (req, res) => {
-    try {
-        const { profissionalId, dataHora, servico, observacoes, endereco } = req.body;
-        const clienteId = req.user.id;
-        
-        const novoAgendamento = new Agendamento({
-            profissionalId,
-            clienteId,
-            dataHora: new Date(dataHora),
-            servico,
-            observacoes,
-            endereco,
-            status: 'pendente'
-        });
-        
-        await novoAgendamento.save();
-        
-        res.status(201).json({ success: true, message: 'Agendamento criado com sucesso!', agendamento: novoAgendamento });
-    } catch (error) {
-        console.error('Erro ao criar agendamento:', error);
-        res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
-    }
-});
-
-// Listar agendamentos do profissional
-app.get('/api/agenda/profissional', authMiddleware, async (req, res) => {
-    try {
-        const profissionalId = req.user.id;
-        const agendamentos = await Agendamento.find({ profissionalId })
-            .populate('clienteId', 'nome foto avatarUrl telefone')
-            .sort({ dataHora: 1 })
-            .exec();
-        
-        res.json({ success: true, agendamentos });
-    } catch (error) {
-        console.error('Erro ao buscar agendamentos:', error);
         res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
     }
 });
@@ -4692,11 +3814,18 @@ app.get('/api/pedidos-urgentes/ativos', authMiddleware, async (req, res) => {
         // Busca pedidos onde o profissional tem proposta aceita (status aceita, aceito ou em_andamento)
         // E o pedido não está cancelado ou concluído
         // Usa $elemMatch para garantir que a mesma proposta tenha o profissionalId correto E status aceito
+        const profissionalIdObj = mongoose.Types.ObjectId.isValid(profissionalId)
+            ? new mongoose.Types.ObjectId(profissionalId)
+            : null;
+        const profissionalIdQuery = profissionalIdObj
+            ? { $in: [profissionalIdObj, profissionalId] }
+            : profissionalId;
+
         const pedidos = await PedidoUrgente.find({
             status: { $in: ['aberto', 'em_andamento'] },
             propostas: {
                 $elemMatch: {
-                    profissionalId: profissionalId,
+                    profissionalId: profissionalIdQuery,
                     status: { $in: ['aceita', 'aceito', 'em_andamento'] }
                 }
             }
@@ -4757,11 +3886,18 @@ app.get('/api/pedidos-urgentes/arquivados-profissional', authMiddleware, async (
         }
 
         // Busca pedidos cancelados ou concluídos onde o profissional tem proposta aceita
+        const profissionalIdObj = mongoose.Types.ObjectId.isValid(profissionalId)
+            ? new mongoose.Types.ObjectId(profissionalId)
+            : null;
+        const profissionalIdQuery = profissionalIdObj
+            ? { $in: [profissionalIdObj, profissionalId] }
+            : profissionalId;
+
         const pedidos = await PedidoUrgente.find({
             status: { $in: ['cancelado', 'concluido'] },
             propostas: {
                 $elemMatch: {
-                    profissionalId: profissionalId,
+                    profissionalId: profissionalIdQuery,
                     status: { $in: ['aceita', 'aceito', 'em_andamento'] }
                 }
             }
@@ -4816,7 +3952,9 @@ app.post('/api/pedidos-urgentes/:pedidoId/concluir-servico', authMiddleware, asy
         }
 
         // Verifica se tem proposta aceita
-        const propostaAceita = pedido.propostas.id(pedido.propostaSelecionada);
+        const propostaAceita = (pedido.propostas || []).find(p =>
+            (p?._id || '').toString() === String(pedido.propostaSelecionada)
+        );
         if (!propostaAceita) {
             // Tenta encontrar por status
             const propostaAceitaPorStatus = pedido.propostas.find(p => 
@@ -5666,7 +4804,6 @@ app.post('/api/oportunidades/:oportunidadeId/aceitar/:propostaId', authMiddlewar
                 p.status = 'rejeitada';
             }
         });
-        
         proposta.status = 'aceita';
         oportunidade.status = 'em_negociacao';
         oportunidade.propostaSelecionada = propostaId;
@@ -5690,7 +4827,6 @@ app.get('/api/qg-profissional', authMiddleware, async (req, res) => {
             return res.status(404).json({ success: false, message: 'Usuário não encontrado.' });
         }
         
-        // Busca dados agregados
         const [agendamentos, pagamentosLiberados, pagamentosPagos, clientes, servicos] = await Promise.all([
             Agendamento.find({ profissionalId }).countDocuments(),
             PagamentoSeguro.find({ profissionalId, status: 'liberado' }),
@@ -5738,7 +4874,6 @@ app.get('/api/qg-profissional/clientes', authMiddleware, async (req, res) => {
             .populate('clienteId', 'nome foto avatarUrl telefone cidade estado')
             .exec();
         
-        // Agrupa por cliente
         const clientesMap = new Map();
         agendamentos.forEach(ag => {
             const clienteId = ag.clienteId._id.toString();
@@ -5765,6 +4900,37 @@ app.get('/api/qg-profissional/clientes', authMiddleware, async (req, res) => {
     }
 });
 
+// Times de Projeto (evita 404 no carregamento do frontend)
+app.get('/api/times-projeto', authMiddleware, async (req, res) => {
+    try {
+        const { cidade, status } = req.query;
+
+        const query = {};
+        if (status) {
+            query.status = status;
+        }
+
+        const cidadeStr = typeof cidade === 'string' ? cidade.trim() : '';
+        if (cidadeStr) {
+            query.$or = [
+                { 'localizacao.cidade': { $regex: cidadeStr, $options: 'i' } },
+                { 'cidade': { $regex: cidadeStr, $options: 'i' } },
+                { 'localizacao.endereco.cidade': { $regex: cidadeStr, $options: 'i' } }
+            ];
+        }
+
+        const times = await TimeProjeto.find(query)
+            .populate('clienteId', '_id nome foto avatarUrl cidade estado')
+            .sort({ createdAt: -1 })
+            .exec();
+
+        res.json({ success: true, times });
+    } catch (error) {
+        console.error('Erro ao buscar times de projeto:', error);
+        res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
+    }
+});
+
 // Rota não encontrada (404)
 app.use((req, res) => {
     res.status(404).json({
@@ -5779,9 +4945,7 @@ app.use((err, req, res, next) => {
     console.error('Erro não tratado:', err);
     console.error('Stack trace:', err.stack);
     
-    // Garante que sempre retorna JSON
     if (!res.headersSent) {
-        // Se for um erro de validação do Mongoose
         if (err.name === 'ValidationError') {
             return res.status(400).json({
                 success: false,
@@ -5790,7 +4954,6 @@ app.use((err, req, res, next) => {
             });
         }
         
-        // Se for um erro de autenticação
         if (err.name === 'JsonWebTokenError' || err.name === 'TokenExpiredError') {
             return res.status(401).json({
                 success: false,
@@ -5798,7 +4961,6 @@ app.use((err, req, res, next) => {
             });
         }
         
-        // Se for um erro do multer (upload de arquivo)
         if (err.code === 'LIMIT_FILE_SIZE') {
             return res.status(400).json({
                 success: false,
@@ -5806,7 +4968,6 @@ app.use((err, req, res, next) => {
             });
         }
         
-        // Erro padrão
         res.status(500).json({
             success: false,
             message: 'Erro interno do servidor',
@@ -5833,7 +4994,6 @@ if (require.main === module) {
     });
   }).catch((error) => {
     console.error('❌ Erro ao inicializar serviços:', error);
-    // Em desenvolvimento, não encerra o processo (permite testar rotas que não dependem de serviços)
     if (process.env.NODE_ENV !== 'production') {
       console.warn('⚠️ MODO DEV: iniciando servidor mesmo com falha na inicialização de serviços.');
       app.listen(PORT, HOST, () => {

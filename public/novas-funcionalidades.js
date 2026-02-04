@@ -1529,7 +1529,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 const propostasHtml = propostas.map(proposta => {
-                    const prof = proposta.profissionalId;
+                    const prof = proposta.profissional || proposta.profissionalId || {};
                     const nivel = prof.gamificacao?.nivel || 1;
                     const mediaAvaliacao = prof.mediaAvaliacao || 0;
                     const profId = prof._id || prof.id || prof.userId;
@@ -1561,7 +1561,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 ${proposta.observacoes ? `<p class="proposta-observacoes">${proposta.observacoes}</p>` : ''}
                             </div>
                             <div style="display: flex; gap: 10px; margin-top: 10px; align-items: center; position: relative;">
-                            <button class="btn-aceitar-proposta" data-proposta-id="${proposta._id}" data-pedido-id="${pedidoId}" style="flex: 1;">
+                            <button class="btn-aceitar-proposta" data-proposta-id="${proposta._id || proposta.profissionalId}" data-pedido-id="${pedidoId}" style="flex: 1;">
                                 Aceitar Proposta
                             </button>
                                 <div style="position: relative; flex-shrink: 0;">
@@ -1599,13 +1599,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         const pedidoId = btn.dataset.pedidoId;
                         
                         try {
-                            const response = await fetch(`/api/pedidos-urgentes/${pedidoId}/aceitar-proposta`, {
+                            const response = await fetch(`/api/pedidos-urgentes/${pedidoId}/aceitar-proposta/${propostaId}`, {
                                 method: 'POST',
                                 headers: {
                                     'Content-Type': 'application/json',
                                     'Authorization': `Bearer ${token}`
-                                },
-                                body: JSON.stringify({ propostaId })
+                                }
                             });
 
                             const data = await response.json();
