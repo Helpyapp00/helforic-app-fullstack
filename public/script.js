@@ -603,7 +603,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if (userAvatarHeader) {
             // Se não tem foto ou é inválida, usa a imagem padrão
-            if (!storedPhotoUrl || storedPhotoUrl === 'undefined' || storedPhotoUrl === 'null') {
+            if (!storedPhotoUrl || storedPhotoUrl === 'undefined' || storedPhotoUrl === 'null' || storedPhotoUrl.includes('placehold.co/50?text=User')) {
                 userAvatarHeader.src = '/imagens/default-user.png';
                 return; // Retorna cedo para não continuar o processamento
             } else if (!storedPhotoUrl.includes('pixabay')) {

@@ -32,6 +32,7 @@ if (IS_PROD) {
 }
 
 const fs = require('fs');
+const crypto = require('crypto');
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -712,6 +713,102 @@ app.get('/api/usuario/:id', authMiddleware, async (req, res) => {
     } catch (error) {
         console.error('Erro ao buscar usuário:', error);
         res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
+    }
+});
+
+app.put('/api/editar-perfil/:id', authMiddleware, upload.fields([
+    { name: 'avatar', maxCount: 1 },
+    { name: 'fotoPerfil', maxCount: 1 },
+    { name: 'foto', maxCount: 1 }
+]), async (req, res) => {
+    try {
+        const targetId = String(req.params.id || '').trim();
+        const userId = String(req.user?.id || '').trim();
+
+        if (!targetId || !mongoose.Types.ObjectId.isValid(targetId)) {
+            return res.status(400).json({ success: false, message: 'ID de usuário inválido.' });
+        }
+
+        if (!userId || targetId !== userId) {
+            return res.status(403).json({ success: false, message: 'Você não tem permissão para editar este perfil.' });
+        }
+
+        const updates = {};
+        if (typeof req.body?.nome !== 'undefined') updates.nome = String(req.body.nome || '').trim();
+        if (typeof req.body?.idade !== 'undefined') {
+            const idadeNum = Number(req.body.idade);
+            if (Number.isFinite(idadeNum)) updates.idade = idadeNum;
+        }
+        if (typeof req.body?.telefone !== 'undefined') updates.telefone = String(req.body.telefone || '').trim();
+        if (typeof req.body?.descricao !== 'undefined') updates.descricao = String(req.body.descricao || '').trim();
+        if (typeof req.body?.atuacao !== 'undefined') updates.atuacao = String(req.body.atuacao || '').trim();
+        if (typeof req.body?.cidade !== 'undefined') updates.cidade = String(req.body.cidade || '').trim();
+        if (typeof req.body?.estado !== 'undefined') updates.estado = String(req.body.estado || '').trim();
+
+        const file =
+            (req.files && req.files.avatar && req.files.avatar[0]) ||
+            (req.files && req.files.fotoPerfil && req.files.fotoPerfil[0]) ||
+            (req.files && req.files.foto && req.files.foto[0]) ||
+            null;
+
+        if (file && file.buffer) {
+            const sharp = getSharp();
+            let imageBuffer = file.buffer;
+
+            try {
+                if (sharp) {
+                    imageBuffer = await sharp(file.buffer)
+                        .resize(512, 512, { fit: 'cover' })
+                        .toFormat('jpeg')
+                        .toBuffer();
+                }
+            } catch (e) {
+                imageBuffer = file.buffer;
+            }
+
+            const filename = `${Date.now()}_${crypto.randomBytes(8).toString('hex')}.jpg`;
+
+            if (s3Client && bucketName && process.env.AWS_REGION) {
+                const key = `avatars/${userId}/${filename}`;
+                const uploadCommand = new PutObjectCommand({
+                    Bucket: bucketName,
+                    Key: key,
+                    Body: imageBuffer,
+                    ContentType: 'image/jpeg'
+                });
+                await s3Client.send(uploadCommand);
+                const fullUrl = `https://${bucketName}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`;
+                updates.avatarUrl = fullUrl;
+                updates.foto = fullUrl;
+            } else {
+                const uploadsDir = path.join(__dirname, '../public/uploads/avatars');
+                try {
+                    fs.mkdirSync(uploadsDir, { recursive: true });
+                } catch (e) {}
+
+                const filePath = path.join(uploadsDir, filename);
+                fs.writeFileSync(filePath, imageBuffer);
+
+                const publicUrl = `/uploads/avatars/${filename}`;
+                updates.avatarUrl = publicUrl;
+                updates.foto = publicUrl;
+            }
+        }
+
+        const userUpdated = await User.findByIdAndUpdate(
+            targetId,
+            { $set: updates },
+            { new: true, runValidators: false }
+        ).select('-senha').lean();
+
+        if (!userUpdated) {
+            return res.status(404).json({ success: false, message: 'Usuário não encontrado.' });
+        }
+
+        return res.json({ success: true, user: userUpdated });
+    } catch (error) {
+        console.error('Erro ao editar perfil:', error);
+        return res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
     }
 });
 

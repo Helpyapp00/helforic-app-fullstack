@@ -89,7 +89,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 localStorage.setItem('userId', data.userId);
                 localStorage.setItem('userType', data.userType);
                 localStorage.setItem('userName', data.userName || 'Usuário');
-                localStorage.setItem('userPhotoUrl', data.userPhotoUrl || 'https://placehold.co/50?text=User');
+                localStorage.setItem('userPhotoUrl', data.userPhotoUrl || '/imagens/default-user.png');
                 // Marca que esse dispositivo já efetuou login pelo menos uma vez
                 localStorage.setItem('helpy-ja-logou', 'true');
                 // Salva o tema do usuário no localStorage

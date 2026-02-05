@@ -226,6 +226,21 @@ document.addEventListener('DOMContentLoaded', function() {
         atuacaoInput.removeAttribute('required');
     } 
 
+    function syncAtuacaoVisibility() {
+        if (!tipoSelect || !atuacaoGroup) return;
+        const tipo = String(tipoSelect.value || '').toLowerCase();
+        const isEmpresa = tipo === 'empresa';
+        atuacaoGroup.classList.toggle('atuacao-hidden', isEmpresa);
+        if (isEmpresa && atuacaoInput) {
+            atuacaoInput.value = '';
+        }
+    }
+
+    if (tipoSelect) {
+        tipoSelect.addEventListener('change', syncAtuacaoVisibility);
+    }
+    syncAtuacaoVisibility();
+
     // --- Lógica de Formatação de Telefone ---
     telefoneInput.addEventListener('input', function(e) {
         let value = e.target.value.replace(/\D/g, ''); 

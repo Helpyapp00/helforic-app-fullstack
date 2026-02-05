@@ -57,6 +57,36 @@
     padding-bottom: 20px;
 }
 
+.nome-edicao-group {
+    display: flex;
+    gap: 12px;
+    width: 100%;
+    max-width: 440px;
+    flex-wrap: nowrap;
+    margin-top: 8px;
+    margin-bottom: 6px;
+}
+
+.nome-edicao-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex: 1 1 0;
+    min-width: 0;
+}
+
+.nome-edicao-field label {
+    font-weight: 700;
+    font-size: 14px;
+    color: var(--text-secondary);
+}
+
+.nome-edicao-group .input-edicao {
+    width: 100%;
+    margin-bottom: 0;
+    box-sizing: border-box;
+}
+
 /* No perfil: remove linhas separadoras do card (header/rodapé) */
 .content-perfil .perfil-header {
     border-bottom: none;
@@ -2114,6 +2144,17 @@ html.dark-mode #inputPostagemPerfilTexto:focus {
     background-color: var(--bg-primary); /* Aplicado */
     box-sizing: border-box;
 }
+
+.config-nome-row {
+    display: flex;
+    gap: 12px;
+    width: 100%;
+}
+
+.config-nome-row .form-group {
+    flex: 1 1 0;
+    min-width: 0;
+}
 .config-form .salvar-btn {
     width: auto;
     max-width: 240px;
@@ -2367,6 +2408,12 @@ html.dark-mode #inputPostagemPerfilTexto:focus {
         padding-top: 20px;
     }
 
+    .nome-edicao-group {
+        flex-direction: row;
+        max-width: 440px;
+        gap: 8px;
+    }
+
     .config-layout {
         grid-template-columns: 1fr;
         grid-template-areas:
@@ -2431,6 +2478,11 @@ html.dark-mode #inputPostagemPerfilTexto:focus {
     }
 
     #form-dados-pessoais {
+        gap: 10px;
+    }
+
+    .config-nome-row {
+        flex-direction: column;
         gap: 10px;
     }
 

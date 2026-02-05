@@ -162,7 +162,16 @@
                 </div>
 
                 <h2 id="nomePerfil">Carregando...</h2>
-                <input type="text" id="inputNome" class="input-edicao oculto" placeholder="Nome Completo">
+                <div id="nome-edicao-group" class="nome-edicao-group oculto">
+                    <div class="nome-edicao-field">
+                        <label for="inputNome">Nome</label>
+                        <input type="text" id="inputNome" class="input-edicao" placeholder="Nome" required>
+                    </div>
+                    <div class="nome-edicao-field">
+                        <label for="inputSobrenome">Sobrenome</label>
+                        <input type="text" id="inputSobrenome" class="input-edicao" placeholder="Sobrenome" required>
+                    </div>
+                </div>
                 
                 <div id="media-avaliacao-container">
                     <span id="mediaEstrelas" class="media-avaliacao"></span>

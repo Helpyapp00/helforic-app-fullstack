@@ -423,7 +423,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if (userAvatarHeader) {
-            if (storedPhotoUrl && storedPhotoUrl !== 'undefined' && !storedPhotoUrl.includes('pixabay')) {
+            if (storedPhotoUrl && storedPhotoUrl !== 'undefined' && !storedPhotoUrl.includes('pixabay') && !storedPhotoUrl.includes('placehold.co/50?text=User')) {
                 // Técnica similar ao Facebook: carrega a imagem com cache busting para forçar alta qualidade
                 userAvatarHeader.src = '';
                 
@@ -468,7 +468,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Avatar no bloco mobile (mais simples, sem pré-carregamento pesado)
         if (configUserAvatar) {
-            if (storedPhotoUrl && storedPhotoUrl !== 'undefined' && !storedPhotoUrl.includes('pixabay')) {
+            if (storedPhotoUrl && storedPhotoUrl !== 'undefined' && !storedPhotoUrl.includes('pixabay') && !storedPhotoUrl.includes('placehold.co/50?text=User')) {
                 const separator = storedPhotoUrl.includes('?') ? '&' : '?';
                 configUserAvatar.src = storedPhotoUrl + separator + '_t=' + Date.now();
             } else {
@@ -938,11 +938,14 @@ document.addEventListener('DOMContentLoaded', () => {
     // ============================================
     const formDadosPessoais = document.getElementById('form-dados-pessoais');
     const inputNomeCfg = document.getElementById('cfg-nome');
+    const inputSobrenomeCfg = document.getElementById('cfg-sobrenome');
     const inputEmailCfg = document.getElementById('cfg-email');
     const inputIdadeCfg = document.getElementById('cfg-idade');
     const inputTelefoneCfg = document.getElementById('cfg-telefone');
     const inputCidadeCfg = document.getElementById('cfg-cidade');
     const inputEstadoCfg = document.getElementById('cfg-estado');
+    const inputAtuacaoCfg = document.getElementById('cfg-atuacao');
+    const atuacaoGroupCfg = document.getElementById('cfg-atuacao-group');
     const msgDadosPessoais = document.getElementById('msg-dados-pessoais');
 
     async function carregarDadosPessoais() {
@@ -955,14 +958,27 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!resp.ok) {
                 throw new Error('Não foi possível carregar seus dados.');
             }
-            const user = await resp.json();
+            const payload = await resp.json();
+            const user = payload?.usuario || payload?.user || payload;
 
-            if (inputNomeCfg) inputNomeCfg.value = user.nome || '';
+            const userTipo = String(user?.tipo || localStorage.getItem('userType') || '').toLowerCase();
+            const isEmpresa = userTipo === 'empresa';
+            if (atuacaoGroupCfg) {
+                atuacaoGroupCfg.style.display = isEmpresa ? 'none' : '';
+            }
+
+            const nomeCompleto = String(user?.nome || '').trim();
+            const partesNome = nomeCompleto.split(/\s+/).filter(Boolean);
+            const nome = partesNome.length ? partesNome[0] : '';
+            const sobrenome = partesNome.length > 1 ? partesNome.slice(1).join(' ') : '';
+            if (inputNomeCfg) inputNomeCfg.value = nome;
+            if (inputSobrenomeCfg) inputSobrenomeCfg.value = sobrenome;
             if (inputEmailCfg) inputEmailCfg.value = user.email || '';
             if (inputIdadeCfg) inputIdadeCfg.value = user.idade || '';
             if (inputTelefoneCfg) inputTelefoneCfg.value = user.telefone || '';
             if (inputCidadeCfg) inputCidadeCfg.value = user.cidade || '';
             if (inputEstadoCfg) inputEstadoCfg.value = user.estado || '';
+            if (inputAtuacaoCfg && !isEmpresa) inputAtuacaoCfg.value = user.atuacao || '';
         } catch (error) {
             console.error('Erro ao carregar dados pessoais:', error);
             if (msgDadosPessoais) {
@@ -985,11 +1001,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
             try {
                 const formData = new FormData();
-                if (inputNomeCfg) formData.append('nome', inputNomeCfg.value.trim());
+                const firstName = String(inputNomeCfg && inputNomeCfg.value ? inputNomeCfg.value : '').trim();
+                const lastName = String(inputSobrenomeCfg && inputSobrenomeCfg.value ? inputSobrenomeCfg.value : '').trim();
+                const nomeCompleto = `${firstName} ${lastName}`.trim();
+                formData.append('nome', nomeCompleto);
                 if (inputIdadeCfg) formData.append('idade', inputIdadeCfg.value || '');
                 if (inputTelefoneCfg) formData.append('telefone', inputTelefoneCfg.value.trim());
                 if (inputCidadeCfg) formData.append('cidade', inputCidadeCfg.value.trim());
                 if (inputEstadoCfg) formData.append('estado', inputEstadoCfg.value.trim());
+                if (inputAtuacaoCfg && (!atuacaoGroupCfg || atuacaoGroupCfg.style.display !== 'none')) {
+                    formData.append('atuacao', inputAtuacaoCfg.value.trim());
+                }
 
                 const resp = await fetch(`/api/editar-perfil/${loggedInUserId}`, {
                     method: 'PUT',

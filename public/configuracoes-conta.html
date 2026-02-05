@@ -164,9 +164,16 @@
                     <div id="sec-dados-pessoais" class="config-section active">
                         <h3>Dados pessoais</h3>
                         <form id="form-dados-pessoais" class="config-form">
-                            <div class="form-group">
-                                <label for="cfg-nome">Nome completo</label>
-                                <input type="text" id="cfg-nome" class="input-edicao" placeholder="Seu nome" required>
+                            <div class="config-nome-row">
+                                <div class="form-group">
+                                    <label for="cfg-nome">Nome</label>
+                                    <input type="text" id="cfg-nome" class="input-edicao" placeholder="Seu primeiro nome" required>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="cfg-sobrenome">Sobrenome</label>
+                                    <input type="text" id="cfg-sobrenome" class="input-edicao" placeholder="Seu sobrenome" required>
+                                </div>
                             </div>
 
                             <div class="form-group">
@@ -192,6 +199,11 @@
                             <div class="form-group">
                                 <label for="cfg-estado">Estado</label>
                                 <input type="text" id="cfg-estado" class="input-edicao" placeholder="UF (ex: SP)">
+                            </div>
+
+                            <div id="cfg-atuacao-group" class="form-group">
+                                <label for="cfg-atuacao">Área de atuação (opcional)</label>
+                                <input type="text" id="cfg-atuacao" class="input-edicao" placeholder="Ex: Eletricista">
                             </div>
 
                             <hr class="config-divider">

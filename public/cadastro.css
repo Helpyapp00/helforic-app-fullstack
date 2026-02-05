@@ -280,6 +280,10 @@ form button:hover {
     display: block !important;           /* garante empilhamento em coluna */
 }
 
+#atuacao-group.atuacao-hidden {
+    display: none !important;
+}
+
 /* Dentro de Área de atuação, deixa o label em cima e o input ocupando toda a largura */
 #atuacao-group label {
     display: block !important;

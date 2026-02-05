@@ -267,7 +267,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // Inputs de Edição (Ocultos)
     const labelInputFotoPerfil = document.getElementById('labelInputFotoPerfil');
     const inputFotoPerfil = document.getElementById('inputFotoPerfil');
+    const nomeEdicaoGroup = document.getElementById('nome-edicao-group');
     const inputNome = document.getElementById('inputNome');
+    const inputSobrenome = document.getElementById('inputSobrenome');
     const inputEmail = document.getElementById('inputEmail');
     const inputIdade = document.getElementById('inputIdade');
     const inputWhatsapp = document.getElementById('inputWhatsapp');
@@ -1302,7 +1304,7 @@ document.addEventListener('DOMContentLoaded', () => {
             userNameHeader.textContent = storedName.split(' ')[0];
         }
         if (userAvatarHeader) {
-            if (storedPhotoUrl && storedPhotoUrl !== 'undefined' && !storedPhotoUrl.includes('pixabay')) {
+            if (storedPhotoUrl && storedPhotoUrl !== 'undefined' && !storedPhotoUrl.includes('pixabay') && !storedPhotoUrl.includes('placehold.co/50?text=User')) {
                 // Técnica similar ao Facebook: carrega a imagem com cache busting para forçar alta qualidade
                 userAvatarHeader.src = '';
                 
@@ -1493,11 +1495,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function renderUserProfile(user) {
         if (!user) return;
-        
+
+        const fotoPerfilEl = document.getElementById('fotoPerfil');
+
         // Armazena dados brutos no dataset
-        if(fotoPerfil) {
-            fotoPerfil.dataset.cidade = user.cidade || '';
-            fotoPerfil.dataset.estado = user.estado || '';
+        if (fotoPerfilEl) {
+            fotoPerfilEl.dataset.cidade = user.cidade || '';
+            fotoPerfilEl.dataset.estado = user.estado || '';
         }
 
         const fotoFinal = (user.avatarUrl && !user.avatarUrl.includes('pixabay')) 
@@ -1506,7 +1510,7 @@ document.addEventListener('DOMContentLoaded', () => {
                              ? user.foto 
                              : '/imagens/default-user.png');
         
-        if (fotoPerfil) fotoPerfil.src = fotoFinal;
+        if (fotoPerfilEl) fotoPerfilEl.src = fotoFinal;
         if (nomePerfil) nomePerfil.textContent = user.nome || 'Nome não informado';
         if (idadePerfil) idadePerfil.textContent = user.idade ? `${user.idade} anos` : 'Não informado';
         if (descricaoPerfil) descricaoPerfil.textContent = user.descricao || 'Nenhuma descrição disponível.';
@@ -1570,9 +1574,13 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log('📋 Hash #secao-avaliacao detectado, avaliações serão carregadas pela função específica');
         }
 
-        if (user.tipo === 'trabalhador') {
-            if (atuacaoPerfil) atuacaoPerfil.textContent = user.atuacao || 'Não informado';
-            if (atuacaoItem) atuacaoItem.style.display = 'flex'; 
+        if (user.tipo === 'empresa') {
+            if (atuacaoItem) atuacaoItem.style.display = 'none';
+            if (mediaAvaliacaoContainer) mediaAvaliacaoContainer.style.display = 'none';
+        } else if (user.tipo === 'trabalhador') {
+            const atuacaoValue = String(user.atuacao || '').trim();
+            if (atuacaoPerfil) atuacaoPerfil.textContent = atuacaoValue || 'Não informado';
+            if (atuacaoItem) atuacaoItem.style.display = atuacaoValue ? 'flex' : 'none';
             if (mediaAvaliacaoContainer) mediaAvaliacaoContainer.style.display = 'block';
             // (Removido) Projetos/Serviços no perfil
             
@@ -1655,8 +1663,10 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             // Não mostra a seção de avaliação aqui - será controlada pela lógica abaixo
             // que verifica se já avaliou antes de mostrar
-        } else { 
-            if (atuacaoItem) atuacaoItem.style.display = 'none';
+        } else {
+            const atuacaoValue = String(user.atuacao || '').trim();
+            if (atuacaoPerfil) atuacaoPerfil.textContent = atuacaoValue || 'Não informado';
+            if (atuacaoItem) atuacaoItem.style.display = atuacaoValue ? 'flex' : 'none';
             if (mediaAvaliacaoContainer) mediaAvaliacaoContainer.style.display = 'none';
             // Postagens é sempre a seção principal
         }
@@ -4597,7 +4607,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // 🛑 ATUALIZAÇÃO: Lista de elementos de edição
         const editElements = [
-            inputNome, inputIdade, inputWhatsapp, inputAtuacao, 
+            nomeEdicaoGroup, inputIdade, inputWhatsapp, inputAtuacao, 
             inputDescricao, inputEmail, botoesEdicao
         ];
         
@@ -4616,7 +4626,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (cidadeItem) cidadeItem.style.display = 'none';
         if (estadoItem) estadoItem.style.display = 'none';
 
-        const userTipo = (atuacaoItem.style.display === 'flex') ? 'trabalhador' : 'cliente';
+        const userTipo = (atuacaoItem && atuacaoItem.style.display === 'flex') ? 'trabalhador' : 'cliente';
         if(isEditing && userTipo === 'trabalhador') {
             atuacaoItem.style.display = 'flex'; 
             inputAtuacao.classList.remove('oculto'); 
@@ -4637,9 +4647,14 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function fillEditInputs() {
-        if (!inputNome) return; 
-        
-        inputNome.value = nomePerfil.textContent;
+        if (!inputNome) return;
+
+        const nomeCompleto = String(nomePerfil && nomePerfil.textContent ? nomePerfil.textContent : '').trim();
+        const partesNome = nomeCompleto.split(/\s+/).filter(Boolean);
+        const nome = partesNome.length ? partesNome[0] : '';
+        const sobrenome = partesNome.length > 1 ? partesNome.slice(1).join(' ') : '';
+        inputNome.value = nome;
+        if (inputSobrenome) inputSobrenome.value = sobrenome;
         inputIdade.value = idadePerfil.textContent.replace(' anos', '').replace('Não informado', '');
         inputWhatsapp.value = telefonePerfil.textContent.replace('Não informado', '');
         inputAtuacao.value = atuacaoPerfil.textContent.replace('Não informado', '');
@@ -4647,14 +4662,16 @@ document.addEventListener('DOMContentLoaded', () => {
         inputEmail.value = emailPerfil.textContent.trim();
         
         // 🛑 ATUALIZAÇÃO: Lê os dados do dataset ou do texto de localização
+        const fotoPerfilEl = document.getElementById('fotoPerfil');
+        const fotoDataset = (fotoPerfilEl && fotoPerfilEl.dataset) ? fotoPerfilEl.dataset : (fotoPerfil && fotoPerfil.dataset ? fotoPerfil.dataset : {});
         if (localizacaoPerfil) {
             const localizacaoTexto = localizacaoPerfil.textContent || '';
             const partes = localizacaoTexto.split(' - ');
-            inputCidade.value = partes[0] || fotoPerfil.dataset.cidade || '';
-            inputEstado.value = partes[1] || fotoPerfil.dataset.estado || '';
+            inputCidade.value = partes[0] || fotoDataset.cidade || '';
+            inputEstado.value = partes[1] || fotoDataset.estado || '';
         } else {
-            inputCidade.value = fotoPerfil.dataset.cidade || '';
-            inputEstado.value = fotoPerfil.dataset.estado || '';
+            inputCidade.value = fotoDataset.cidade || '';
+            inputEstado.value = fotoDataset.estado || '';
         }
     }
 
@@ -4679,7 +4696,10 @@ document.addEventListener('DOMContentLoaded', () => {
             btnSalvarPerfil.classList.add('saving');
 
             const formData = new FormData();
-            formData.append('nome', inputNome.value);
+            const firstName = String(inputNome && inputNome.value ? inputNome.value : '').trim();
+            const lastName = String(inputSobrenome && inputSobrenome.value ? inputSobrenome.value : '').trim();
+            const nomeCompleto = `${firstName} ${lastName}`.trim();
+            formData.append('nome', nomeCompleto);
             formData.append('idade', inputIdade.value);
             formData.append('telefone', inputWhatsapp.value);
             formData.append('descricao', inputDescricao.value);
@@ -4872,6 +4892,14 @@ document.addEventListener('DOMContentLoaded', () => {
             const novaFoto = data.user.avatarUrl || data.user.foto;
             localStorage.setItem('userPhotoUrl', novaFoto);
             loadHeaderInfo();
+
+            const fotoEl = document.getElementById('fotoPerfil');
+            if (fotoEl && novaFoto) {
+                const separator = novaFoto.includes('?') ? '&' : '?';
+                const freshUrl = novaFoto + separator + '_t=' + Date.now();
+                fotoEl.src = freshUrl;
+            }
+
             fetchUserProfile(); 
                     resolve(true);
         } catch (error) {
