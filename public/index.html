@@ -46,6 +46,10 @@
             <button id="search-toggle" class="search-toggle" aria-label="Buscar">
                 <i class="fas fa-search"></i>
             </button>
+            <button id="header-explorar" class="header-explorar" aria-label="Abrir explorar">
+                <i class="fas fa-play-circle"></i>
+                <span>Explorar</span>
+            </button>
             <input type="text" class="search" placeholder="Buscar serviços ou profissionais...">
             <!-- 🔔 Ícone de Notificações -->
             <div id="notificacoes-container" style="position: relative; margin-right: 15px;">
@@ -111,42 +115,83 @@
 
         </aside>
 
-        <main>
-            <div class="top-strip">
-            <!-- Botão (mobile) para abrir filtros / ações rápidas / times -->
-            <button id="mobile-sidebar-toggle" class="mobile-sidebar-toggle" aria-label="Abrir menu de filtros e ações">
-                <i class="fas fa-sliders-h"></i>
-            </button>
-
-                <!-- 🆕 Faixa de destaques (miniaturas sobre o feed) -->
-                <section id="barra-destaques" class="barra-destaques">
-                    <button id="btn-destaques-voltar" class="btn-scroll-destaques btn-scroll-esq" aria-label="Ver destaques anteriores">&#10094;</button>
-                    <div id="destaques-scroll" class="destaques-scroll">
-                        <!-- Miniaturas carregadas via JS -->
-                    </div>
-                    <button id="btn-destaques-avancar" class="btn-scroll-destaques" aria-label="Ver mais destaques">&#10095;</button>
-                </section>
-            </div>
-
-            <section class="publicar">
-                <h2>Crie uma Publicação</h2>
-                <form id="new-post-form">
-                    <textarea id="post-content-input" placeholder="No que você está pensando?"></textarea>
-                    <div class="botoes-postar">
-                        <div class="upload-area">
-                            <input type="file" id="post-media-input" accept="image/*" multiple style="display: none;">
-                            <div class="post-fotos-wrapper">
-                                <button type="button" id="btn-selecionar-foto-post" class="upload-button post-foto-principal-btn">
-                                    <i class="fas fa-camera"></i>
-                                </button>
-                                <div id="preview-fotos-post" class="post-fotos-container">
-                                    <!-- Thumbnails das fotos serão inseridas via JS -->
-                                </div>
-                                <button type="button" id="btn-adicionar-foto-post" class="post-foto-add-btn" style="display: none;">
-                                    <i class="fas fa-plus"></i>
-                                </button>
-                            </div>
+        <div class="feed-explorar-slider" aria-live="polite">
+            <section id="explorar-page" class="explorar-page" aria-hidden="true">
+                <div class="explorar-page-header">
+                    <div class="explorar-site-title">Helpy</div>
+                    <img id="explorar-user-avatar" class="explorar-user-avatar" src="/imagens/default-user.png" alt="Minha foto">
+                    <button id="explorar-add-media" class="explorar-add-media" type="button" aria-label="Adicionar mídia">+</button>
+                    <input id="explorar-media-input" type="file" accept="image/*,video/*" capture="environment" hidden>
+                    <div class="explorar-city-row">
+                        <span class="explorar-city-label">Cidade</span>
+                        <div class="explorar-city-current">
+                            <span id="explorar-city-name">-</span>
+                            <button id="explorar-city-edit" type="button" class="explorar-city-edit" aria-label="Alterar cidade">
+                                <i class="fas fa-pen"></i>
+                            </button>
                         </div>
+                    </div>
+                    <div class="explorar-city-controls" id="explorar-city-controls">
+                        <div class="explorar-city-input">
+                            <input type="text" id="explorar-cidade-input" placeholder="Digite uma cidade" list="explorar-cidades-sugestoes">
+                            <button id="explorar-cidade-add" type="button" class="explorar-cidade-add-btn" aria-label="Adicionar cidade">
+                                <img class="icon-light" src="/imagens/enviar.tema.claro.png" alt="">
+                                <img class="icon-dark" src="/imagens/enviar.tema.escuro.png" alt="">
+                            </button>
+                        </div>
+                        <datalist id="explorar-cidades-sugestoes"></datalist>
+                        <div id="explorar-city-chips" class="explorar-city-chips"></div>
+                    </div>
+                    <div class="explorar-categorias" aria-label="Categorias do explorar">
+                        <button id="explorar-categoria-current" class="explorar-categoria-pill is-active" type="button">Todas</button>
+                        <div id="explorar-categorias-modal" class="explorar-categorias-modal" aria-hidden="true">
+                            <button class="explorar-categoria-option" type="button">Todas</button>
+                            <button class="explorar-categoria-option" type="button">Moda</button>
+                            <button class="explorar-categoria-option" type="button">Comidas</button>
+                            <button class="explorar-categoria-option" type="button">Promoções</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="explorar-feed">
+                    <div id="explorar-feed-status" class="explorar-feed-status">Carregando novidades...</div>
+                    <div id="explorar-feed-list" class="explorar-feed-list"></div>
+                </div>
+            </section>
+
+            <main>
+                <div class="top-strip">
+                    <div class="top-strip-left">
+                        <!-- Botão (mobile) para abrir filtros / ações rápidas / times -->
+                        <button id="mobile-sidebar-toggle" class="mobile-sidebar-toggle" aria-label="Abrir menu de filtros e ações">
+                            <i class="fas fa-sliders-h"></i>
+                        </button>
+
+                        <!-- Faixa de destaques (miniaturas sobre o feed) -->
+                        <section id="barra-destaques" class="barra-destaques">
+                            <button id="btn-destaques-voltar" class="btn-scroll-destaques btn-scroll-esq" aria-label="Ver destaques anteriores">&#10094;</button>
+                            <div id="destaques-scroll" class="destaques-scroll">
+                                <!-- Miniaturas carregadas via JS -->
+                            </div>
+                            <button id="btn-destaques-avancar" class="btn-scroll-destaques" aria-label="Ver mais destaques">&#10095;</button>
+                        </section>
+                    </div>
+
+                </div>
+
+                <form id="new-post-form" class="new-post-form publicar" aria-label="Criar publicação">
+                    <div class="new-post-row">
+                        <textarea id="post-content-input" placeholder="Crie uma publicação..." rows="2"></textarea>
+                        <div class="new-post-side">
+                            <label class="new-post-media" for="post-media-input" aria-label="Adicionar mídia">
+                                <i class="fas fa-camera"></i>
+                            </label>
+                        </div>
+                        <input id="post-media-input" type="file" accept="image/*,video/*" hidden>
+                    </div>
+                    <div id="post-form-message" class="post-form-message"></div>
+                    <div class="new-post-actions">
+                        <div id="preview-fotos-post" class="preview-fotos-post"></div>
                         <button type="submit" class="btn-enviar" aria-label="Publicar" title="Publicar">
                             <img
                                 class="publish-icon"
@@ -157,56 +202,30 @@
                             >
                         </button>
                     </div>
-                    <div id="post-form-message" class="form-message hidden"></div>
                 </form>
-            </section>
 
-            <!-- 🧩 NOVO: Filtros do feed (entre "Crie uma Publicação" e o feed) -->
-            <section class="feed-filtros" aria-label="Filtros do feed">
-                <div class="feed-filtros-row">
-                    <div class="feed-filtros-left">
-                        <div class="feed-filtro-tipo">
-                            <select id="feed-tipo-select" aria-label="Filtrar feed">
-                                <option value="todos" selected>Todos</option>
-                                <option value="usuario">Usuários</option>
-                                <option value="empresa">Empresas</option>
-                            </select>
-                            <i class="fas fa-chevron-down" aria-hidden="true"></i>
-                        </div>
-                    </div>
+                <section id="posts-container">
+                    <!-- Postagens serão carregadas aqui -->
+                </section>
+            </main>
+        </div>
 
-                    <div class="feed-filtros-right">
-                        <div class="feed-filtro-cidade">
-                            <i class="fas fa-map-marker-alt" aria-hidden="true"></i>
-                            <input type="text" id="filtro-cidade" placeholder="Pesquisar..." autocomplete="address-level2" list="cidade-sugestoes">
-                            <button id="filtro-cidade-btn" type="button">Buscar</button>
-                        </div>
-                        <datalist id="cidade-sugestoes"></datalist>
-                    </div>
-                </div>
-            </section>
+    </div>
 
-            <section id="posts-container">
-                <!-- Postagens serão carregadas aqui -->
-            </section>
-        </main>
-
-        <aside class="anuncio">
-            <h3>Anúncios</h3>
-            <div class="caixa-anuncio">
-                <div class="anuncio-card anuncio-nativo" onclick="window.location.href='/perfil.html?id=empresa-demo'">
-                    <img src="https://placehold.co/640x320?text=Loja+de+Tintas+ColorMix" alt="" class="anuncio-nativo-img">
-                    <div class="anuncio-nativo-overlay">
-                        <div class="anuncio-nativo-titulo">Oferta para sua obra</div>
-                        <div class="anuncio-nativo-loja">Loja de Tintas ColorMix</div>
-                        <div class="anuncio-nativo-endereco">Av. Central, 123 - Centro</div>
-                        <button class="btn-como-chegar" onclick="event.stopPropagation(); window.open('https://www.google.com/maps/search/Loja+de+Tintas+ColorMix+Av+Central+123', '_blank')">
-                            <i class="fas fa-map-marker-alt"></i> Como chegar
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </aside>
+    <div id="explorar-video-overlay" class="explorar-video-overlay hidden" aria-hidden="true">
+        <button id="explorar-video-back" class="explorar-video-back" aria-label="Voltar">
+            <i class="fas fa-arrow-left"></i>
+        </button>
+        <video id="explorar-video-full" class="explorar-video-full" playsinline loop muted controls></video>
+        <img id="explorar-image-full" class="explorar-image-full" alt="">
+        <div id="explorar-video-info" class="explorar-video-info">
+            <a id="explorar-video-perfil" class="explorar-video-perfil" href="#">
+                <img id="explorar-video-avatar" class="explorar-video-avatar" src="imagens/default-user.png" alt="">
+                <span id="explorar-video-nome" class="explorar-video-nome"></span>
+            </a>
+            <p id="explorar-video-desc" class="explorar-video-desc"></p>
+            <span id="explorar-video-cidade" class="explorar-video-cidade"></span>
+        </div>
     </div>
 
     <!-- Modal de visualização de destaque (até 6 imagens) -->
@@ -261,14 +280,7 @@
                         <i class="fas fa-bolt"></i> Criar Pedido Urgente
                     </button>
                 </div>
-                
-                <div class="filtro-servico filtro-servico-proximos" style="margin-bottom: 15px;">
-                    <div class="filtro-servico-input-wrap">
-                        <input type="text" id="filtro-tipo-servico" placeholder="Tipo de serviço (ex: encanador, eletricista)">
-                        <span class="filtro-servico-lupa" aria-hidden="true">🔍</span>
-                    </div>
-                </div>
-                
+
                 <div id="profissionais-proximos" class="profissionais-lista">
                     <!-- Profissionais serão carregados aqui -->
                 </div>

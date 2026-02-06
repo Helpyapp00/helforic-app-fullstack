@@ -147,6 +147,14 @@ function normalizeKeyword(value) {
         .trim();
 }
 
+function normalizeCityKey(value) {
+    return String(value || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .trim();
+}
+
 function extractInterestKeywords(texto) {
     const normalized = normalizeKeyword(texto);
     if (!normalized) return [];
@@ -673,6 +681,113 @@ app.get('/api/anuncios-feed', authMiddleware, async (req, res) => {
         res.json({ success: true, anuncios: expanded.slice(0, limit) });
     } catch (error) {
         console.error('Erro ao buscar anúncios do feed:', error);
+        res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
+    }
+});
+
+app.get('/api/explorar-feed', authMiddleware, async (req, res) => {
+    try {
+        const cidadesRaw = String(req.query.cidades || '')
+            .split(',')
+            .map((c) => String(c).trim())
+            .filter(Boolean);
+        const cidadesSet = new Set(cidadesRaw.map((c) => normalizeCityKey(c)).filter(Boolean));
+
+        const posts = await Postagem.find({ mediaUrl: { $exists: true, $ne: '' } })
+            .sort({ createdAt: -1 })
+            .limit(60)
+            .populate('userId', 'nome foto avatarUrl tipo cidade estado telefone')
+            .lean();
+
+        const postsFiltrados = cidadesSet.size > 0
+            ? posts.filter((post) => {
+                const cidade = post?.userId?.cidade || '';
+                return cidadesSet.has(normalizeCityKey(cidade));
+            })
+            : posts;
+
+        const postItems = postsFiltrados.map((post) => {
+            const telefone = post?.userId?.telefone ? String(post.userId.telefone) : '';
+            const whatsappUrl = telefone
+                ? `https://wa.me/55${telefone.replace(/\D/g, '')}`
+                : '';
+            return {
+                _id: post._id,
+                tipo: 'post',
+                mediaUrl: post.mediaUrl,
+                mediaType: post.mediaType || 'video',
+                titulo: post?.userId?.nome || 'Video local',
+                descricao: post.content || '',
+                cidade: post?.userId?.cidade || '',
+                estado: post?.userId?.estado || '',
+                userTipo: post?.userId?.tipo || 'usuario',
+                foto: post?.userId?.foto || '',
+                avatarUrl: post?.userId?.avatarUrl || '',
+                perfilUrl: post?.userId?._id ? `/perfil.html?id=${post.userId._id}` : '',
+                whatsappUrl
+            };
+        });
+
+        const agora = new Date();
+        const anuncios = await AnuncioPago.find({
+            ativo: true,
+            inicioEm: { $lte: agora },
+            fimEm: { $gte: agora }
+        })
+            .sort({ prioridade: -1, createdAt: -1 })
+            .limit(50)
+            .lean();
+
+        const ownerIds = Array.from(new Set(anuncios.map((a) => String(a.ownerId || '')).filter(Boolean)));
+        const owners = ownerIds.length > 0
+            ? await User.find({ _id: { $in: ownerIds } }).select('cidade estado').lean()
+            : [];
+        const ownerMap = new Map(owners.map((owner) => [String(owner._id), owner]));
+
+        let anunciosExpanded = [];
+        anuncios.forEach((anuncio) => {
+            const slots = anuncio?.plano === 'premium' ? 2 : 1;
+            const owner = anuncio?.ownerId ? ownerMap.get(String(anuncio.ownerId)) : null;
+            const cidadeFinal = anuncio?.cidade || owner?.cidade || '';
+            const estadoFinal = anuncio?.estado || owner?.estado || '';
+            for (let i = 0; i < slots; i += 1) {
+                anunciosExpanded.push({
+                    _id: anuncio._id,
+                    _feedKey: `${String(anuncio._id)}:${i}`,
+                    tipo: 'anuncio',
+                    titulo: anuncio.titulo,
+                    descricao: anuncio.descricao,
+                    imagemUrl: anuncio.imagemUrl,
+                    linkUrl: anuncio.linkUrl,
+                    cidade: cidadeFinal,
+                    estado: estadoFinal,
+                    ownerId: anuncio.ownerId,
+                    perfilUrl: anuncio?.ownerId ? `/perfil.html?id=${anuncio.ownerId}` : ''
+                });
+            }
+        });
+
+        if (cidadesSet.size > 0) {
+            anunciosExpanded = anunciosExpanded.filter((anuncio) => cidadesSet.has(normalizeCityKey(anuncio.cidade)));
+        }
+
+        const items = [];
+        let adIndex = 0;
+        postItems.forEach((post, index) => {
+            items.push(post);
+            if ((index + 1) % 3 === 0 && anunciosExpanded.length > 0) {
+                items.push(anunciosExpanded[adIndex % anunciosExpanded.length]);
+                adIndex += 1;
+            }
+        });
+
+        if (items.length === 0 && anunciosExpanded.length > 0) {
+            items.push(...anunciosExpanded.slice(0, 6));
+        }
+
+        res.json({ success: true, items });
+    } catch (error) {
+        console.error('Erro ao buscar explorar feed:', error);
         res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
     }
 });

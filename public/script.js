@@ -14,6 +14,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // Se já estiver logado e tentar ir para o login, manda para o feed
             window.location.replace('/');
         }
+
         return;
     }
 
@@ -53,6 +54,188 @@ document.addEventListener('DOMContentLoaded', () => {
     const postMediaInput = document.getElementById('post-media-input');
     const postFormMessage = document.getElementById('post-form-message');
     const postsContainer = document.getElementById('posts-container');
+    const feedExplorarSlider = document.querySelector('.feed-explorar-slider');
+    const leftoverMobileBackdrop = document.getElementById('mobile-sidebar-backdrop');
+    if (leftoverMobileBackdrop) {
+        leftoverMobileBackdrop.remove();
+    }
+
+    // --- Explorar ---
+    const explorarPage = document.getElementById('explorar-page');
+    const explorarFeedList = document.getElementById('explorar-feed-list');
+    const explorarFeedStatus = document.getElementById('explorar-feed-status');
+    const explorarCidadeInput = document.getElementById('explorar-cidade-input');
+    const explorarCidadeAddBtn = document.getElementById('explorar-cidade-add');
+    const explorarCidadeChips = document.getElementById('explorar-city-chips');
+    const explorarCidadesDatalist = document.getElementById('explorar-cidades-sugestoes');
+    const explorarCityEditBtn = document.getElementById('explorar-city-edit');
+    const explorarCityControls = document.getElementById('explorar-city-controls');
+    const explorarCityName = document.getElementById('explorar-city-name');
+    const explorarCityRow = document.querySelector('.explorar-city-row');
+    const explorarUserAvatar = document.getElementById('explorar-user-avatar');
+    const explorarCategoriaCurrent = document.getElementById('explorar-categoria-current');
+    const explorarCategoriasModal = document.getElementById('explorar-categorias-modal');
+    const explorarAddMediaBtn = document.getElementById('explorar-add-media');
+    const explorarMediaInput = document.getElementById('explorar-media-input');
+    const explorarVideoOverlay = document.getElementById('explorar-video-overlay');
+    const explorarVideoFull = document.getElementById('explorar-video-full');
+    const explorarImageFull = document.getElementById('explorar-image-full');
+    const explorarVideoBack = document.getElementById('explorar-video-back');
+    const explorarVideoInfo = document.getElementById('explorar-video-info');
+    const explorarVideoPerfil = document.getElementById('explorar-video-perfil');
+    const explorarVideoAvatar = document.getElementById('explorar-video-avatar');
+    const explorarVideoNome = document.getElementById('explorar-video-nome');
+    const explorarVideoDesc = document.getElementById('explorar-video-desc');
+    const explorarVideoCidade = document.getElementById('explorar-video-cidade');
+
+    if (explorarUserAvatar && userId) {
+        explorarUserAvatar.addEventListener('click', () => {
+            window.location.href = `/perfil.html?id=${userId}`;
+        });
+    }
+
+    function openExplorarVideo(src, info = {}) {
+        if (!explorarVideoOverlay || !explorarVideoFull || !src) return;
+        explorarVideoOverlay.classList.remove('is-dragging');
+        explorarVideoOverlay.style.transform = '';
+        if (explorarImageFull) {
+            explorarImageFull.classList.add('hidden');
+            explorarImageFull.removeAttribute('src');
+        }
+        if (explorarVideoInfo) {
+            const nome = info?.nome || '';
+            const desc = info?.desc || '';
+            const cidade = info?.cidade || '';
+            const avatar = info?.avatar || 'imagens/default-user.png';
+            const perfilUrl = info?.perfilUrl || '#';
+            if (explorarVideoPerfil) {
+                explorarVideoPerfil.setAttribute('href', perfilUrl);
+            }
+            if (explorarVideoAvatar) {
+                explorarVideoAvatar.src = avatar;
+            }
+            if (explorarVideoNome) {
+                explorarVideoNome.textContent = nome;
+            }
+            if (explorarVideoDesc) {
+                explorarVideoDesc.textContent = desc;
+                explorarVideoDesc.style.display = desc ? 'block' : 'none';
+            }
+            if (explorarVideoCidade) {
+                explorarVideoCidade.textContent = cidade;
+                explorarVideoCidade.style.display = cidade ? 'block' : 'none';
+            }
+            explorarVideoInfo.style.display = (nome || desc || cidade) ? 'flex' : 'none';
+        }
+        explorarVideoFull.classList.remove('hidden');
+        explorarVideoFull.src = src;
+        explorarVideoFull.currentTime = 0;
+        explorarVideoOverlay.classList.remove('hidden');
+        explorarVideoOverlay.setAttribute('aria-hidden', 'false');
+        document.body.classList.add('explorar-video-open');
+        explorarVideoFull.play().catch(() => {});
+    }
+
+    function openExplorarImage(src, info = {}) {
+        if (!explorarVideoOverlay || !explorarImageFull || !src) return;
+        explorarVideoOverlay.classList.remove('is-dragging');
+        explorarVideoOverlay.style.transform = '';
+        explorarVideoFull?.pause();
+        explorarVideoFull?.removeAttribute('src');
+        explorarVideoFull?.classList.add('hidden');
+        if (explorarVideoInfo) {
+            const nome = info?.nome || '';
+            const desc = info?.desc || '';
+            const cidade = info?.cidade || '';
+            const avatar = info?.avatar || 'imagens/default-user.png';
+            if (explorarVideoAvatar) {
+                explorarVideoAvatar.src = avatar;
+            }
+            if (explorarVideoNome) {
+                explorarVideoNome.textContent = nome;
+            }
+            if (explorarVideoDesc) {
+                explorarVideoDesc.textContent = desc;
+                explorarVideoDesc.style.display = desc ? 'block' : 'none';
+            }
+            if (explorarVideoCidade) {
+                explorarVideoCidade.textContent = cidade;
+                explorarVideoCidade.style.display = cidade ? 'block' : 'none';
+            }
+            explorarVideoInfo.style.display = (nome || desc || cidade) ? 'flex' : 'none';
+        }
+        explorarImageFull.src = src;
+        explorarImageFull.classList.remove('hidden');
+        explorarVideoOverlay.classList.remove('hidden');
+        explorarVideoOverlay.setAttribute('aria-hidden', 'false');
+        document.body.classList.add('explorar-video-open');
+    }
+
+    function closeExplorarVideo() {
+        if (!explorarVideoOverlay || !explorarVideoFull) return;
+        explorarVideoOverlay.classList.add('hidden');
+        explorarVideoOverlay.setAttribute('aria-hidden', 'true');
+        explorarVideoFull.pause();
+        explorarVideoFull.removeAttribute('src');
+        explorarVideoFull.load();
+        explorarVideoOverlay.classList.remove('is-dragging');
+        explorarVideoOverlay.style.transform = '';
+        document.body.classList.remove('explorar-video-open');
+        if (explorarImageFull) {
+            explorarImageFull.removeAttribute('src');
+            explorarImageFull.classList.add('hidden');
+        }
+    }
+
+    if (explorarVideoBack) {
+        explorarVideoBack.addEventListener('click', closeExplorarVideo);
+    }
+
+    if (explorarVideoOverlay) {
+        let touchStartX = null;
+        let touchStartY = null;
+        let dragging = false;
+        explorarVideoOverlay.addEventListener('touchstart', (event) => {
+            touchStartX = event.touches[0]?.clientX ?? null;
+            touchStartY = event.touches[0]?.clientY ?? null;
+            dragging = false;
+            explorarVideoOverlay.classList.add('is-dragging');
+        }, { passive: true });
+
+        explorarVideoOverlay.addEventListener('touchmove', (event) => {
+            if (touchStartY === null || touchStartX === null) return;
+            const currentX = event.touches[0]?.clientX ?? touchStartX;
+            const currentY = event.touches[0]?.clientY ?? touchStartY;
+            const deltaX = currentX - touchStartX;
+            const deltaY = currentY - touchStartY;
+            if (Math.abs(deltaX) > 4 || Math.abs(deltaY) > 4) {
+                dragging = true;
+            }
+            const scale = 0.65;
+            explorarVideoOverlay.style.transform = `translate(${deltaX}px, ${deltaY}px) scale(${scale})`;
+        }, { passive: true });
+
+        explorarVideoOverlay.addEventListener('touchend', () => {
+            if (!dragging) {
+                explorarVideoOverlay.classList.remove('is-dragging');
+                explorarVideoOverlay.style.transform = '';
+                touchStartX = null;
+                touchStartY = null;
+                return;
+            }
+            closeExplorarVideo();
+            explorarVideoOverlay.classList.remove('is-dragging');
+            touchStartX = null;
+            touchStartY = null;
+            dragging = false;
+        });
+    }
+
+    if (explorarAddMediaBtn && explorarMediaInput) {
+        explorarAddMediaBtn.addEventListener('click', () => {
+            explorarMediaInput.click();
+        });
+    }
     
     // --- Filtros e Configurações ---
     const feedTipoSelect = document.getElementById('feed-tipo-select');
@@ -294,6 +477,18 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    function closeExplorarCityControls() {
+        if (explorarCityControls) {
+            explorarCityControls.classList.remove('is-open');
+        }
+        if (explorarCityRow) {
+            explorarCityRow.classList.remove('is-hidden');
+        }
+        persistExplorarCities();
+        renderExplorarCityChips();
+        fetchExplorarFeed();
+    }
+
     function applyTheme(theme) {
         if (theme === 'dark') {
             htmlElement.classList.add('dark-mode');
@@ -370,17 +565,21 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // estado do botão enviar configurado após fotosPostSelecionadas
+
     // --- FUNÇÕES DE FEEDBACK ---
     function showMessage(element, message, type) {
         if (element) {
             element.textContent = message;
             element.className = `form-message ${type}`;
             element.classList.remove('hidden');
-            if (type !== 'info') {
-                setTimeout(() => {
-                    element.classList.add('hidden');
-                }, 4000);
+            if (element._hideTimer) {
+                clearTimeout(element._hideTimer);
             }
+            const timeout = type === 'info' ? 3000 : 4000;
+            element._hideTimer = setTimeout(() => {
+                element.classList.add('hidden');
+            }, timeout);
         }
     }
 
@@ -416,35 +615,41 @@ document.addEventListener('DOMContentLoaded', () => {
         bottomNavHomeBtn.addEventListener('click', () => {
             fecharModaisPrecisoAgoraEPedidoUrgente();
             fecharBuscaUI();
-            const currentPath = window.location.pathname;
-            if (currentPath === '/' || currentPath === '/index.html') {
-                window.location.reload();
-            } else {
-                window.location.href = '/';
+            if (explorarPage?.classList.contains('is-open')) {
+                closeExplorarPanel();
+                return;
+            }
+            if (feedExplorarSlider) {
+                feedExplorarSlider.classList.remove('is-explorar');
+                feedExplorarSlider.style.transform = 'translateX(-100vw)';
             }
         });
     }
+
+    const headerExplorarBtn = document.getElementById('header-explorar');
+    if (headerExplorarBtn) {
+        headerExplorarBtn.addEventListener('click', () => {
+            const isMobile = window.matchMedia('(max-width: 768px)').matches;
+            if (isMobile) return;
+            fecharModaisPrecisoAgoraEPedidoUrgente();
+            fecharBuscaUI();
+            openExplorarPanel();
+        });
+    }
+
+    
 
     if (bottomNavQuickBtn) {
         bottomNavQuickBtn.addEventListener('click', () => {
             fecharModaisPrecisoAgoraEPedidoUrgente();
             fecharBuscaUI();
-            // Reaproveita a lógica existente do menu lateral (categorias/ações rápidas/equipe)
-            if (mobileSidebarToggle) {
-                mobileSidebarToggle.click();
-            }
+            openExplorarPanel(true);
         });
     }
 
     if (bottomNavSearchBtn) {
         bottomNavSearchBtn.addEventListener('click', () => {
-            fecharModaisPrecisoAgoraEPedidoUrgente();
-            if (!headerEl) return;
-            mostrarHeaderNoMobile();
-
-            // Abre a busca (mobile) e já mostra o painel com histórico/resultados
-            headerEl.classList.add('search-open');
-            searchInput && searchInput.focus();
+            if (searchToggleBtn) searchToggleBtn.click();
             if (typeof abrirBuscaComHistorico === 'function') {
                 abrirBuscaComHistorico();
             }
@@ -598,6 +803,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const storedName = localStorage.getItem('userName') || '';
         const storedPhotoUrl = localStorage.getItem('userPhotoUrl');
 
+        const syncExplorarAvatar = () => {
+            if (explorarUserAvatar && userAvatarHeader?.src) {
+                explorarUserAvatar.src = userAvatarHeader.src;
+            }
+        };
+
         if (userNameHeader) {
             userNameHeader.textContent = storedName ? storedName.split(' ')[0] : '';
         }
@@ -605,6 +816,34 @@ document.addEventListener('DOMContentLoaded', () => {
             // Se não tem foto ou é inválida, usa a imagem padrão
             if (!storedPhotoUrl || storedPhotoUrl === 'undefined' || storedPhotoUrl === 'null' || storedPhotoUrl.includes('placehold.co/50?text=User')) {
                 userAvatarHeader.src = '/imagens/default-user.png';
+                syncExplorarAvatar();
+                if (token) {
+                    const headers = { 'Authorization': `Bearer ${token}` };
+                    fetch('/api/user/me', { headers })
+                        .then((resp) => resp.json())
+                        .then((data) => {
+                            const user = data?.usuario || data?.user || data;
+                            const apiPhoto = user?.avatarUrl || user?.foto;
+                            if (apiPhoto) {
+                                localStorage.setItem('userPhotoUrl', apiPhoto);
+                                userAvatarHeader.src = apiPhoto;
+                                syncExplorarAvatar();
+                                return;
+                            }
+                            return fetch('/api/usuario/me', { headers })
+                                .then((resp) => resp.json())
+                                .then((fallbackData) => {
+                                    const fallbackUser = fallbackData?.usuario || fallbackData?.user || fallbackData;
+                                    const fallbackPhoto = fallbackUser?.avatarUrl || fallbackUser?.foto;
+                                    if (fallbackPhoto) {
+                                        localStorage.setItem('userPhotoUrl', fallbackPhoto);
+                                        userAvatarHeader.src = fallbackPhoto;
+                                        syncExplorarAvatar();
+                                    }
+                                });
+                        })
+                        .catch(() => {});
+                }
                 return; // Retorna cedo para não continuar o processamento
             } else if (!storedPhotoUrl.includes('pixabay')) {
                 // Remove src primeiro para forçar reload completo
@@ -620,6 +859,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     userAvatarHeader.src = freshUrl;
                     userAvatarHeader.loading = 'eager';
                     userAvatarHeader.decoding = 'sync';
+                    syncExplorarAvatar();
                     
                     userAvatarHeader.style.opacity = '0';
                     setTimeout(() => {
@@ -632,14 +872,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Se a foto do usuário falhar, usa a imagem padrão
                     userAvatarHeader.src = '/imagens/default-user.png';
                     userAvatarHeader.loading = 'eager';
+                    syncExplorarAvatar();
                 };
                 
                 preloadImg.src = freshUrl;
             } else {
                 // Sem foto do usuário, usa a imagem padrão
                 userAvatarHeader.src = '/imagens/default-user.png';
+                syncExplorarAvatar();
             }
         }
+        syncExplorarAvatar();
     }
 
     // ----------------------------------------------------------------------
@@ -851,6 +1094,437 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error('Erro ao buscar postagens:', error);
             postsContainer.innerHTML = '<p class="mensagem-vazia">Erro ao carregar o feed.</p>';
         }
+    }
+
+    let explorarSelectedCities = [];
+    let explorarLazyObserver = null;
+    let explorarTouchStart = null;
+    let explorarHasFetched = false;
+
+    function normalizeCityKey(value) {
+        return String(value || '')
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .toLowerCase()
+            .trim();
+    }
+
+    function formatCityName(value) {
+        const raw = String(value || '').trim();
+        if (!raw) return '';
+        return raw
+            .toLowerCase()
+            .split(/\s+/)
+            .map((word) => (word ? word[0].toUpperCase() + word.slice(1) : ''))
+            .join(' ');
+    }
+
+    function resolveCityName(value) {
+        const formatted = formatCityName(value);
+        if (!explorarCidadesDatalist) return formatted;
+        const options = Array.from(explorarCidadesDatalist.options || []);
+        const match = options.find((opt) => normalizeCityKey(opt.value) === normalizeCityKey(formatted));
+        return match ? match.value : formatted;
+    }
+
+    function persistExplorarCities() {
+        try {
+            localStorage.setItem('explorarCities', JSON.stringify(explorarSelectedCities));
+        } catch (e) {
+            console.warn('Nao foi possivel salvar cidades do explorar.');
+        }
+    }
+
+    function renderExplorarCityChips() {
+        if (!explorarCidadeChips) return;
+        explorarCidadeChips.innerHTML = '';
+        if (explorarCityName) {
+            explorarCityName.textContent = explorarSelectedCities.length
+                ? explorarSelectedCities.join(', ')
+                : '-';
+        }
+        explorarSelectedCities.forEach((cidade) => {
+            const chip = document.createElement('div');
+            chip.className = 'explorar-city-chip';
+            chip.innerHTML = `
+                <span>${cidade}</span>
+                <button type="button" aria-label="Remover cidade">&times;</button>
+            `;
+            const btn = chip.querySelector('button');
+            btn.addEventListener('click', () => {
+                explorarSelectedCities = explorarSelectedCities.filter((c) => normalizeCityKey(c) !== normalizeCityKey(cidade));
+                persistExplorarCities();
+                renderExplorarCityChips();
+                fetchExplorarFeed();
+            });
+            explorarCidadeChips.appendChild(chip);
+        });
+    }
+
+    function addExplorarCity(value) {
+        const city = resolveCityName(value);
+        if (!city) return;
+        const exists = explorarSelectedCities.some((c) => normalizeCityKey(c) === normalizeCityKey(city));
+        if (exists) return;
+        explorarSelectedCities = [city, ...explorarSelectedCities.filter((c) => normalizeCityKey(c) !== normalizeCityKey(city))];
+        persistExplorarCities();
+        renderExplorarCityChips();
+        fetchExplorarFeed();
+        if (explorarCityControls) {
+            explorarCityControls.classList.remove('is-open');
+        }
+        if (explorarCityRow) {
+            explorarCityRow.classList.remove('is-hidden');
+        }
+    }
+
+    function setupExplorarLazyLoading() {
+        if (!explorarFeedList || !('IntersectionObserver' in window)) return;
+        if (explorarLazyObserver) {
+            explorarLazyObserver.disconnect();
+        }
+        explorarLazyObserver = new IntersectionObserver((entries) => {
+            entries.forEach((entry) => {
+                if (!entry.isIntersecting) return;
+                const media = entry.target.querySelector('video[data-src], img[data-src]');
+                if (media) {
+                    const src = media.getAttribute('data-src');
+                    if (src) {
+                        media.setAttribute('src', src);
+                        media.removeAttribute('data-src');
+                        if (media.tagName === 'VIDEO') {
+                            media.load();
+                        }
+                    }
+                }
+                explorarLazyObserver.unobserve(entry.target);
+            });
+        }, { root: explorarFeedList, rootMargin: '200px 0px', threshold: 0.25 });
+
+        explorarFeedList.querySelectorAll('.explorar-card').forEach((card) => explorarLazyObserver.observe(card));
+    }
+
+    function buildExplorarActionLinks(item) {
+        const actions = [];
+        if (item?.perfilUrl) {
+            actions.push({ label: 'Ver perfil', url: item.perfilUrl, className: 'outline' });
+        }
+        if (item?.whatsappUrl) {
+            actions.push({ label: 'Chamar no Zap', url: item.whatsappUrl, className: 'secondary' });
+        }
+        if (item?.linkUrl) {
+            actions.push({ label: 'Ver oferta', url: item.linkUrl, className: '' });
+        }
+        if (actions.length === 0) {
+            actions.push({ label: 'Ver detalhes', url: item?.perfilUrl || item?.linkUrl || '#', className: '' });
+        }
+        return actions;
+    }
+
+    function renderExplorarFeed(items) {
+        if (!explorarFeedList) return;
+        explorarFeedList.innerHTML = '';
+
+        if (!Array.isArray(items) || items.length === 0) {
+            if (explorarFeedStatus) {
+                explorarFeedStatus.textContent = 'Sem videos para estas cidades no momento.';
+            }
+            return;
+        }
+
+        if (explorarFeedStatus) {
+            explorarFeedStatus.textContent = '';
+        }
+
+        items.forEach((item, index) => {
+            const card = document.createElement('article');
+            card.className = 'explorar-card';
+            const mediaUrl = item.mediaUrl || item.imagemUrl || '';
+            const isVideo = item.mediaType === 'video';
+            const badge = item.tipo === 'anuncio' ? 'Anuncio' : '';
+            const title = item.titulo || item.nome || 'Oferta local';
+            const desc = item.descricao || item.content || '';
+            const cityText = [item.cidade, item.estado].filter(Boolean).join(' - ');
+            const empresaNome = item.empresa || item.nomeEmpresa || item.user?.nome || item.anunciante || item.titulo || item.nome || 'Perfil';
+            const actions = buildExplorarActionLinks(item);
+            const perfilAction = actions.find((action) => action.label === 'Ver perfil');
+            const rawPerfilId = item?.userId?._id || item?.userId || item?.dono?._id || item?.dono?.id || item?.ownerId || item?.autorId;
+            const fallbackPerfilUrl = rawPerfilId ? `/perfil?id=${rawPerfilId}` : null;
+            const perfilUrl = item?.perfilUrl || perfilAction?.url || fallbackPerfilUrl || '#';
+            const rawFoto = item?.foto
+                || item?.avatarUrl
+                || item?.user?.foto
+                || item?.user?.avatarUrl
+                || item?.userId?.foto
+                || item?.userId?.avatarUrl
+                || item?.dono?.foto
+                || item?.dono?.avatarUrl
+                || item?.profissional?.foto
+                || item?.profissional?.avatarUrl
+                || item?.anuncianteFoto
+                || '';
+            const perfilFoto = rawFoto && !['undefined', 'null'].includes(String(rawFoto)) ? rawFoto : 'imagens/default-user.png';
+
+            const mediaHTML = isVideo
+                ? `<video class="explorar-video" loop muted playsinline autoplay preload="metadata" data-src="${mediaUrl}"></video>`
+                : `<img class="explorar-image" alt="" loading="lazy" decoding="async" data-src="${mediaUrl}">`;
+
+            card.innerHTML = `
+                <div class="explorar-card-media">
+                    ${mediaHTML}
+                    ${badge ? `<div class="explorar-card-badge">${badge}</div>` : ''}
+                    <div class="explorar-card-info-overlay">
+                        <div class="explorar-card-info">
+                            <a class="explorar-card-perfil" href="${perfilUrl}">
+                                <img class="explorar-card-avatar" src="${perfilFoto}" alt="${empresaNome}" onerror="this.src='imagens/default-user.png'">
+                                <span class="explorar-card-empresa">${empresaNome}</span>
+                            </a>
+                        </div>
+                        ${(desc || title) ? `<p class="explorar-card-desc">${desc || title}</p>` : ''}
+                        ${cityText ? `<span class="explorar-card-cidade">${cityText}</span>` : ''}
+                    </div>
+                </div>
+            `;
+
+            const videoEl = card.querySelector('video.explorar-video');
+            if (videoEl) {
+                videoEl.addEventListener('click', (event) => {
+                    event.preventDefault();
+                    const src = videoEl.getAttribute('src') || videoEl.getAttribute('data-src');
+                    if (src && !videoEl.getAttribute('src')) {
+                        videoEl.setAttribute('src', src);
+                        videoEl.removeAttribute('data-src');
+                    }
+                    openExplorarVideo(src, {
+                        nome: empresaNome,
+                        desc: desc || title,
+                        cidade: cityText,
+                        avatar: perfilFoto,
+                        perfilUrl
+                    });
+                });
+            }
+
+            const imgEl = card.querySelector('img.explorar-image');
+            if (imgEl) {
+                imgEl.addEventListener('click', (event) => {
+                    event.preventDefault();
+                    const src = imgEl.getAttribute('src') || imgEl.getAttribute('data-src');
+                    if (src && !imgEl.getAttribute('src')) {
+                        imgEl.setAttribute('src', src);
+                        imgEl.removeAttribute('data-src');
+                    }
+                    openExplorarImage(src, {
+                        nome: empresaNome,
+                        desc: desc || title,
+                        cidade: cityText,
+                        avatar: perfilFoto,
+                        perfilUrl
+                    });
+                });
+            }
+
+            explorarFeedList.appendChild(card);
+
+            if ((index + 1) % 4 === 0) {
+                const ad = pickNextAdFeed();
+                if (ad) {
+                    const adEl = buildAdElementFeed(ad);
+                    adEl.classList.add('explorar-card');
+                    explorarFeedList.appendChild(adEl);
+                }
+            }
+        });
+
+        setupExplorarLazyLoading();
+    }
+
+    async function fetchExplorarFeed() {
+        if (!explorarFeedList) return;
+        if (explorarFeedStatus) {
+            explorarFeedStatus.textContent = 'Carregando novidades...';
+        }
+        const params = new URLSearchParams();
+        if (explorarSelectedCities.length > 0) {
+            params.set('cidades', explorarSelectedCities.join(','));
+        }
+        const url = `/api/explorar-feed?${params.toString()}`;
+        try {
+            const resp = await fetch(url, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const data = await resp.json();
+            if (!resp.ok || data?.success === false) {
+                throw new Error(data?.message || 'Falha ao carregar explore.');
+            }
+            const items = Array.isArray(data?.items) ? data.items : [];
+            renderExplorarFeed(items);
+            explorarHasFetched = true;
+        } catch (err) {
+            console.error('Erro ao carregar explorar:', err);
+            if (explorarFeedStatus) {
+                explorarFeedStatus.textContent = 'Nao foi possivel carregar o explorar.';
+            }
+        }
+    }
+
+    function openExplorarPanel(force = false) {
+        if (!explorarPage) return;
+        const isMobile = window.matchMedia('(max-width: 768px)').matches;
+        if (!force && !isMobile) return;
+        explorarPage.classList.add('is-open');
+        explorarPage.classList.remove('is-dragging');
+        explorarPage.style.transform = '';
+        explorarPage.setAttribute('aria-hidden', 'false');
+        document.documentElement.classList.add('explorar-open');
+        document.body.classList.add('explorar-open');
+        if (isMobile && feedExplorarSlider) {
+            feedExplorarSlider.classList.add('is-explorar');
+            feedExplorarSlider.classList.remove('is-dragging');
+            feedExplorarSlider.style.transform = 'translateX(0)';
+        }
+        if (!explorarHasFetched) {
+            fetchExplorarFeed();
+        }
+    }
+
+    function closeExplorarPanel() {
+        if (!explorarPage) return;
+        explorarPage.classList.remove('is-open');
+        explorarPage.classList.remove('is-dragging');
+        explorarPage.style.transform = '';
+        explorarPage.setAttribute('aria-hidden', 'true');
+        document.documentElement.classList.remove('explorar-open');
+        document.body.classList.remove('explorar-open');
+        if (feedExplorarSlider) {
+            feedExplorarSlider.classList.remove('is-explorar');
+            feedExplorarSlider.classList.remove('is-dragging');
+            feedExplorarSlider.style.transform = 'translateX(-100vw)';
+        }
+    }
+
+    async function bootstrapExplorarCities() {
+        if (!explorarSelectedCities.length && token) {
+            try {
+                const resp = await fetch('/api/user/me', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await resp.json();
+                const cidade = data?.usuario?.cidade || data?.user?.cidade || '';
+                if (cidade) {
+                    explorarSelectedCities = [cidade];
+                    persistExplorarCities();
+                }
+            } catch (e) {
+                console.warn('Nao foi possivel obter cidade do usuario.');
+            }
+        }
+        renderExplorarCityChips();
+    }
+
+    function setupExplorarSwipe() {
+        if (!('ontouchstart' in window)) return;
+        let isDragging = false;
+        let wasBackdropVisible = false;
+        let isClosing = false;
+        document.addEventListener('touchstart', (event) => {
+            const touch = event.touches[0];
+            if (!touch) return;
+            const isMobile = window.matchMedia('(max-width: 768px)').matches;
+            if (!isMobile) return;
+            if (explorarPage?.classList.contains('is-open')) {
+                isClosing = true;
+                explorarTouchStart = {
+                    x: touch.clientX || 0,
+                    y: touch.clientY || 0,
+                    time: Date.now()
+                };
+                return;
+            }
+            const edgeThreshold = window.innerWidth * 0.6;
+            if (touch.clientX > edgeThreshold) return;
+            explorarTouchStart = {
+                x: touch.clientX || 0,
+                y: touch.clientY || 0,
+                time: Date.now()
+            };
+        }, { passive: true });
+
+        document.addEventListener('touchmove', (event) => {
+            if (!explorarTouchStart) return;
+            const touch = event.touches[0];
+            if (!touch) return;
+            const deltaX = touch.clientX - explorarTouchStart.x;
+            const deltaY = touch.clientY - explorarTouchStart.y;
+            if (Math.abs(deltaY) > 80) return;
+            const isMobile = window.matchMedia('(max-width: 768px)').matches;
+            if (!isMobile) return;
+            const panelWidth = window.innerWidth;
+            const translateX = isClosing
+                ? Math.max(-panelWidth, Math.min(0, deltaX))
+                : Math.min(0, -panelWidth + deltaX);
+            if (!isDragging) {
+                isDragging = true;
+                explorarPage.classList.add('is-dragging');
+                explorarPage.classList.remove('is-open');
+                explorarPage.setAttribute('aria-hidden', 'false');
+                document.documentElement.classList.add('explorar-open');
+                document.body.classList.add('explorar-open');
+                if (mobileSidebarBackdrop) {
+                    wasBackdropVisible = mobileSidebarBackdrop.classList.contains('visible');
+                    mobileSidebarBackdrop.classList.remove('visible');
+                }
+                if (feedExplorarSlider) {
+                    feedExplorarSlider.classList.add('is-dragging');
+                    feedExplorarSlider.classList.remove('is-explorar');
+                }
+            }
+            if (feedExplorarSlider) {
+                feedExplorarSlider.style.transform = `translateX(${translateX}px)`;
+            }
+        }, { passive: true });
+
+        document.addEventListener('touchend', (event) => {
+            if (!explorarTouchStart) return;
+            const touch = event.changedTouches[0];
+            if (!touch) return;
+            const deltaX = touch.clientX - explorarTouchStart.x;
+            const deltaY = touch.clientY - explorarTouchStart.y;
+            const elapsed = Date.now() - explorarTouchStart.time;
+            explorarTouchStart = null;
+            if (isDragging) {
+                isDragging = false;
+                const panelWidth = window.innerWidth;
+                const shouldComplete = Math.abs(deltaX) > panelWidth * 0.4;
+                if (isClosing) {
+                    if (shouldComplete) {
+                        closeExplorarPanel();
+                    } else {
+                        openExplorarPanel(true);
+                    }
+                } else {
+                    if (shouldComplete) {
+                        openExplorarPanel(true);
+                    } else {
+                        closeExplorarPanel();
+                    }
+                }
+                if (mobileSidebarBackdrop && wasBackdropVisible) {
+                    mobileSidebarBackdrop.classList.add('visible');
+                }
+                isClosing = false;
+                return;
+            }
+            if (elapsed > 700) return;
+            if (Math.abs(deltaY) > 80) return;
+            if (!isClosing && deltaX > window.innerWidth * 0.4) {
+                openExplorarPanel(true);
+            }
+            if (isClosing && deltaX < -window.innerWidth * 0.4) {
+                closeExplorarPanel();
+            }
+            isClosing = false;
+        }, { passive: true });
     }
 
     let allPostsFeed = [];
@@ -1819,6 +2493,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnAdicionarFotoPost = document.getElementById('btn-adicionar-foto-post');
     const previewFotosPost = document.getElementById('preview-fotos-post');
     const fotosPostSelecionadas = [];
+    const MAX_FOTOS_POST = 4;
 
     function atualizarVisibilidadeBotoesPost() {
         const temFotos = fotosPostSelecionadas.length > 0;
@@ -1865,10 +2540,12 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    if (postMediaInput && btnSelecionarFotoPost) {
+    if (postMediaInput) {
         const abrirSeletorPost = () => postMediaInput.click();
 
-        btnSelecionarFotoPost.addEventListener('click', abrirSeletorPost);
+        if (btnSelecionarFotoPost) {
+            btnSelecionarFotoPost.addEventListener('click', abrirSeletorPost);
+        }
         if (btnAdicionarFotoPost) {
             btnAdicionarFotoPost.addEventListener('click', abrirSeletorPost);
         }
@@ -1879,13 +2556,48 @@ document.addEventListener('DOMContentLoaded', () => {
 
             files.forEach((file) => {
                 if (!file.type.startsWith('image/')) return;
+                if (fotosPostSelecionadas.length >= MAX_FOTOS_POST) return;
                 if (!fotosPostSelecionadas.includes(file)) {
                     fotosPostSelecionadas.push(file);
                     criarThumbnailPost(file);
                 }
             });
 
+            if (fotosPostSelecionadas.length >= MAX_FOTOS_POST && files.length > 0) {
+                showMessage(postFormMessage, `Máximo de ${MAX_FOTOS_POST} imagens por publicação.`, 'info');
+            }
+
             atualizarVisibilidadeBotoesPost();
+            if (postForm) {
+                postForm.classList.add('is-active');
+            }
+        });
+    }
+
+    if (postForm) {
+        const activatePostActions = () => postForm.classList.add('is-active');
+        const deactivatePostActions = () => postForm.classList.remove('is-active');
+        const syncSendButtonState = () => {
+            const hasText = !!postContentInput?.value?.trim();
+            const hasImages = fotosPostSelecionadas.length > 0;
+            postForm.classList.toggle('has-content', hasText || hasImages);
+        };
+
+        postContentInput?.addEventListener('focus', activatePostActions);
+        postContentInput?.addEventListener('input', () => {
+            syncSendButtonState();
+        });
+
+        syncSendButtonState();
+
+        document.addEventListener('click', (event) => {
+            if (!postForm.contains(event.target)) {
+                const hasText = !!postContentInput?.value?.trim();
+                const hasImages = fotosPostSelecionadas.length > 0;
+                if (!hasText && !hasImages) {
+                    deactivatePostActions();
+                }
+            }
         });
     }
 
@@ -2012,9 +2724,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (mobileSidebarToggle && categoriasAside) {
         console.log('🔧 Botão de filtros encontrado, configurando...');
-        mobileSidebarBackdrop = document.createElement('div');
-        mobileSidebarBackdrop.id = 'mobile-sidebar-backdrop';
-        document.body.appendChild(mobileSidebarBackdrop);
+        mobileSidebarBackdrop = document.getElementById('mobile-sidebar-backdrop');
+        if (mobileSidebarBackdrop) {
+            mobileSidebarBackdrop.remove();
+            mobileSidebarBackdrop = null;
+        }
 
         function isMediaScreen() {
             return window.innerWidth >= 769 && window.innerWidth <= 992;
@@ -2033,7 +2747,9 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             
             if (!isMediaScreen()) {
-                mobileSidebarBackdrop.classList.remove('visible');
+                if (mobileSidebarBackdrop) {
+                    mobileSidebarBackdrop.classList.remove('visible');
+                }
                 mobileSidebarToggle.classList.remove('hidden');
             }
         }
@@ -2104,7 +2820,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             } else {
                 categoriasAside.classList.add('aberta');
-                mobileSidebarBackdrop.classList.add('visible');
+                if (mobileSidebarBackdrop) {
+                    mobileSidebarBackdrop.classList.add('visible');
+                }
                 mobileSidebarToggle.classList.add('hidden');
             }
         }
@@ -2249,7 +2967,9 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
 
-        mobileSidebarBackdrop.addEventListener('click', fecharSidebarMobile);
+        if (mobileSidebarBackdrop) {
+            mobileSidebarBackdrop.addEventListener('click', fecharSidebarMobile);
+        }
 
         // Reposicionar dropdown ao rolar ou redimensionar em telas médias
         function reposicionarDropdown() {
@@ -2361,6 +3081,102 @@ document.addEventListener('DOMContentLoaded', () => {
                     console.warn('Falha ao buscar sugestões de cidades:', err);
                 }
             }, 180);
+        });
+    }
+
+    if (explorarCidadeAddBtn && explorarCidadeInput) {
+        explorarCidadeAddBtn.addEventListener('click', () => {
+            addExplorarCity(explorarCidadeInput.value);
+            explorarCidadeInput.value = '';
+        });
+        explorarCidadeInput.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                addExplorarCity(explorarCidadeInput.value);
+                explorarCidadeInput.value = '';
+            }
+        });
+
+        explorarCidadeInput.addEventListener('blur', () => {
+            if (explorarCidadeInput.value) {
+                explorarCidadeInput.value = resolveCityName(explorarCidadeInput.value);
+            }
+        });
+
+        let explorarSugestaoTimer = null;
+        explorarCidadeInput.addEventListener('input', () => {
+            if (!explorarCidadesDatalist) return;
+            const termo = explorarCidadeInput.value.trim();
+            if (explorarSugestaoTimer) clearTimeout(explorarSugestaoTimer);
+            if (!termo || termo.length < 1) return;
+            explorarSugestaoTimer = setTimeout(async () => {
+                try {
+                    const resp = await fetch(`/api/cidades/sugestoes?termo=${encodeURIComponent(termo)}`);
+                    const data = await resp.json();
+                    if (!resp.ok || !data?.success) return;
+                    const sugestoes = Array.isArray(data.cidades) ? data.cidades : (Array.isArray(data.sugestoes) ? data.sugestoes : []);
+                    if (explorarCidadesDatalist) {
+                        explorarCidadesDatalist.innerHTML = '';
+                        const frag = document.createDocumentFragment();
+                        sugestoes.forEach((cidade) => {
+                            const opt = document.createElement('option');
+                            opt.value = cidade;
+                            frag.appendChild(opt);
+                        });
+                        explorarCidadesDatalist.appendChild(frag);
+                    }
+                } catch (err) {
+                    console.warn('Falha ao buscar sugestoes de cidades:', err);
+                }
+            }, 250);
+        });
+    }
+
+    if (explorarCityEditBtn && explorarCityControls) {
+        explorarCityEditBtn.addEventListener('click', () => {
+            explorarCityControls.classList.toggle('is-open');
+            if (explorarCityRow) {
+                explorarCityRow.classList.toggle('is-hidden');
+            }
+            if (!explorarCityControls.classList.contains('is-open')) {
+                closeExplorarCityControls();
+            }
+        });
+    }
+
+    if (explorarCityControls) {
+        document.addEventListener('click', (event) => {
+            if (!explorarCityControls.classList.contains('is-open')) return;
+            const target = event.target;
+            if (explorarCityControls.contains(target) || explorarCityEditBtn?.contains(target)) return;
+            closeExplorarCityControls();
+        });
+    }
+
+    if (explorarCategoriaCurrent && explorarCategoriasModal) {
+        explorarCategoriaCurrent.addEventListener('click', () => {
+            const isOpen = explorarCategoriasModal.classList.toggle('is-open');
+            explorarCategoriaCurrent.classList.toggle('is-hidden', isOpen);
+            const current = explorarCategoriaCurrent.textContent?.trim();
+            explorarCategoriasModal.querySelectorAll('.explorar-categoria-option').forEach((option) => {
+                const optionText = option.textContent?.trim();
+                option.classList.toggle('is-hidden', !!current && optionText === current);
+            });
+        });
+        explorarCategoriasModal.querySelectorAll('.explorar-categoria-option').forEach((option) => {
+            option.addEventListener('click', () => {
+                explorarCategoriaCurrent.textContent = option.textContent || 'Todas';
+                explorarCategoriasModal.classList.remove('is-open');
+                explorarCategoriaCurrent.classList.remove('is-hidden');
+                fetchExplorarFeed();
+            });
+        });
+        document.addEventListener('click', (event) => {
+            if (!explorarCategoriasModal.classList.contains('is-open')) return;
+            const target = event.target;
+            if (explorarCategoriasModal.contains(target) || explorarCategoriaCurrent.contains(target)) return;
+            explorarCategoriasModal.classList.remove('is-open');
+            explorarCategoriaCurrent.classList.remove('is-hidden');
         });
     }
 
@@ -7858,7 +8674,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
     (async () => {
-    if (!token || !userId) {
+        const urlParams = new URLSearchParams(window.location.search);
+        if (!token || !userId) {
             const isLoginPath = path.endsWith('/login') || path.endsWith('/login.html');
             const isCadastroPath = path.endsWith('/cadastro') || path.endsWith('/cadastro.html');
             // Se está no feed (ou outra página protegida) sem login → manda para /login
@@ -7868,27 +8685,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Se está na página de login/cadastro, garante header limpo
                 if (userNameHeader) userNameHeader.textContent = '';
                 if (userAvatarHeader) userAvatarHeader.src = '/imagens/default-user.png';
-        }
-    } else {
+            }
+        } else {
             // Antes de carregar o feed e outras informações, valida se o token ainda é aceito pelo backend
             const sessaoValida = await validarSessaoAtiva();
             if (!sessaoValida) {
-                // validarSessaoAtiva já faz o redirect se for inválido
                 return;
             }
 
-        if (postsContainer) {
-            loadHeaderInfo();
-            fetchPosts(); 
-        }
-        if (destaquesScroll) {
-            deferNonCriticalInit(() => fetchDestaques());
-        }
-        if (timesContainer) {
-            deferNonCriticalInit(() => carregarTimesLocais());
-            
-            // Verifica se há parâmetro para abrir candidatos (vindo de notificação)
-            const urlParams = new URLSearchParams(window.location.search);
             const abrirCandidatos = urlParams.get('abrirCandidatos');
             const profissionalId = urlParams.get('profissionalId');
             const candidatoId = urlParams.get('candidatoId');
@@ -7900,23 +8704,44 @@ document.addEventListener('DOMContentLoaded', () => {
                     window.history.replaceState({}, document.title, window.location.pathname);
                 }, 1000); // Aguarda carregar os times primeiro
             }
-            
+
             // Recarrega times quando a página volta ao foco (caso tenha mudado a cidade em outra aba)
             window.addEventListener('focus', () => {
                 carregarTimesLocais();
             });
-            
+
             // Recarrega times quando a cidade é atualizada (evento customizado)
             window.addEventListener('cidadeAtualizada', () => {
                 carregarTimesLocais();
             });
-            
+
             // Recarrega times quando a página de configurações é fechada (se foi aberta na mesma aba)
             window.addEventListener('storage', (e) => {
                 if (e.key === 'cidadeAtualizada' || e.key === 'perfilAtualizado') {
                     carregarTimesLocais();
                 }
             });
+
+            if (postsContainer) {
+                loadHeaderInfo();
+                fetchPosts();
+            }
+            if (destaquesScroll) {
+                deferNonCriticalInit(() => fetchDestaques());
+            }
+
+            if (explorarPage) {
+                try {
+                    const storedCities = JSON.parse(localStorage.getItem('explorarCities') || '[]');
+                    if (Array.isArray(storedCities)) {
+                        explorarSelectedCities = storedCities.filter(Boolean);
+                    }
+                } catch (e) {
+                    explorarSelectedCities = [];
+                }
+                bootstrapExplorarCities();
+                setupExplorarSwipe();
+            }
         }
         
         // Abrir modal de propostas se houver pedidoId na URL
@@ -7967,7 +8792,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }, 1500); // Aguarda posts carregarem
         }
-    }
     
     // Função global para navegar até um post e comentário/resposta específico (usada por notificações)
     window.navegarParaPost = async function(postId, commentId = null, replyId = null) {

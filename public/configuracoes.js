@@ -518,21 +518,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const categorias = document.querySelector('.categorias');
     const mobileSidebarClose = document.getElementById('mobile-sidebar-close');
     let mobileSidebarBackdrop = document.getElementById('mobile-sidebar-backdrop');
+    if (mobileSidebarBackdrop) {
+        mobileSidebarBackdrop.remove();
+        mobileSidebarBackdrop = null;
+    }
 
     // Ações rápidas do menu lateral
     const btnPrecisoAgora = document.getElementById('btn-preciso-agora');
     const btnVerPedidosUrgentes = document.getElementById('btn-ver-pedidos-urgentes');
 
     function garantirBackdropSidebar() {
-        if (mobileSidebarBackdrop) return mobileSidebarBackdrop;
-        mobileSidebarBackdrop = document.createElement('div');
-        mobileSidebarBackdrop.id = 'mobile-sidebar-backdrop';
-        document.body.appendChild(mobileSidebarBackdrop);
-        mobileSidebarBackdrop.addEventListener('click', () => {
-            if (categorias) categorias.classList.remove('aberta');
-            mobileSidebarBackdrop.classList.remove('visible');
-        });
-        return mobileSidebarBackdrop;
+        return null;
     }
 
     function toggleSidebarConfiguracoes() {
@@ -541,12 +537,16 @@ document.addEventListener('DOMContentLoaded', () => {
         if (isOpen) {
             categorias.classList.remove('aberta');
             const bd = garantirBackdropSidebar();
-            bd.classList.remove('visible');
+            if (bd) {
+                bd.classList.remove('visible');
+            }
             document.body.style.overflow = '';
         } else {
             categorias.classList.add('aberta');
             const bd = garantirBackdropSidebar();
-            bd.classList.add('visible');
+            if (bd) {
+                bd.classList.add('visible');
+            }
             document.body.style.overflow = 'hidden';
         }
     }
@@ -555,7 +555,9 @@ document.addEventListener('DOMContentLoaded', () => {
         mobileSidebarClose.addEventListener('click', () => {
             if (categorias) categorias.classList.remove('aberta');
             const bd = garantirBackdropSidebar();
-            bd.classList.remove('visible');
+            if (bd) {
+                bd.classList.remove('visible');
+            }
             document.body.style.overflow = '';
         });
     }
