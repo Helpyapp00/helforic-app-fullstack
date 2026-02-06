@@ -41,7 +41,7 @@
 }
 
 .explorar-categoria-pill.is-active {
-    background: transparent;
+    background: linear-gradient(180deg, rgba(3, 6, 12, 0.92) 0%, rgba(8, 26, 38, 0.85) 60%, rgba(8, 26, 38, 0) 100%);
     border-color: rgba(255, 255, 255, 0.5);
 }
 
@@ -213,7 +213,7 @@ html.dark-mode .explorar-cidade-add-btn .icon-dark {
 
     header.search-open + .conteudo .explorar-page,
     header.search-open + .conteudo .feed-explorar-slider .explorar-page {
-        padding-top: calc(var(--header-height, 70px) + 12px);
+        padding-top: 0;
     }
 }
 
@@ -658,6 +658,10 @@ html.dark-mode .header-explorar {
   z-index: 999; /* abaixo do header */
 }
 
+header:not(.search-open) #search-results {
+  display: none !important;
+}
+
 .search-results-box {
   /* Fundo mais escuro para destacar as opções de perfil */
   background: rgba(15, 15, 20, 0.97);
@@ -707,12 +711,7 @@ html.dark-mode .header-explorar {
 }
 
 .search-results-empty {
-  background: rgba(15, 15, 20, 0.97);
-  color: #b0b3b8;
-  border-radius: 10px;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.1);
-  padding: 12px 16px;
-  font-size: 0.9rem;
+  display: none;
 }
 
 #search-results-backdrop {
@@ -725,6 +724,16 @@ html.dark-mode .header-explorar {
 
 #search-results-backdrop.visible {
   display: block;
+}
+.header-explorar {
+  width: 100%;
+  margin-top: 10px;
+}
+
+@media (max-width: 992px) {
+  #header-explorar {
+    display: none !important;
+  }
 }
 .user-info { display: flex; align-items: center; gap: 15px; }
 .user-avatar-header { 
@@ -841,7 +850,7 @@ body.explorar-open {
 }
 
 body.explorar-open header.search-open ~ .conteudo {
-    margin-top: calc(var(--header-height, 92px) + 2px) !important;
+    margin-top: 0 !important;
 }
 .categorias { flex-basis: 250px; flex-shrink: 1; min-width: 220px; background: var(--bg-secondary); border-radius: 8px; padding: 20px; box-shadow: 0 2px 5px var(--shadow-color); height: fit-content; position: sticky; top: 115px; box-sizing: border-box; max-width: 100%; overflow-x: hidden; }
 .categorias h2 { font-size: 1.5em; color: var(--text-primary); margin-bottom: 10px; text-align: center; word-wrap: break-word; } 
@@ -11151,7 +11160,7 @@ body.explorar-open header.search-open .header-actions {
 }
 
 html.dark-mode .explorar-page-header {
-    background: linear-gradient(180deg, rgba(3, 5, 8, 0.88) 0%, rgba(6, 20, 28, 0.8) 60%, rgba(6, 20, 28, 0) 100%);
+    background: linear-gradient(180deg, rgba(3, 6, 12, 0.92) 0%, rgba(8, 26, 38, 0.85) 60%, rgba(8, 26, 38, 0) 100%);
 }
 
 .explorar-page-header h2 {

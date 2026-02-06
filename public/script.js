@@ -200,7 +200,7 @@ document.addEventListener('DOMContentLoaded', () => {
             touchStartY = event.touches[0]?.clientY ?? null;
             dragging = false;
             explorarVideoOverlay.classList.add('is-dragging');
-        }, { passive: true });
+        }, { passive: false });
 
         explorarVideoOverlay.addEventListener('touchmove', (event) => {
             if (touchStartY === null || touchStartX === null) return;
@@ -213,7 +213,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             const scale = 0.65;
             explorarVideoOverlay.style.transform = `translate(${deltaX}px, ${deltaY}px) scale(${scale})`;
-        }, { passive: true });
+        }, { passive: false });
 
         explorarVideoOverlay.addEventListener('touchend', () => {
             if (!dragging) {
@@ -373,8 +373,16 @@ document.addEventListener('DOMContentLoaded', () => {
     function fecharBuscaUI() {
         // Fecha UI de busca (campo + resultados + backdrop)
         headerEl && headerEl.classList.remove('search-open');
-        if (searchResultsContainer) searchResultsContainer.innerHTML = '';
+        if (searchResultsContainer) {
+            searchResultsContainer.innerHTML = '';
+            searchResultsContainer.style.display = 'none';
+        }
         if (searchResultsBackdrop) searchResultsBackdrop.classList.remove('visible');
+        const backdropEl = document.getElementById('search-results-backdrop');
+        if (backdropEl) {
+            backdropEl.classList.remove('visible');
+            backdropEl.style.display = 'none';
+        }
     }
 
     // Mantém uma variável CSS com a altura real do header (pra posicionar modais abaixo dele)
@@ -589,12 +597,13 @@ document.addEventListener('DOMContentLoaded', () => {
     if (searchToggleBtn && searchInput) {
         searchToggleBtn.addEventListener('click', () => {
             if (!headerEl) return;
-            headerEl.classList.toggle('search-open');
-            if (headerEl.classList.contains('search-open')) {
+            const willOpen = !headerEl.classList.contains('search-open');
+            if (willOpen) {
+                headerEl.classList.add('search-open');
                 searchInput.focus();
             } else {
-                // Ao fechar, limpa só o campo (não mexe no filtro ativo)
-                // searchInput.value = '';
+                fecharBuscaUI();
+                document.getElementById('search-results-backdrop')?.classList.remove('visible');
             }
         });
     }
@@ -643,7 +652,9 @@ document.addEventListener('DOMContentLoaded', () => {
         bottomNavQuickBtn.addEventListener('click', () => {
             fecharModaisPrecisoAgoraEPedidoUrgente();
             fecharBuscaUI();
-            openExplorarPanel(true);
+            if (mobileSidebarToggle) {
+                mobileSidebarToggle.click();
+            }
         });
     }
 
@@ -772,7 +783,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 onScroll();
                 ticking = false;
             });
-        }, { passive: true });
+        }, { passive: false });
     }
 
     // ----------------------------------------------------------------------
@@ -1433,6 +1444,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const isMobile = window.matchMedia('(max-width: 768px)').matches;
             if (!isMobile) return;
             if (explorarPage?.classList.contains('is-open')) {
+                const edgeThreshold = window.innerWidth * 0.8;
+                if (touch.clientX < edgeThreshold) return;
                 isClosing = true;
                 explorarTouchStart = {
                     x: touch.clientX || 0,
@@ -1441,14 +1454,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 };
                 return;
             }
-            const edgeThreshold = window.innerWidth * 0.6;
+            const edgeThreshold = window.innerWidth * 0.2;
             if (touch.clientX > edgeThreshold) return;
             explorarTouchStart = {
                 x: touch.clientX || 0,
                 y: touch.clientY || 0,
                 time: Date.now()
             };
-        }, { passive: true });
+        }, { passive: false });
 
         document.addEventListener('touchmove', (event) => {
             if (!explorarTouchStart) return;
@@ -1456,9 +1469,15 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!touch) return;
             const deltaX = touch.clientX - explorarTouchStart.x;
             const deltaY = touch.clientY - explorarTouchStart.y;
-            if (Math.abs(deltaY) > 80) return;
+            const absX = Math.abs(deltaX);
+            const absY = Math.abs(deltaY);
+            if (absX < 40) return;
+            if (absX < absY * 2.2) return;
             const isMobile = window.matchMedia('(max-width: 768px)').matches;
             if (!isMobile) return;
+            if (event.cancelable) {
+                event.preventDefault();
+            }
             const panelWidth = window.innerWidth;
             const translateX = isClosing
                 ? Math.max(-panelWidth, Math.min(0, deltaX))
@@ -1482,7 +1501,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (feedExplorarSlider) {
                 feedExplorarSlider.style.transform = `translateX(${translateX}px)`;
             }
-        }, { passive: true });
+        }, { passive: false });
 
         document.addEventListener('touchend', (event) => {
             if (!explorarTouchStart) return;
@@ -1495,7 +1514,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (isDragging) {
                 isDragging = false;
                 const panelWidth = window.innerWidth;
-                const shouldComplete = Math.abs(deltaX) > panelWidth * 0.4;
+                const shouldComplete = Math.abs(deltaX) > panelWidth * 0.2;
                 if (isClosing) {
                     if (shouldComplete) {
                         closeExplorarPanel();
@@ -1515,12 +1534,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 isClosing = false;
                 return;
             }
+            const absX = Math.abs(deltaX);
+            const absY = Math.abs(deltaY);
             if (elapsed > 700) return;
-            if (Math.abs(deltaY) > 80) return;
-            if (!isClosing && deltaX > window.innerWidth * 0.4) {
+            if (absX < 45) return;
+            if (absX < absY * 2.2) return;
+            if (!isClosing && deltaX > window.innerWidth * 0.2) {
                 openExplorarPanel(true);
             }
-            if (isClosing && deltaX < -window.innerWidth * 0.4) {
+            if (isClosing && deltaX < -window.innerWidth * 0.2) {
                 closeExplorarPanel();
             }
             isClosing = false;
@@ -1739,30 +1761,36 @@ document.addEventListener('DOMContentLoaded', () => {
 
         let commentsHTML = initialComments.map(comment => {
             if (!comment.userId) return '';
+            const commentUser = (comment.userId && typeof comment.userId === 'object')
+                ? comment.userId
+                : { _id: comment.userId, nome: 'Usuário', foto: '', avatarUrl: '' };
 
-            const isCommentOwner = comment.userId._id === userId;
+            const isCommentOwner = commentUser._id === userId;
             const canEditComment = isCommentOwner;
             const canDeleteComment = isPostOwner || isCommentOwner;
 
             let repliesHTML = (comment.replies || []).map(reply => {
-                const isReplyOwner = reply.userId && reply.userId._id === userId;
+                const replyUser = (reply.userId && typeof reply.userId === 'object')
+                    ? reply.userId
+                    : { _id: reply.userId, nome: 'Usuário', foto: '', avatarUrl: '' };
+                const isReplyOwner = replyUser && replyUser._id === userId;
                 const canEditReply = isReplyOwner;
                 const canDeleteReply = isPostOwner || isReplyOwner;
-                return renderReply(reply, comment._id, canEditReply, canDeleteReply);
+                return renderReply(reply, comment._id, canEditReply, canDeleteReply, replyUser);
             }).join('');
 
-            const commentPhoto = comment.userId.foto || comment.userId.avatarUrl || 'imagens/default-user.png';
+            const commentPhoto = commentUser.foto || commentUser.avatarUrl || 'imagens/default-user.png';
             const isCommentLiked = comment.likes && comment.likes.includes(userId);
             const replyCount = comment.replies?.length || 0;
 
             return `
             <div class="comment" data-comment-id="${comment._id}">
-                <a href="/perfil.html?id=${comment.userId._id}" style="text-decoration: none; color: inherit;">
+                <a href="/perfil.html?id=${commentUser._id}" style="text-decoration: none; color: inherit;">
                     <img src="${commentPhoto.includes('pixabay') ? 'imagens/default-user.png' : commentPhoto}" alt="Avatar" class="comment-avatar" style="cursor: pointer;" loading="lazy" decoding="async">
                 </a>
                 <div class="comment-body-container">
                     <div class="comment-body">
-                        <a href="/perfil.html?id=${comment.userId._id}" style="text-decoration: none; color: inherit; font-weight: bold; cursor: pointer;">${comment.userId.nome}</a>
+                        <a href="/perfil.html?id=${commentUser._id}" style="text-decoration: none; color: inherit; font-weight: bold; cursor: pointer;">${commentUser.nome || 'Usuário'}</a>
                         <p class="comment-content">${comment.content}</p>
                         ${(canEditComment || canDeleteComment) ? `
                             <button class="btn-comment-options" data-comment-id="${comment._id}" title="Opções">⋯</button>
@@ -1782,7 +1810,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                     <div class="reply-list oculto">${repliesHTML}</div>
                     <div class="reply-form oculto">
-                        <input type="text" class="reply-input" placeholder="Responda a ${comment.userId.nome}...">
+                        <input type="text" class="reply-input" placeholder="Responda a ${commentUser.nome || 'Usuário'}...">
                         <button class="btn-send-reply" data-comment-id="${comment._id}" aria-label="Enviar resposta" title="Enviar resposta">
                             <img
                                 class="send-reply-icon"
@@ -1801,30 +1829,36 @@ document.addEventListener('DOMContentLoaded', () => {
         const remainingComments = allComments.slice(2);
         let hiddenCommentsHTML = remainingComments.map((comment, index) => {
             if (!comment.userId) return '';
+            const commentUser = (comment.userId && typeof comment.userId === 'object')
+                ? comment.userId
+                : { _id: comment.userId, nome: 'Usuário', foto: '', avatarUrl: '' };
 
-            const isCommentOwner = comment.userId._id === userId;
+            const isCommentOwner = commentUser._id === userId;
             const canEditComment = isCommentOwner;
             const canDeleteComment = isPostOwner || isCommentOwner;
 
             let repliesHTML = (comment.replies || []).map(reply => {
-                const isReplyOwner = reply.userId && reply.userId._id === userId;
+                const replyUser = (reply.userId && typeof reply.userId === 'object')
+                    ? reply.userId
+                    : { _id: reply.userId, nome: 'Usuário', foto: '', avatarUrl: '' };
+                const isReplyOwner = replyUser && replyUser._id === userId;
                 const canEditReply = isReplyOwner;
                 const canDeleteReply = isPostOwner || isReplyOwner;
-                return renderReply(reply, comment._id, canEditReply, canDeleteReply);
+                return renderReply(reply, comment._id, canEditReply, canDeleteReply, replyUser);
             }).join('');
 
-            const commentPhoto = comment.userId.foto || comment.userId.avatarUrl || 'imagens/default-user.png';
+            const commentPhoto = commentUser.foto || commentUser.avatarUrl || 'imagens/default-user.png';
             const isCommentLiked = comment.likes && comment.likes.includes(userId);
             const replyCount = comment.replies?.length || 0;
 
             return `
             <div class="comment comment-hidden" data-comment-id="${comment._id}" data-comment-index="${index + 2}">
-                <a href="/perfil.html?id=${comment.userId._id}" style="text-decoration: none; color: inherit;">
+                <a href="/perfil.html?id=${commentUser._id}" style="text-decoration: none; color: inherit;">
                     <img src="${commentPhoto.includes('pixabay') ? 'imagens/default-user.png' : commentPhoto}" alt="Avatar" class="comment-avatar" style="cursor: pointer;" loading="lazy" decoding="async">
                 </a>
                 <div class="comment-body-container">
                     <div class="comment-body">
-                        <a href="/perfil.html?id=${comment.userId._id}" style="text-decoration: none; color: inherit; font-weight: bold; cursor: pointer;">${comment.userId.nome}</a>
+                        <a href="/perfil.html?id=${commentUser._id}" style="text-decoration: none; color: inherit; font-weight: bold; cursor: pointer;">${commentUser.nome || 'Usuário'}</a>
                         <p class="comment-content">${comment.content}</p>
                         ${(canEditComment || canDeleteComment) ? `
                             <button class="btn-comment-options" data-comment-id="${comment._id}" title="Opções">⋯</button>
@@ -1844,7 +1878,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                     <div class="reply-list oculto">${repliesHTML}</div>
                     <div class="reply-form oculto">
-                        <input type="text" class="reply-input" placeholder="Responda a ${comment.userId.nome}...">
+                        <input type="text" class="reply-input" placeholder="Responda a ${commentUser.nome || 'Usuário'}...">
                         <button class="btn-send-reply" data-comment-id="${comment._id}" aria-label="Enviar resposta" title="Enviar resposta">
                             <img
                                 class="send-reply-icon"
@@ -2184,19 +2218,22 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // 🛑 NOVO: Função para renderizar uma Resposta (Reply)
-    function renderReply(reply, commentId, canEditReply, canDeleteReply) {
-        if (!reply.userId) return '';
-        const replyPhoto = reply.userId.foto || reply.userId.avatarUrl || 'imagens/default-user.png';
+    function renderReply(reply, commentId, canEditReply, canDeleteReply, replyUser) {
+        if (!reply || !reply.userId) return '';
+        const userData = replyUser || (typeof reply.userId === 'object'
+            ? reply.userId
+            : { _id: reply.userId, nome: 'Usuário', foto: '', avatarUrl: '' });
+        const replyPhoto = userData.foto || userData.avatarUrl || 'imagens/default-user.png';
         const isReplyLiked = reply.likes && reply.likes.includes(userId);
         
         return `
         <div class="reply" data-reply-id="${reply._id}">
-            <a href="/perfil.html?id=${reply.userId._id}" style="text-decoration: none; color: inherit;">
+            <a href="/perfil.html?id=${userData._id}" style="text-decoration: none; color: inherit;">
                 <img src="${replyPhoto.includes('pixabay') ? 'imagens/default-user.png' : replyPhoto}" alt="Avatar" class="reply-avatar" style="cursor: pointer;" loading="lazy" decoding="async">
             </a>
             <div class="reply-body-container">
                 <div class="reply-body">
-                    <a href="/perfil.html?id=${reply.userId._id}" style="text-decoration: none; color: inherit; font-weight: bold; cursor: pointer;">${reply.userId.nome}</a>
+                    <a href="/perfil.html?id=${userData._id}" style="text-decoration: none; color: inherit; font-weight: bold; cursor: pointer;">${userData.nome || 'Usuário'}</a>
                     <p class="reply-content">${reply.content}</p>
                     ${(canEditReply || canDeleteReply) ? `
                         <button class="btn-reply-options" data-comment-id="${commentId}" data-reply-id="${reply._id}" title="Opções">⋯</button>
@@ -2323,6 +2360,7 @@ document.addEventListener('DOMContentLoaded', () => {
             btn.addEventListener('click', function() {
                 const postId = this.dataset.postId;
                 const postElement = this.closest('.post');
+                if (!postElement) return;
                 const currentlyLoaded = parseInt(this.dataset.loaded) || 2;
                 const totalComments = parseInt(this.dataset.total) || 0;
                 const nextBatch = currentlyLoaded + 5;
@@ -3225,7 +3263,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
             searchResultsBackdrop.addEventListener('click', () => {
                 // Ao clicar fora, limpa resultados e esconde o fundo escurecido
-                if (searchResultsContainer) searchResultsContainer.innerHTML = '';
+                if (searchResultsContainer) {
+                    searchResultsContainer.innerHTML = '';
+                    searchResultsContainer.style.display = 'none';
+                }
                 searchResultsBackdrop.classList.remove('visible');
                 // No mobile, fecha a área de busca do header também
                 const headerEl = document.querySelector('header');
@@ -3267,6 +3308,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         function renderSearchHistoryUsers() {
             if (!searchResultsContainer) return;
+            searchResultsContainer.style.display = 'block';
             const history = getSearchHistoryUsers();
 
             if (!history.length) {
@@ -3346,6 +3388,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         function renderSearchResults(data, termo) {
             if (!searchResultsContainer) return;
+            searchResultsContainer.style.display = 'block';
 
             const { usuarios = [], servicos = [], posts = [] } = data;
 
@@ -3406,22 +3449,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
         let buscaTimeout = null;
 
-        // Filtra enquanto digita (com pequeno atraso para não travar)
         searchInput.addEventListener('input', () => {
-            const valor = searchInput.value;
             clearTimeout(buscaTimeout);
+            const valor = searchInput.value;
             buscaTimeout = setTimeout(() => {
-                aplicarFiltroBusca(valor);   // Filtro local no feed
-                buscarNoServidor(valor);     // Busca global (usuários/serviços/posts)
+                buscarNoServidor(valor);
             }, 200);
         });
 
-        // Enter também dispara a busca imediatamente
         searchInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
                 e.preventDefault();
                 const valor = searchInput.value;
-                aplicarFiltroBusca(valor);
                 buscarNoServidor(valor);
             }
         });

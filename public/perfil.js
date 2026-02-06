@@ -1411,6 +1411,11 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({ message: 'Erro desconhecido' }));
                 console.error('❌ Erro na resposta:', errorData);
+                if (response.status === 404) {
+                    if (nomePerfil) nomePerfil.textContent = 'Usuário não encontrado.';
+                    if (descricaoPerfil) descricaoPerfil.textContent = 'Este usuário foi removido.';
+                    return;
+                }
                 throw new Error(errorData.message || 'Falha ao buscar dados do perfil.');
             }
             const payload = await response.json();

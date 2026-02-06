@@ -831,6 +831,77 @@ app.get('/api/usuario/:id', authMiddleware, async (req, res) => {
     }
 });
 
+app.get('/api/busca', authMiddleware, async (req, res) => {
+    try {
+        const q = String(req.query.q || '').trim();
+        if (!q) {
+            return res.json({ success: true, usuarios: [], servicos: [], posts: [] });
+        }
+        const normalizeText = (text) => String(text || '')
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .toLowerCase()
+            .trim();
+        const escapeRegex = (text) => String(text || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const qNorm = normalizeText(q);
+        const accentMap = {
+            a: 'aàáâãä',
+            e: 'eèéêë',
+            i: 'iìíîï',
+            o: 'oòóôõö',
+            u: 'uùúûü',
+            c: 'cç',
+            n: 'nñ'
+        };
+        const pattern = qNorm
+            .split('')
+            .map((char) => {
+                const chars = accentMap[char];
+                return chars ? `[${escapeRegex(chars)}]` : escapeRegex(char);
+            })
+            .join('');
+        const regex = new RegExp(pattern, 'i');
+
+        const usuariosRaw = await User.find({
+            $or: [
+                { nome: regex },
+                { cidade: regex },
+                { estado: regex },
+                { atuacao: regex },
+                { email: regex }
+            ]
+        })
+            .select('nome avatarUrl foto cidade estado atuacao')
+            .limit(60)
+            .lean();
+
+        const usuarios = usuariosRaw
+            .map((user) => {
+                const nomeNorm = normalizeText(user?.nome);
+                const cidadeNorm = normalizeText(user?.cidade);
+                const estadoNorm = normalizeText(user?.estado);
+                const atuacaoNorm = normalizeText(user?.atuacao);
+                const emailNorm = normalizeText(user?.email);
+                const fields = [nomeNorm, cidadeNorm, estadoNorm, atuacaoNorm, emailNorm];
+                const matches = fields.some((field) => field.includes(qNorm));
+                if (!matches) return null;
+                const exact = nomeNorm === qNorm ? 3 : 0;
+                const starts = nomeNorm.startsWith(qNorm) ? 2 : 0;
+                const score = exact + starts + 1;
+                return { ...user, _score: score };
+            })
+            .filter(Boolean)
+            .sort((a, b) => b._score - a._score)
+            .slice(0, 20)
+            .map(({ _score, ...user }) => user);
+
+        return res.json({ success: true, usuarios, servicos: [], posts: [] });
+    } catch (error) {
+        console.error('Erro ao buscar usuários:', error);
+        return res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
+    }
+});
+
 app.put('/api/editar-perfil/:id', authMiddleware, upload.fields([
     { name: 'avatar', maxCount: 1 },
     { name: 'fotoPerfil', maxCount: 1 },
@@ -923,7 +994,7 @@ app.put('/api/editar-perfil/:id', authMiddleware, upload.fields([
         return res.json({ success: true, user: userUpdated });
     } catch (error) {
         console.error('Erro ao editar perfil:', error);
-        return res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
+        res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
     }
 });
 
@@ -943,11 +1014,8 @@ app.get('/api/cidades', authMiddleware, async (req, res) => {
         };
 
         const qNorm = normalizeString(q);
-
         const escapeRegex = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-        // Busca cidades dos usuários e filtra no Node para ficar tolerante a acentos.
-        // Para 1 letra, reduz o universo com regex de prefixo.
         const baseQuery = { cidade: { $exists: true, $ne: '' } };
         const mongoQuery = (q.length === 1)
             ? { ...baseQuery, cidade: { $regex: new RegExp(`^${escapeRegex(q)}`, 'i') } }
@@ -957,15 +1025,13 @@ app.get('/api/cidades', authMiddleware, async (req, res) => {
             .select('cidade')
             .lean();
 
-        const seen = new Map(); // key normalizada -> valor original
+        const seen = new Map();
         for (const u of usuarios) {
             const cidade = (u && u.cidade) ? String(u.cidade).trim() : '';
             if (!cidade) continue;
             const key = normalizeString(cidade);
             if (!key) continue;
 
-            // Para 1 letra: só "começa com" (evita muitas sugestões irrelevantes)
-            // Para 2+ letras: "começa com" OU "contém" (mais flexível)
             const match = (qNorm.length === 1)
                 ? key.startsWith(qNorm)
                 : (key.startsWith(qNorm) || key.includes(qNorm));
@@ -991,15 +1057,51 @@ app.get('/api/posts', authMiddleware, async (req, res) => {
         const posts = await Postagem.find()
             .sort({ createdAt: -1 })
             .populate('userId', 'nome foto avatarUrl tipo cidade estado')
-            .populate({
-                path: 'comments.userId',
-                select: 'nome foto avatarUrl'
-            })
-            .populate({
-                path: 'comments.replies.userId',
-                select: 'nome foto avatarUrl'
-            })
             .exec();
+
+        const normalizeUserId = (value) => {
+            if (!value) return '';
+            if (typeof value === 'object' && value._id) return String(value._id);
+            return String(value);
+        };
+
+        const userIds = new Set();
+        posts.forEach((post) => {
+            (post.comments || []).forEach((comment) => {
+                const commentUserId = normalizeUserId(comment?.userId);
+                if (commentUserId) userIds.add(commentUserId);
+                (comment?.replies || []).forEach((reply) => {
+                    const replyUserId = normalizeUserId(reply?.userId);
+                    if (replyUserId) userIds.add(replyUserId);
+                });
+            });
+        });
+
+        const users = userIds.size
+            ? await User.find({ _id: { $in: Array.from(userIds) } })
+                .select('nome foto avatarUrl')
+                .lean()
+            : [];
+        const userMap = new Map(users.map((user) => [String(user._id), user]));
+
+        posts.forEach((post) => {
+            const comments = Array.isArray(post.comments) ? post.comments : [];
+            const hydratedComments = [];
+            comments.forEach((comment) => {
+                const user = userMap.get(normalizeUserId(comment.userId));
+                if (!user) return;
+                comment.userId = user;
+                const replies = Array.isArray(comment.replies) ? comment.replies : [];
+                comment.replies = replies.filter((reply) => {
+                    const replyUser = userMap.get(normalizeUserId(reply.userId));
+                    if (!replyUser) return false;
+                    reply.userId = replyUser;
+                    return true;
+                });
+                hydratedComments.push(comment);
+            });
+            post.comments = hydratedComments;
+        });
 
         res.json(posts);
     } catch (error) {
@@ -1008,27 +1110,62 @@ app.get('/api/posts', authMiddleware, async (req, res) => {
     }
 });
 
-// Buscar Postagens de um Usuário
 app.get('/api/user-posts/:userId', authMiddleware, async (req, res) => {
     try {
         const { userId } = req.params;
         const posts = await Postagem.find({ userId: userId })
             .sort({ createdAt: -1 })
             .populate('userId', 'nome foto avatarUrl tipo cidade estado')
-            .populate({
-                path: 'comments.userId',
-                select: 'nome foto avatarUrl'
-            })
-            .populate({
-                path: 'comments.replies.userId',
-                select: 'nome foto avatarUrl'
-            })
             .exec();
+
+        const normalizeUserId = (value) => {
+            if (!value) return '';
+            if (typeof value === 'object' && value._id) return String(value._id);
+            return String(value);
+        };
+
+        const userIds = new Set();
+        posts.forEach((post) => {
+            (post.comments || []).forEach((comment) => {
+                const commentUserId = normalizeUserId(comment?.userId);
+                if (commentUserId) userIds.add(commentUserId);
+                (comment?.replies || []).forEach((reply) => {
+                    const replyUserId = normalizeUserId(reply?.userId);
+                    if (replyUserId) userIds.add(replyUserId);
+                });
+            });
+        });
+
+        const users = userIds.size
+            ? await User.find({ _id: { $in: Array.from(userIds) } })
+                .select('nome foto avatarUrl')
+                .lean()
+            : [];
+        const userMap = new Map(users.map((user) => [String(user._id), user]));
+
+        posts.forEach((post) => {
+            const comments = Array.isArray(post.comments) ? post.comments : [];
+            const hydratedComments = [];
+            comments.forEach((comment) => {
+                const user = userMap.get(normalizeUserId(comment.userId));
+                if (!user) return;
+                comment.userId = user;
+                const replies = Array.isArray(comment.replies) ? comment.replies : [];
+                comment.replies = replies.filter((reply) => {
+                    const replyUser = userMap.get(normalizeUserId(reply.userId));
+                    if (!replyUser) return false;
+                    reply.userId = replyUser;
+                    return true;
+                });
+                hydratedComments.push(comment);
+            });
+            post.comments = hydratedComments;
+        });
 
         res.json(posts);
     } catch (error) {
         console.error('Erro ao buscar postagens do usuário:', error);
-        res.status(500).json({ message: 'Erro interno do servidor.' });
+        res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
     }
 });
 
@@ -1060,81 +1197,6 @@ app.post('/api/interesses/registrar', authMiddleware, async (req, res) => {
     }
 });
 
-// Adicionar Comentário
-app.post('/api/posts/:postId/comment', authMiddleware, async (req, res) => {
-    try {
-        const { postId } = req.params;
-        const { content } = req.body;
-        const userId = req.user.id;
-
-        // Garante que userId seja ObjectId válido
-        const userIdObjectId = mongoose.Types.ObjectId.isValid(userId) 
-            ? new mongoose.Types.ObjectId(userId) 
-            : userId;
-
-        const newComment = {
-            userId: userIdObjectId,
-            content,
-            likes: [],
-            replies: [],
-            createdAt: new Date()
-        };
-
-        const post = await Postagem.findById(postId);
-        if (!post) {
-            return res.status(404).json({ success: false, message: 'Postagem não encontrada.' });
-        }
-        
-        // Adiciona o comentário
-        post.comments.push(newComment);
-        await post.save();
-        
-        const addedComment = post.comments[post.comments.length - 1];
-        await User.populate(addedComment, { path: 'userId', select: 'nome foto avatarUrl' });
-        
-        // Cria notificação para o dono do post (se não for ele mesmo)
-        // Popula o userId do post se necessário
-        if (!post.userId || typeof post.userId === 'string') {
-            await post.populate('userId', 'nome');
-        }
-        
-        const postOwnerId = post.userId?._id?.toString() || post.userId?.toString() || post.userId;
-        if (postOwnerId && postOwnerId.toString() !== userId.toString()) {
-            try {
-                const usuarioQueComentou = await User.findById(userId).select('nome');
-                const nomeUsuario = usuarioQueComentou?.nome || 'Alguém';
-                const previewComentario = content.length > 50 ? content.substring(0, 50) + '...' : content;
-                
-                await criarNotificacao(
-                    postOwnerId,
-                    'post_comentado',
-                    'Novo comentário no seu post',
-                    `${nomeUsuario} comentou: "${previewComentario}"`,
-                    {
-                        postId: post._id.toString(),
-                        comentarioId: addedComment._id.toString(),
-                        usuarioId: userId.toString(),
-                        usuarioNome: nomeUsuario
-                    },
-                    null
-                );
-            } catch (notifError) {
-                console.error('Erro ao criar notificação de comentário:', notifError);
-            }
-        }
-        
-        res.status(201).json({ success: true, comment: addedComment });
-    } catch (error) {
-        console.error('Erro ao adicionar comentário:', error);
-        res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
-    }
-});
-
-// ----------------------------------------------------------------------
-// ROTAS DE INTERAÇÃO COM COMENTÁRIOS
-// ----------------------------------------------------------------------
-
-// Curtir/Descurtir Comentário
 app.post('/api/posts/:postId/comments/:commentId/like', authMiddleware, async (req, res) => {
     try {
         const { postId, commentId } = req.params;
@@ -1185,7 +1247,6 @@ app.post('/api/posts/:postId/comments/:commentId/like', authMiddleware, async (r
     }
 });
 
-// Responder a um Comentário
 app.post('/api/posts/:postId/comments/:commentId/reply', authMiddleware, async (req, res) => {
     try {
         const { postId, commentId } = req.params;
@@ -1274,7 +1335,6 @@ app.post('/api/posts/:postId/comments/:commentId/reply', authMiddleware, async (
     }
 });
 
-// Deletar um Comentário (Dono do Post)
 app.delete('/api/posts/:postId/comments/:commentId', authMiddleware, async (req, res) => {
     try {
         const { postId, commentId } = req.params;
@@ -4620,11 +4680,11 @@ app.post('/api/disputas', authMiddleware, async (req, res) => {
             'disputa_aberta',
             '⚖️ Disputa Aberta',
             `Uma disputa foi aberta para o pagamento de R$ ${pagamento.valor.toFixed(2)}. Nossa equipe analisará o caso.`,
-            { disputaId: disputa._id, pagamentoId },
-            '/disputas'
+            { disputaId: disputa._id, pagamentoId: pagamentoId },
+            null
         );
-        
-        res.status(201).json({ success: true, message: 'Disputa criada com sucesso!', disputa });
+
+        res.json({ success: true, disputa });
     } catch (error) {
         console.error('Erro ao criar disputa:', error);
         res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
@@ -4635,21 +4695,21 @@ app.post('/api/disputas', authMiddleware, async (req, res) => {
 app.get('/api/disputas', authMiddleware, async (req, res) => {
     try {
         const userId = req.user.id;
-        
+
         // Busca disputas onde o usuário é cliente ou profissional do pagamento
         const pagamentos = await PagamentoSeguro.find({
             $or: [{ clienteId: userId }, { profissionalId: userId }]
         }).select('_id');
-        
+
         const pagamentoIds = pagamentos.map(p => p._id);
-        
+
         const disputas = await Disputa.find({ pagamentoId: { $in: pagamentoIds } })
             .populate('pagamentoId')
             .populate('criadorId', 'nome foto avatarUrl')
             .populate('resolvidoPor', 'nome')
             .sort({ createdAt: -1 })
             .exec();
-        
+
         res.json({ success: true, disputas });
     } catch (error) {
         console.error('Erro ao buscar disputas:', error);

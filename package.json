@@ -6,8 +6,8 @@
     "node": ">=20.0.0"
   },
   "scripts": {
-    "start": "node api/server",
-    "dev": "nodemon api/server",
+    "start": "node api/server.js",
+    "dev": "nodemon api/server.js",
     "build": "echo 'Build completo - nenhuma ação necessária'",
     "vercel-build": "node vercel-build.js"
   },
