@@ -77,10 +77,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const explorarCategoriasModal = document.getElementById('explorar-categorias-modal');
     const explorarAddMediaBtn = document.getElementById('explorar-add-media');
     const explorarMediaInput = document.getElementById('explorar-media-input');
+    const explorarPostModal = document.getElementById('explorar-post-modal');
+    const explorarPostClose = document.getElementById('explorar-post-close');
+    const explorarPostPreview = document.getElementById('explorar-post-preview');
+    const explorarPostDesc = document.getElementById('explorar-post-desc');
+    const explorarPostSend = document.getElementById('explorar-post-send');
     const explorarVideoOverlay = document.getElementById('explorar-video-overlay');
     const explorarVideoFull = document.getElementById('explorar-video-full');
     const explorarImageFull = document.getElementById('explorar-image-full');
     const explorarVideoBack = document.getElementById('explorar-video-back');
+    const explorarVideoDelete = document.getElementById('explorar-video-delete');
     const explorarVideoInfo = document.getElementById('explorar-video-info');
     const explorarVideoPerfil = document.getElementById('explorar-video-perfil');
     const explorarVideoAvatar = document.getElementById('explorar-video-avatar');
@@ -88,9 +94,192 @@ document.addEventListener('DOMContentLoaded', () => {
     const explorarVideoDesc = document.getElementById('explorar-video-desc');
     const explorarVideoCidade = document.getElementById('explorar-video-cidade');
 
-    if (explorarUserAvatar && userId) {
+    let explorarUserStory = null;
+    let explorarStoryQueue = [];
+    let explorarStoryIndex = 0;
+    let explorarStoryTimer = null;
+    let explorarStoryStartAt = 0;
+    let explorarStoryElapsed = 0;
+    let explorarStoryPaused = false;
+    let explorarStoryMode = false;
+    let explorarCurrentPostId = null;
+    let explorarCurrentOwnerId = null;
+    let explorarCurrentIsStory = false;
+    const explorarStoryDuration = 10000;
+    const explorarStoryProgress = document.getElementById('explorar-story-progress');
+    const explorarStoryPrev = document.getElementById('explorar-story-prev');
+    const explorarStoryNext = document.getElementById('explorar-story-next');
+    const getExplorarStoryKey = (storyId) => `explorar_story_viewed_${userId || 'anon'}_${storyId}`;
+
+    function markExplorarStoryViewed(storyId) {
+        if (!storyId) return;
+        try {
+            localStorage.setItem(getExplorarStoryKey(storyId), '1');
+        } catch (e) {}
+    }
+
+    function isExplorarStoryViewed(storyId) {
+        if (!storyId) return false;
+        try {
+            return localStorage.getItem(getExplorarStoryKey(storyId)) === '1';
+        } catch (e) {
+            return false;
+        }
+    }
+
+    function updateExplorarStoryIndicator() {
+        if (!explorarUserAvatar) return;
+        const hasStory = !!explorarUserStory?.mediaUrl;
+        explorarUserAvatar.classList.toggle('has-story', hasStory);
+        explorarUserAvatar.classList.toggle('is-viewed', hasStory && isExplorarStoryViewed(explorarUserStory?.id));
+    }
+
+    function updateExplorarStoryNav() {
+        if (!explorarStoryPrev || !explorarStoryNext) return;
+        if (!explorarStoryMode) {
+            explorarStoryPrev.hidden = true;
+            explorarStoryNext.hidden = true;
+            return;
+        }
+        const total = explorarStoryQueue.length;
+        if (total <= 1) {
+            explorarStoryPrev.hidden = true;
+            explorarStoryNext.hidden = true;
+            return;
+        }
+        explorarStoryPrev.hidden = explorarStoryIndex <= 0;
+        explorarStoryNext.hidden = explorarStoryIndex >= total - 1;
+    }
+
+    function updateExplorarDeleteVisibility() {
+        if (!explorarVideoDelete) return;
+        const isOwner = explorarCurrentOwnerId && userId && String(explorarCurrentOwnerId) === String(userId);
+        explorarVideoDelete.hidden = !isOwner || !explorarCurrentPostId;
+    }
+
+    function setExplorarOverlayMeta({ postId, ownerId, isStory = false } = {}) {
+        explorarCurrentPostId = postId || null;
+        explorarCurrentOwnerId = ownerId || null;
+        explorarCurrentIsStory = !!isStory;
+        updateExplorarDeleteVisibility();
+    }
+
+    function stopExplorarStoryTimer() {
+        if (explorarStoryTimer) {
+            cancelAnimationFrame(explorarStoryTimer);
+            explorarStoryTimer = null;
+        }
+    }
+
+    function setExplorarStorySegments(count) {
+        if (!explorarStoryProgress) return;
+        explorarStoryProgress.innerHTML = '';
+        for (let i = 0; i < count; i += 1) {
+            const segment = document.createElement('div');
+            segment.className = 'explorar-story-progress-segment';
+            const fill = document.createElement('div');
+            fill.className = 'explorar-story-progress-fill';
+            segment.appendChild(fill);
+            explorarStoryProgress.appendChild(segment);
+        }
+    }
+
+    function resetExplorarStoryTimer() {
+        stopExplorarStoryTimer();
+        explorarStoryStartAt = performance.now();
+        explorarStoryElapsed = 0;
+        if (explorarStoryProgress) {
+            explorarStoryProgress.querySelectorAll('.explorar-story-progress-fill').forEach((fill) => {
+                fill.style.transform = 'scaleX(0)';
+            });
+        }
+    }
+
+    function updateExplorarStoryProgress() {
+        if (explorarStoryPaused) {
+            explorarStoryTimer = requestAnimationFrame(updateExplorarStoryProgress);
+            return;
+        }
+        const now = performance.now();
+        const elapsed = explorarStoryElapsed + (now - explorarStoryStartAt);
+        const pct = Math.min(1, elapsed / explorarStoryDuration);
+        if (explorarStoryProgress) {
+            const fills = explorarStoryProgress.querySelectorAll('.explorar-story-progress-fill');
+            fills.forEach((fill, idx) => {
+                if (idx < explorarStoryIndex) {
+                    fill.style.transform = 'scaleX(1)';
+                } else if (idx === explorarStoryIndex) {
+                    fill.style.transform = `scaleX(${pct})`;
+                } else {
+                    fill.style.transform = 'scaleX(0)';
+                }
+            });
+        }
+        if (pct >= 1) {
+            goToExplorarStory(explorarStoryIndex + 1);
+            return;
+        }
+        explorarStoryTimer = requestAnimationFrame(updateExplorarStoryProgress);
+    }
+
+    function pauseExplorarStory() {
+        if (explorarStoryPaused) return;
+        explorarStoryPaused = true;
+        explorarStoryElapsed += performance.now() - explorarStoryStartAt;
+    }
+
+    function resumeExplorarStory() {
+        if (!explorarStoryPaused) return;
+        explorarStoryPaused = false;
+        explorarStoryStartAt = performance.now();
+    }
+
+    function goToExplorarStory(nextIndex) {
+        if (!explorarStoryQueue.length) return closeExplorarVideo();
+        if (nextIndex < 0 || nextIndex >= explorarStoryQueue.length) {
+            closeExplorarVideo();
+            return;
+        }
+        explorarStoryIndex = nextIndex;
+        const story = explorarStoryQueue[explorarStoryIndex];
+        if (!story) return;
+        explorarStoryMode = true;
+        resetExplorarStoryTimer();
+        setExplorarOverlayMeta({
+            postId: story?.id,
+            ownerId: story?.ownerId,
+            isStory: true
+        });
+        const info = {
+            nome: story?.nome || 'Minha postagem',
+            desc: story?.desc || '',
+            cidade: story?.cidade || '',
+            avatar: explorarUserAvatar?.getAttribute('src') || 'imagens/default-user.png',
+            perfilUrl: '#',
+            postId: story?.id,
+            ownerId: story?.ownerId,
+            isStory: true
+        };
+        if (story?.isVideo) {
+            openExplorarVideo(story.mediaUrl, info);
+        } else {
+            openExplorarImage(story.mediaUrl, info);
+        }
+        markExplorarStoryViewed(story.id);
+        updateExplorarStoryIndicator();
+        if (explorarStoryProgress) {
+            explorarStoryProgress.setAttribute('aria-hidden', 'false');
+        }
+        updateExplorarStoryNav();
+        updateExplorarStoryProgress();
+    }
+
+    if (explorarUserAvatar) {
         explorarUserAvatar.addEventListener('click', () => {
-            window.location.href = `/perfil.html?id=${userId}`;
+            if (!explorarStoryQueue.length) return;
+            explorarStoryPaused = false;
+            explorarStoryElapsed = 0;
+            goToExplorarStory(0);
         });
     }
 
@@ -98,6 +287,13 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!explorarVideoOverlay || !explorarVideoFull || !src) return;
         explorarVideoOverlay.classList.remove('is-dragging');
         explorarVideoOverlay.style.transform = '';
+        if (info?.postId || info?.ownerId || typeof info?.isStory === 'boolean') {
+            setExplorarOverlayMeta({
+                postId: info?.postId,
+                ownerId: info?.ownerId,
+                isStory: info?.isStory
+            });
+        }
         if (explorarImageFull) {
             explorarImageFull.classList.add('hidden');
             explorarImageFull.removeAttribute('src');
@@ -133,6 +329,7 @@ document.addEventListener('DOMContentLoaded', () => {
         explorarVideoOverlay.classList.remove('hidden');
         explorarVideoOverlay.setAttribute('aria-hidden', 'false');
         document.body.classList.add('explorar-video-open');
+        updateExplorarStoryNav();
         explorarVideoFull.play().catch(() => {});
     }
 
@@ -140,6 +337,13 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!explorarVideoOverlay || !explorarImageFull || !src) return;
         explorarVideoOverlay.classList.remove('is-dragging');
         explorarVideoOverlay.style.transform = '';
+        if (info?.postId || info?.ownerId || typeof info?.isStory === 'boolean') {
+            setExplorarOverlayMeta({
+                postId: info?.postId,
+                ownerId: info?.ownerId,
+                isStory: info?.isStory
+            });
+        }
         explorarVideoFull?.pause();
         explorarVideoFull?.removeAttribute('src');
         explorarVideoFull?.classList.add('hidden');
@@ -169,6 +373,7 @@ document.addEventListener('DOMContentLoaded', () => {
         explorarVideoOverlay.classList.remove('hidden');
         explorarVideoOverlay.setAttribute('aria-hidden', 'false');
         document.body.classList.add('explorar-video-open');
+        updateExplorarStoryNav();
     }
 
     function closeExplorarVideo() {
@@ -181,10 +386,99 @@ document.addEventListener('DOMContentLoaded', () => {
         explorarVideoOverlay.classList.remove('is-dragging');
         explorarVideoOverlay.style.transform = '';
         document.body.classList.remove('explorar-video-open');
+        stopExplorarStoryTimer();
+        explorarStoryPaused = false;
+        explorarStoryMode = false;
+        explorarStoryElapsed = 0;
+        explorarStoryIndex = 0;
+        setExplorarOverlayMeta({ postId: null, ownerId: null, isStory: false });
+        if (explorarStoryProgress) {
+            explorarStoryProgress.setAttribute('aria-hidden', 'true');
+        }
+        updateExplorarStoryNav();
         if (explorarImageFull) {
             explorarImageFull.removeAttribute('src');
             explorarImageFull.classList.add('hidden');
         }
+    }
+
+    if (explorarStoryPrev) {
+        explorarStoryPrev.addEventListener('click', () => {
+            goToExplorarStory(explorarStoryIndex - 1);
+        });
+    }
+
+    if (explorarStoryNext) {
+        explorarStoryNext.addEventListener('click', () => {
+            goToExplorarStory(explorarStoryIndex + 1);
+        });
+    }
+
+    if (explorarVideoOverlay) {
+        explorarVideoOverlay.addEventListener('pointerdown', () => {
+            if (explorarStoryMode) pauseExplorarStory();
+        });
+        explorarVideoOverlay.addEventListener('pointerup', () => {
+            if (explorarStoryMode) resumeExplorarStory();
+        });
+        explorarVideoOverlay.addEventListener('pointercancel', () => {
+            if (explorarStoryMode) resumeExplorarStory();
+        });
+        explorarVideoOverlay.addEventListener('touchstart', () => {
+            if (explorarStoryMode) pauseExplorarStory();
+        }, { passive: true });
+        explorarVideoOverlay.addEventListener('touchend', () => {
+            if (explorarStoryMode) resumeExplorarStory();
+        });
+        explorarVideoOverlay.addEventListener('touchcancel', () => {
+            if (explorarStoryMode) resumeExplorarStory();
+        });
+    }
+
+    function handleExplorarDelete(btn, clickEvent = null) {
+        if (!explorarCurrentPostId) return;
+        if (typeof showDeleteConfirmPopup !== 'function') return;
+        showDeleteConfirmPopup(btn, async () => {
+            try {
+                const response = await fetch(`/api/posts/${explorarCurrentPostId}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await response.json();
+                if (!response.ok || data?.success === false) {
+                    throw new Error(data?.message || 'Erro ao apagar status.');
+                }
+                const cardToRemove = document.querySelector(`.explorar-card[data-explorar-id="${explorarCurrentPostId}"]`);
+                if (cardToRemove) cardToRemove.remove();
+                if (explorarStoryMode) {
+                    explorarStoryQueue = explorarStoryQueue.filter((item) => String(item.id) !== String(explorarCurrentPostId));
+                    setExplorarStorySegments(explorarStoryQueue.length);
+                    if (!explorarStoryQueue.length) {
+                        closeExplorarVideo();
+                    } else {
+                        const nextIndex = Math.min(explorarStoryIndex, explorarStoryQueue.length - 1);
+                        goToExplorarStory(nextIndex);
+                    }
+                } else {
+                    closeExplorarVideo();
+                }
+                if (explorarCurrentIsStory) {
+                    explorarUserStory = explorarStoryQueue[0] || null;
+                    updateExplorarStoryIndicator();
+                }
+            } catch (error) {
+                console.error('Erro ao apagar status:', error);
+                alert(error.message);
+            }
+        }, clickEvent);
+    }
+
+    if (explorarVideoDelete) {
+        explorarVideoDelete.addEventListener('click', (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            handleExplorarDelete(explorarVideoDelete, event);
+        });
     }
 
     if (explorarVideoBack) {
@@ -231,9 +525,98 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    let explorarSelectedFile = null;
+
+    const normalizeExplorarText = (text) => String(text || '')
+        .normalize('NFD')
+        .replace(/[\u0000-\u001f\u007f-\u009f]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .trim();
+
+    const resetExplorarModal = () => {
+        explorarSelectedFile = null;
+        if (explorarPostDesc) explorarPostDesc.value = '';
+        if (explorarPostPreview) explorarPostPreview.innerHTML = '';
+        if (explorarMediaInput) explorarMediaInput.value = '';
+    };
+
+    const openExplorarModal = (file) => {
+        if (!explorarPostModal || !explorarPostPreview) return;
+        explorarSelectedFile = file || null;
+        explorarPostPreview.innerHTML = '';
+        if (file) {
+            const isVideo = file.type.startsWith('video/');
+            const url = URL.createObjectURL(file);
+            explorarPostPreview.innerHTML = isVideo
+                ? `<video src="${url}" muted playsinline controls></video>`
+                : `<img src="${url}" alt="Prévia">`;
+        }
+        explorarPostModal.classList.add('is-open');
+        explorarPostModal.setAttribute('aria-hidden', 'false');
+    };
+
+    const closeExplorarModal = () => {
+        if (!explorarPostModal) return;
+        explorarPostModal.classList.remove('is-open');
+        explorarPostModal.setAttribute('aria-hidden', 'true');
+        resetExplorarModal();
+    };
+
     if (explorarAddMediaBtn && explorarMediaInput) {
         explorarAddMediaBtn.addEventListener('click', () => {
             explorarMediaInput.click();
+        });
+        explorarMediaInput.addEventListener('change', (event) => {
+            const file = event.target.files && event.target.files[0];
+            if (file) {
+                openExplorarModal(file);
+            }
+        });
+    }
+
+    if (explorarPostClose) {
+        explorarPostClose.addEventListener('click', closeExplorarModal);
+    }
+
+    if (explorarPostModal) {
+        explorarPostModal.addEventListener('click', (event) => {
+            if (event.target === explorarPostModal) {
+                closeExplorarModal();
+            }
+        });
+    }
+
+    if (explorarPostSend) {
+        explorarPostSend.addEventListener('click', async () => {
+            if (!token) return;
+            const content = explorarPostDesc?.value || '';
+            if (!content.trim() && !explorarSelectedFile) return;
+            const formData = new FormData();
+            formData.append('content', content);
+            const categoriaAtual = explorarCategoriaCurrent?.textContent?.trim();
+            if (categoriaAtual && categoriaAtual !== 'Todas') {
+                formData.append('category_tag', categoriaAtual);
+            }
+            if (explorarSelectedFile) {
+                formData.append('media', explorarSelectedFile);
+            }
+            try {
+                const resp = await fetch('/api/explorar-posts', {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` },
+                    body: formData
+                });
+                const data = await resp.json();
+                if (!resp.ok || data?.success === false) {
+                    throw new Error(data?.message || 'Erro ao publicar.');
+                }
+                closeExplorarModal();
+                fetchExplorarFeed();
+            } catch (err) {
+                console.error('Erro ao enviar explorar:', err);
+            }
         });
     }
     
@@ -1250,6 +1633,10 @@ document.addEventListener('DOMContentLoaded', () => {
         items.forEach((item, index) => {
             const card = document.createElement('article');
             card.className = 'explorar-card';
+            const rawItemId = item?._id || item?.id || '';
+            if (rawItemId) {
+                card.dataset.explorarId = String(rawItemId);
+            }
             const mediaUrl = item.mediaUrl || item.imagemUrl || '';
             const isVideo = item.mediaType === 'video';
             const badge = item.tipo === 'anuncio' ? 'Anuncio' : '';
@@ -1260,6 +1647,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const actions = buildExplorarActionLinks(item);
             const perfilAction = actions.find((action) => action.label === 'Ver perfil');
             const rawPerfilId = item?.userId?._id || item?.userId || item?.dono?._id || item?.dono?.id || item?.ownerId || item?.autorId;
+            const ownerId = rawPerfilId?._id || rawPerfilId;
             const fallbackPerfilUrl = rawPerfilId ? `/perfil?id=${rawPerfilId}` : null;
             const perfilUrl = item?.perfilUrl || perfilAction?.url || fallbackPerfilUrl || '#';
             const rawFoto = item?.foto
@@ -1279,11 +1667,18 @@ document.addEventListener('DOMContentLoaded', () => {
             const mediaHTML = isVideo
                 ? `<video class="explorar-video" loop muted playsinline autoplay preload="metadata" data-src="${mediaUrl}"></video>`
                 : `<img class="explorar-image" alt="" loading="lazy" decoding="async" data-src="${mediaUrl}">`;
+            const isOwner = ownerId && userId && String(ownerId) === String(userId);
+            const deleteButtonHTML = isOwner
+                ? `<button class="explorar-card-delete" type="button" aria-label="Apagar status" data-id="${rawItemId}">
+                        <i class="fas fa-trash"></i>
+                    </button>`
+                : '';
 
             card.innerHTML = `
                 <div class="explorar-card-media">
                     ${mediaHTML}
                     ${badge ? `<div class="explorar-card-badge">${badge}</div>` : ''}
+                    ${deleteButtonHTML}
                     <div class="explorar-card-info-overlay">
                         <div class="explorar-card-info">
                             <a class="explorar-card-perfil" href="${perfilUrl}">
@@ -1311,8 +1706,42 @@ document.addEventListener('DOMContentLoaded', () => {
                         desc: desc || title,
                         cidade: cityText,
                         avatar: perfilFoto,
-                        perfilUrl
+                        perfilUrl,
+                        postId: rawItemId,
+                        ownerId,
+                        isStory: false
                     });
+                });
+            }
+
+            const deleteBtn = card.querySelector('.explorar-card-delete');
+            if (deleteBtn) {
+                deleteBtn.addEventListener('click', async (event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    const postId = deleteBtn.dataset.id;
+                    if (!postId) return;
+                    if (typeof showDeleteConfirmPopup !== 'function') return;
+                    showDeleteConfirmPopup(deleteBtn, async () => {
+                        try {
+                            const response = await fetch(`/api/posts/${postId}`, {
+                                method: 'DELETE',
+                                headers: { 'Authorization': `Bearer ${token}` }
+                            });
+                            const data = await response.json();
+                            if (!response.ok || data?.success === false) {
+                                throw new Error(data?.message || 'Erro ao apagar status.');
+                            }
+                            card.remove();
+                            explorarStoryQueue = explorarStoryQueue.filter((item) => String(item.id) !== String(postId));
+                            explorarUserStory = explorarStoryQueue[0] || null;
+                            setExplorarStorySegments(explorarStoryQueue.length);
+                            updateExplorarStoryIndicator();
+                        } catch (error) {
+                            console.error('Erro ao apagar status:', error);
+                            alert(error.message);
+                        }
+                    }, event);
                 });
             }
 
@@ -1330,7 +1759,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         desc: desc || title,
                         cidade: cityText,
                         avatar: perfilFoto,
-                        perfilUrl
+                        perfilUrl,
+                        postId: rawItemId,
+                        ownerId,
+                        isStory: false
                     });
                 });
             }
@@ -1359,6 +1791,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (explorarSelectedCities.length > 0) {
             params.set('cidades', explorarSelectedCities.join(','));
         }
+        const categoriaAtual = explorarCategoriaCurrent?.textContent?.trim();
+        if (categoriaAtual && categoriaAtual !== 'Todas') {
+            params.set('categoria', categoriaAtual);
+        }
         const url = `/api/explorar-feed?${params.toString()}`;
         try {
             const resp = await fetch(url, {
@@ -1370,6 +1806,24 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             const items = Array.isArray(data?.items) ? data.items : [];
             renderExplorarFeed(items);
+            if (userId) {
+                const userStories = items.filter((item) => {
+                    const itemUserId = item?.userId?._id || item?.userId || item?.autorId || item?.ownerId;
+                    return item?.tipo === 'post' && itemUserId && String(itemUserId) === String(userId) && item?.mediaUrl;
+                });
+                explorarStoryQueue = userStories.map((story) => ({
+                    id: String(story._id || ''),
+                    ownerId: story?.userId?._id || story?.userId || story?.ownerId || story?.autorId,
+                    mediaUrl: story.mediaUrl,
+                    isVideo: String(story.mediaType || '').includes('video'),
+                    nome: story?.titulo || story?.nome || 'Minha postagem',
+                    desc: story?.descricao || story?.content || '',
+                    cidade: [story?.cidade, story?.estado].filter(Boolean).join(' - ')
+                }));
+                explorarUserStory = explorarStoryQueue[0] || null;
+                setExplorarStorySegments(explorarStoryQueue.length);
+                updateExplorarStoryIndicator();
+            }
             explorarHasFetched = true;
         } catch (err) {
             console.error('Erro ao carregar explorar:', err);
@@ -3194,18 +3648,16 @@ document.addEventListener('DOMContentLoaded', () => {
     if (explorarCategoriaCurrent && explorarCategoriasModal) {
         explorarCategoriaCurrent.addEventListener('click', () => {
             const isOpen = explorarCategoriasModal.classList.toggle('is-open');
-            explorarCategoriaCurrent.classList.toggle('is-hidden', isOpen);
             const current = explorarCategoriaCurrent.textContent?.trim();
             explorarCategoriasModal.querySelectorAll('.explorar-categoria-option').forEach((option) => {
-                const optionText = option.textContent?.trim();
-                option.classList.toggle('is-hidden', !!current && optionText === current);
+                option.classList.toggle('is-hidden', option.textContent?.trim() === current);
             });
         });
         explorarCategoriasModal.querySelectorAll('.explorar-categoria-option').forEach((option) => {
             option.addEventListener('click', () => {
                 explorarCategoriaCurrent.textContent = option.textContent || 'Todas';
                 explorarCategoriasModal.classList.remove('is-open');
-                explorarCategoriaCurrent.classList.remove('is-hidden');
+                
                 fetchExplorarFeed();
             });
         });
@@ -3214,8 +3666,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const target = event.target;
             if (explorarCategoriasModal.contains(target) || explorarCategoriaCurrent.contains(target)) return;
             explorarCategoriasModal.classList.remove('is-open');
-            explorarCategoriaCurrent.classList.remove('is-hidden');
         });
+
     }
 
     // ----------------------------------------------------------------------

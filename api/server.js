@@ -476,11 +476,62 @@ const ModerationLog = mongoose.models.ModerationLog || mongoose.model('Moderatio
 const postagemSchema = new mongoose.Schema({
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     content: { type: String },
+    mediaUrl: { type: String },
+    mediaType: { type: String },
+    category_tag: { type: String },
+    gender_tag: { type: String },
+    expiresAt: { type: Date },
     likes: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
     comments: [{ type: Object }]
 }, { timestamps: true, strict: false });
 
 const Postagem = mongoose.models.Postagem || mongoose.model('Postagem', postagemSchema);
+
+const normalizeKeywordText = (text) => String(text || '')
+    .normalize('NFD')
+    .replace(/[\u0000-\u001f\u007f-\u009f]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+
+const explorarKeywordSets = {
+    Moda: ['moda', 'roupa', 'loja', 'estilo', 'look', 'camisa', 'vestido', 'saia', 'sapato', 'tenis', 'tênis', 'salto', 'bolsa', 'bermuda', 'jaqueta'],
+    Comidas: ['comida', 'restaurante', 'lanche', 'pizza', 'hamburguer', 'hambúrguer', 'bolo', 'doce', 'salgado', 'delivery', 'churrasco', 'almoço', 'jantar'],
+    Promocoes: ['promocao', 'promoção', 'desconto', 'oferta', 'cupom', 'queima', 'liquidacao', 'liquidação']
+};
+
+const explorarGenderKeywords = {
+    Masculino: ['tenis', 'tênis', 'camisa', 'sapato', 'bermuda', 'barba', 'masculino'],
+    Feminino: ['batom', 'saia', 'vestido', 'maquiagem', 'salto', 'bolsa', 'feminino'],
+    Ambos: ['unissex', 'ambos']
+};
+
+const detectExplorarCategoryTag = (content) => {
+    const normalized = normalizeKeywordText(content);
+    if (!normalized) return '';
+    const tokens = normalized.split(' ');
+    for (const [tag, keywords] of Object.entries(explorarKeywordSets)) {
+        if (keywords.some((keyword) => tokens.includes(normalizeKeywordText(keyword)))) {
+            return tag === 'Promocoes' ? 'Promoções' : tag;
+        }
+    }
+    return '';
+};
+
+const detectExplorarGenderTag = (content) => {
+    const normalized = normalizeKeywordText(content);
+    if (!normalized) return '';
+    const tokens = normalized.split(' ');
+    const hasMasculino = explorarGenderKeywords.Masculino.some((keyword) => tokens.includes(normalizeKeywordText(keyword)));
+    const hasFeminino = explorarGenderKeywords.Feminino.some((keyword) => tokens.includes(normalizeKeywordText(keyword)));
+    const hasAmbos = explorarGenderKeywords.Ambos.some((keyword) => tokens.includes(normalizeKeywordText(keyword)));
+
+    if (hasAmbos || (hasMasculino && hasFeminino)) return 'Ambos';
+    if (hasMasculino) return 'Masculino';
+    if (hasFeminino) return 'Feminino';
+    return '';
+};
 
 const avaliacaoVerificadaSchema = new mongoose.Schema({
     profissionalId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
@@ -574,6 +625,18 @@ const anuncioPagoSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 const AnuncioPago = mongoose.models.AnuncioPago || mongoose.model('AnuncioPago', anuncioPagoSchema);
+
+const interesseUsuarioSchema = new mongoose.Schema({
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true },
+    termo: { type: String, index: true },
+    score: { type: Number, default: 0 },
+    lastSeenAt: { type: Date }
+}, { timestamps: true, strict: false });
+
+interesseUsuarioSchema.index({ userId: 1, termo: 1 }, { unique: true });
+
+const InteresseUsuario = mongoose.models.InteresseUsuario
+    || mongoose.model('InteresseUsuario', interesseUsuarioSchema);
 
 // ...
 
@@ -685,6 +748,69 @@ app.get('/api/anuncios-feed', authMiddleware, async (req, res) => {
     }
 });
 
+app.post('/api/explorar-posts', authMiddleware, upload.single('media'), async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const content = String(req.body?.content || '').trim();
+        const categoriaManual = String(req.body?.category_tag || '').trim();
+        const generoManual = String(req.body?.gender_tag || '').trim();
+        const file = req.file;
+
+        if (!content && !file) {
+            return res.status(400).json({ success: false, message: 'Adicione texto ou mídia.' });
+        }
+
+        let mediaUrl = '';
+        let mediaType = '';
+        if (file) {
+            mediaType = file.mimetype || '';
+            const ext = path.extname(file.originalname || '').toLowerCase() || (mediaType.includes('video') ? '.mp4' : '.jpg');
+            const filename = `${Date.now()}_${crypto.randomBytes(8).toString('hex')}${ext}`;
+
+            if (s3Client && bucketName && process.env.AWS_REGION) {
+                const key = `explorar/${userId}/${filename}`;
+                const uploadCommand = new PutObjectCommand({
+                    Bucket: bucketName,
+                    Key: key,
+                    Body: file.buffer,
+                    ContentType: mediaType || 'application/octet-stream'
+                });
+                await s3Client.send(uploadCommand);
+                mediaUrl = `https://${bucketName}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`;
+            } else {
+                const uploadsDir = path.join(__dirname, '../public/uploads/explorar');
+                try {
+                    fs.mkdirSync(uploadsDir, { recursive: true });
+                } catch (e) {}
+
+                const filePath = path.join(uploadsDir, filename);
+                fs.writeFileSync(filePath, file.buffer);
+                mediaUrl = `/uploads/explorar/${filename}`;
+            }
+        }
+
+        const category_tag = categoriaManual || detectExplorarCategoryTag(content);
+        const gender_tag = generoManual || detectExplorarGenderTag(content);
+        const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+        const newPost = new Postagem({
+            userId,
+            content,
+            mediaUrl,
+            mediaType,
+            category_tag,
+            gender_tag,
+            expiresAt
+        });
+
+        const savedPost = await newPost.save();
+        res.status(201).json({ success: true, post: savedPost });
+    } catch (error) {
+        console.error('Erro ao criar postagem do explorar:', error);
+        res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
+    }
+});
+
 app.get('/api/explorar-feed', authMiddleware, async (req, res) => {
     try {
         const cidadesRaw = String(req.query.cidades || '')
@@ -693,7 +819,22 @@ app.get('/api/explorar-feed', authMiddleware, async (req, res) => {
             .filter(Boolean);
         const cidadesSet = new Set(cidadesRaw.map((c) => normalizeCityKey(c)).filter(Boolean));
 
-        const posts = await Postagem.find({ mediaUrl: { $exists: true, $ne: '' } })
+        const categoriaFiltro = String(req.query.categoria || '').trim();
+        const generoFiltro = String(req.query.genero || '').trim();
+        const agoraStories = new Date();
+
+        const baseQuery = {
+            mediaUrl: { $exists: true, $ne: '' },
+            expiresAt: { $gt: agoraStories }
+        };
+        if (categoriaFiltro && categoriaFiltro !== 'Todas') {
+            baseQuery.category_tag = categoriaFiltro;
+        }
+        if (generoFiltro && generoFiltro !== 'Todos') {
+            baseQuery.gender_tag = generoFiltro;
+        }
+
+        const posts = await Postagem.find(baseQuery)
             .sort({ createdAt: -1 })
             .limit(60)
             .populate('userId', 'nome foto avatarUrl tipo cidade estado telefone')
@@ -713,6 +854,7 @@ app.get('/api/explorar-feed', authMiddleware, async (req, res) => {
                 : '';
             return {
                 _id: post._id,
+                userId: post?.userId?._id,
                 tipo: 'post',
                 mediaUrl: post.mediaUrl,
                 mediaType: post.mediaType || 'video',
@@ -792,6 +934,19 @@ app.get('/api/explorar-feed', authMiddleware, async (req, res) => {
     }
 });
 
+app.get('/api/usuario/me', authMiddleware, async (req, res) => {
+    try {
+        const usuario = await User.findById(req.user.id).select('-senha').lean();
+        if (!usuario) {
+            return res.status(404).json({ success: false, message: 'Usuário não encontrado.' });
+        }
+        res.json({ success: true, usuario });
+    } catch (error) {
+        console.error('Erro ao buscar usuário atual:', error);
+        res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
+    }
+});
+
 app.get('/api/user/me', authMiddleware, async (req, res) => {
     try {
         const usuario = await User.findById(req.user.id).select('-senha').lean();
@@ -805,15 +960,26 @@ app.get('/api/user/me', authMiddleware, async (req, res) => {
     }
 });
 
-app.get('/api/usuario/me', authMiddleware, async (req, res) => {
+app.put('/api/user/theme', authMiddleware, async (req, res) => {
     try {
-        const usuario = await User.findById(req.user.id).select('-senha').lean();
+        const tema = String(req.body?.tema || '').toLowerCase();
+        if (!tema || !['dark', 'light'].includes(tema)) {
+            return res.status(400).json({ success: false, message: 'Tema inválido.' });
+        }
+
+        const usuario = await User.findByIdAndUpdate(
+            req.user.id,
+            { tema, userTheme: tema },
+            { new: true, select: '-senha' }
+        ).lean();
+
         if (!usuario) {
             return res.status(404).json({ success: false, message: 'Usuário não encontrado.' });
         }
-        res.json({ success: true, usuario });
+
+        res.json({ success: true, tema: usuario.tema || usuario.userTheme });
     } catch (error) {
-        console.error('Erro ao buscar usuário atual:', error);
+        console.error('Erro ao atualizar tema:', error);
         res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
     }
 });
@@ -831,12 +997,24 @@ app.get('/api/usuario/:id', authMiddleware, async (req, res) => {
     }
 });
 
-app.get('/api/busca', authMiddleware, async (req, res) => {
+app.get('/api/buscar-usuarios', authMiddleware, async (req, res) => {
     try {
         const q = String(req.query.q || '').trim();
-        if (!q) {
-            return res.json({ success: true, usuarios: [], servicos: [], posts: [] });
+        const categoriaFiltro = String(req.query.categoria || '').trim();
+        const generoFiltro = String(req.query.genero || '').trim();
+        const agoraStories = new Date();
+
+        const baseQuery = {
+            mediaUrl: { $exists: true, $ne: '' },
+            expiresAt: { $gt: agoraStories }
+        };
+        if (categoriaFiltro && categoriaFiltro !== 'Todas') {
+            baseQuery.category_tag = categoriaFiltro;
         }
+        if (generoFiltro && generoFiltro !== 'Todos') {
+            baseQuery.gender_tag = generoFiltro;
+        }
+
         const normalizeText = (text) => String(text || '')
             .normalize('NFD')
             .replace(/[\u0300-\u036f]/g, '')
@@ -1047,14 +1225,19 @@ app.get('/api/cidades', authMiddleware, async (req, res) => {
 
         res.json({ success: true, cidades });
     } catch (error) {
-        console.error('Erro ao buscar sugestões de cidades:', error);
+        console.error('Erro ao buscar cidades:', error);
         res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
     }
 });
 
 app.get('/api/posts', authMiddleware, async (req, res) => {
     try {
-        const posts = await Postagem.find()
+        const posts = await Postagem.find({
+            $or: [
+                { expiresAt: { $exists: false } },
+                { expiresAt: null }
+            ]
+        })
             .sort({ createdAt: -1 })
             .populate('userId', 'nome foto avatarUrl tipo cidade estado')
             .exec();
@@ -1113,7 +1296,14 @@ app.get('/api/posts', authMiddleware, async (req, res) => {
 app.get('/api/user-posts/:userId', authMiddleware, async (req, res) => {
     try {
         const { userId } = req.params;
-        const posts = await Postagem.find({ userId: userId })
+        const posts = await Postagem.find({
+            userId: userId,
+
+            $or: [
+                { expiresAt: { $exists: false } },
+                { expiresAt: null }
+            ]
+        })
             .sort({ createdAt: -1 })
             .populate('userId', 'nome foto avatarUrl tipo cidade estado')
             .exec();
@@ -1169,28 +1359,45 @@ app.get('/api/user-posts/:userId', authMiddleware, async (req, res) => {
     }
 });
 
+app.delete('/api/posts/:postId', authMiddleware, async (req, res) => {
+    try {
+        const { postId } = req.params;
+        const userId = req.user.id;
+
+        const post = await Postagem.findById(postId);
+        if (!post) {
+            return res.status(404).json({ success: false, message: 'Post não encontrado.' });
+        }
+        if (String(post.userId) !== String(userId)) {
+            return res.status(403).json({ success: false, message: 'Sem permissão para apagar este post.' });
+        }
+        await Postagem.deleteOne({ _id: postId });
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Erro ao apagar postagem:', error);
+        res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
+    }
+});
+
 app.post('/api/interesses/registrar', authMiddleware, async (req, res) => {
     try {
         const texto = String(req.body?.texto || '').trim();
         if (!texto) {
             return res.status(400).json({ success: false, message: 'Texto inválido.' });
         }
-
         const keywords = extractInterestKeywords(texto);
-        if (keywords.length === 0) {
-            return res.json({ success: true, termos: [] });
+        if (!keywords.length) {
+            return res.json({ success: true, saved: 0 });
         }
-
-        const updates = keywords.map((termo) =>
-            InteresseUsuario.findOneAndUpdate(
-                { userId: req.user.id, termo },
-                { $inc: { score: 1 }, $set: { lastSeenAt: new Date() } },
-                { upsert: true, new: true, setDefaultsOnInsert: true }
-            )
-        );
-
-        await Promise.all(updates);
-        res.json({ success: true, termos: keywords });
+        const bulkOps = keywords.map((termo) => ({
+            updateOne: {
+                filter: { userId: req.user.id, termo },
+                update: { $set: { lastSeenAt: new Date() }, $inc: { score: 1 } },
+                upsert: true
+            }
+        }));
+        await InteresseUsuario.bulkWrite(bulkOps, { ordered: false });
+        res.json({ success: true, saved: keywords.length });
     } catch (error) {
         console.error('Erro ao registrar interesses:', error);
         res.status(500).json({ success: false, message: 'Erro interno do servidor.' });

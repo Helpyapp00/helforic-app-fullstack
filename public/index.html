@@ -153,6 +153,25 @@
                     </div>
                 </div>
 
+                <div id="explorar-post-modal" class="explorar-post-modal" aria-hidden="true">
+                    <div class="explorar-post-modal-card">
+                        <button id="explorar-post-close" class="explorar-post-close" type="button" aria-label="Fechar">×</button>
+                        <div class="explorar-post-preview" id="explorar-post-preview"></div>
+                        <div class="explorar-post-actions">
+                            <textarea id="explorar-post-desc" class="explorar-card-desc" placeholder="Descreva sua postagem..."></textarea>
+                            <button id="explorar-post-send" class="explorar-post-send" type="button" aria-label="Enviar postagem">
+                                <img
+                                    class="explorar-post-send-icon publish-icon"
+                                    alt=""
+                                    src="/imagens/enviar.tema.claro.png"
+                                    data-src-light="/imagens/enviar.tema.claro.png"
+                                    data-src-dark="/imagens/enviar.tema.escuro.png"
+                                >
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="explorar-feed">
                     <div id="explorar-feed-status" class="explorar-feed-status">Carregando novidades...</div>
                     <div id="explorar-feed-list" class="explorar-feed-list"></div>
@@ -213,9 +232,17 @@
     </div>
 
     <div id="explorar-video-overlay" class="explorar-video-overlay hidden" aria-hidden="true">
+        <div id="explorar-story-progress" class="explorar-story-progress" aria-hidden="true">
+            <div id="explorar-story-progress-bar" class="explorar-story-progress-bar"></div>
+        </div>
         <button id="explorar-video-back" class="explorar-video-back" aria-label="Voltar">
             <i class="fas fa-arrow-left"></i>
         </button>
+        <button id="explorar-video-delete" class="explorar-video-delete" type="button" aria-label="Apagar status" hidden>
+            <i class="fas fa-trash"></i>
+        </button>
+        <button id="explorar-story-prev" class="explorar-story-nav explorar-story-prev" type="button" aria-label="Anterior">‹</button>
+        <button id="explorar-story-next" class="explorar-story-nav explorar-story-next" type="button" aria-label="Próximo">›</button>
         <video id="explorar-video-full" class="explorar-video-full" playsinline loop muted controls></video>
         <img id="explorar-image-full" class="explorar-image-full" alt="">
         <div id="explorar-video-info" class="explorar-video-info">
