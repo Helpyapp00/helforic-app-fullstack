@@ -1761,7 +1761,7 @@ textarea#post-content-input::placeholder { color: var(--text-placeholder); }
 }
 
 .post-thumbnail .thumbnail-text-icon i {
-    font-size: 24px;
+    font-size: 28px;
     margin-bottom: 6px;
 }
 
@@ -1785,7 +1785,7 @@ textarea#post-content-input::placeholder { color: var(--text-placeholder); }
     }
     
     .post-thumbnail .thumbnail-play-icon {
-        font-size: 24px;
+        font-size: 32px;
     }
 }
 
@@ -3056,6 +3056,7 @@ textarea#post-content-input::placeholder { color: var(--text-placeholder); }
 .post-comments .comment-list::-webkit-scrollbar-track {
     background: transparent;
     border-radius: 10px;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.18);
 }
 
 .post-comments .comment-list::-webkit-scrollbar-thumb {
@@ -4551,7 +4552,7 @@ textarea#post-content-input::placeholder { color: var(--text-placeholder); }
 .reply-form {
     display: flex;
     gap: 5px;
-    margin-top: 8px;
+    margin-top: 18px;
     padding-left: 12px; 
 }
 .reply-input {
@@ -5958,7 +5959,7 @@ html.dark-mode #aviso-localizacao-incompleta {
         flex-basis: 250px;
         flex-shrink: 1;
         min-width: 220px;
-        padding: 18px;
+        padding: 14px;
         box-sizing: border-box;
         top: 1px;
         display: block !important;
@@ -11192,7 +11193,7 @@ body.explorar-post-modal-open #explorar-page {
     position: relative;
     max-height: calc(100vh - 32px);
     max-height: calc(100svh - 32px);
-    overflow-y: auto;
+    overflow: hidden;
 }
 
 .explorar-post-modal-card {
@@ -11224,12 +11225,12 @@ body.explorar-post-modal-open #explorar-page {
     top: 10px;
     right: 12px;
     border: none;
-    background: transparent;
-    font-size: 24px;
+    background: var(--bg-secondary);
+    font-size: 32px;
     color: var(--text-primary);
     cursor: pointer;
-    width: 36px;
-    height: 36px;
+    width: 32px;
+    height: 32px;
     display: grid;
     place-items: center;
     border-radius: 10px;
@@ -11239,7 +11240,8 @@ body.explorar-post-modal-open #explorar-page {
     background: var(--bg-primary);
     border-radius: 12px;
     overflow: hidden;
-    min-height: 560px;
+    min-height: 480px;
+    margin-top: 28px;
     display: flex;
     align-items: center;
     justify-content: center;
