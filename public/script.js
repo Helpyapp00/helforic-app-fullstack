@@ -154,7 +154,9 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateExplorarDeleteVisibility() {
         if (!explorarVideoDelete) return;
         const isOwner = explorarCurrentOwnerId && userId && String(explorarCurrentOwnerId) === String(userId);
-        explorarVideoDelete.hidden = !isOwner || !explorarCurrentPostId;
+        const shouldShow = !!(isOwner && explorarCurrentPostId);
+        explorarVideoDelete.hidden = !shouldShow;
+        explorarVideoDelete.style.display = shouldShow ? 'grid' : 'none';
     }
 
     function setExplorarOverlayMeta({ postId, ownerId, isStory = false } = {}) {
@@ -293,6 +295,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 ownerId: info?.ownerId,
                 isStory: info?.isStory
             });
+        } else {
+            setExplorarOverlayMeta({ postId: null, ownerId: null, isStory: false });
         }
         if (explorarImageFull) {
             explorarImageFull.classList.add('hidden');
@@ -343,6 +347,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 ownerId: info?.ownerId,
                 isStory: info?.isStory
             });
+        } else {
+            setExplorarOverlayMeta({ postId: null, ownerId: null, isStory: false });
         }
         explorarVideoFull?.pause();
         explorarVideoFull?.removeAttribute('src');
@@ -577,8 +583,19 @@ document.addEventListener('DOMContentLoaded', () => {
             const isVideo = file.type.startsWith('video/');
             const url = URL.createObjectURL(file);
             explorarPostPreview.innerHTML = isVideo
-                ? `<video src="${url}" muted playsinline controls></video>`
+                ? `<video src="${url}" muted playsinline controls preload="metadata"></video>`
                 : `<img src="${url}" alt="Prévia">`;
+            if (isVideo) {
+                const previewVideo = explorarPostPreview.querySelector('video');
+                if (previewVideo) {
+                    previewVideo.addEventListener('loadeddata', () => {
+                        try {
+                            previewVideo.currentTime = Math.min(0.1, previewVideo.duration || 0);
+                        } catch (e) {}
+                        previewVideo.pause();
+                    }, { once: true });
+                }
+            }
         }
         explorarPostModal.classList.add('is-open');
         explorarPostModal.setAttribute('aria-hidden', 'false');
@@ -3630,7 +3647,9 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!termo || termo.length < 1) return;
             explorarSugestaoTimer = setTimeout(async () => {
                 try {
-                    const resp = await fetch(`/api/cidades/sugestoes?termo=${encodeURIComponent(termo)}`);
+                    const resp = await fetch(`/api/cidades?q=${encodeURIComponent(termo)}`, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
                     const data = await resp.json();
                     if (!resp.ok || !data?.success) return;
                     const sugestoes = Array.isArray(data.cidades) ? data.cidades : (Array.isArray(data.sugestoes) ? data.sugestoes : []);
