@@ -450,6 +450,16 @@ document.addEventListener('DOMContentLoaded', () => {
             event.preventDefault();
         });
     }
+    if (explorarImageFull) {
+        explorarImageFull.addEventListener('touchstart', (event) => {
+            event.preventDefault();
+        }, { passive: false });
+    }
+    if (explorarVideoFull) {
+        explorarVideoFull.addEventListener('touchstart', (event) => {
+            event.preventDefault();
+        }, { passive: false });
+    }
 
     function handleExplorarDelete(btn, clickEvent = null) {
         if (!explorarCurrentPostId) return;

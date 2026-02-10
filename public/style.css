@@ -241,6 +241,9 @@ html.dark-mode .explorar-cidade-add-btn .icon-dark {
     z-index: 6000;
     overflow: hidden;
     touch-action: none;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
     transition: transform 0.2s ease;
     transform-origin: center;
 }
@@ -251,6 +254,15 @@ html.dark-mode .explorar-cidade-add-btn .icon-dark {
     border-radius: 18px;
     overflow: hidden;
     box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+}
+
+.explorar-video-full,
+.explorar-image-full,
+.explorar-post-preview img,
+.explorar-post-preview video {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
 }
 
 body.explorar-video-open {
