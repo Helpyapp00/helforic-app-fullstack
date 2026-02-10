@@ -11152,6 +11152,8 @@ html.dark-mode .btn-confirmar-nao:hover {
 .explorar-post-modal {
     position: fixed;
     inset: 0;
+    height: 100vh;
+    height: 100svh;
     background: rgba(6, 16, 18, 0.55);
     display: flex;
     align-items: center;
@@ -11188,7 +11190,8 @@ body.explorar-post-modal-open #explorar-page {
     flex-direction: column;
     gap: 10px;
     position: relative;
-    max-height: calc(100dvh - 32px);
+    max-height: calc(100vh - 32px);
+    max-height: calc(100svh - 32px);
     overflow-y: auto;
 }
 
@@ -11350,15 +11353,19 @@ body.explorar-post-modal-open #explorar-page {
     .explorar-post-modal {
         align-items: flex-start;
         padding-top: 40px;
-        padding-bottom: calc(var(--bottom-nav-height, 56px) + 5px);
+        padding-bottom: calc(var(--bottom-nav-height, 56px) + 5px + env(safe-area-inset-bottom, 0px));
     }
 
     .explorar-post-modal-card {
         width: 100vw;
         margin: 0;
         padding: 14px;
-        height: calc(100dvh - 40px - var(--bottom-nav-height, 56px) - 5px);
-        max-height: calc(100dvh - 40px - var(--bottom-nav-height, 56px) - 5px);
+        height: calc(100vh - 40px - var(--bottom-nav-height, 56px) - 5px - env(safe-area-inset-bottom, 0px));
+        height: calc(100svh - 40px - var(--bottom-nav-height, 56px) - 5px - env(safe-area-inset-bottom, 0px));
+        height: calc(100dvh - 40px - var(--bottom-nav-height, 56px) - 5px - env(safe-area-inset-bottom, 0px));
+        max-height: calc(100vh - 40px - var(--bottom-nav-height, 56px) - 5px - env(safe-area-inset-bottom, 0px));
+        max-height: calc(100svh - 40px - var(--bottom-nav-height, 56px) - 5px - env(safe-area-inset-bottom, 0px));
+        max-height: calc(100dvh - 40px - var(--bottom-nav-height, 56px) - 5px - env(safe-area-inset-bottom, 0px));
     }
 
     .explorar-post-preview {
