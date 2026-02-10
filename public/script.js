@@ -599,6 +599,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         explorarPostModal.classList.add('is-open');
         explorarPostModal.setAttribute('aria-hidden', 'false');
+        document.body.classList.add('explorar-post-modal-open');
     };
 
     const closeExplorarModal = () => {
@@ -606,6 +607,7 @@ document.addEventListener('DOMContentLoaded', () => {
         explorarPostModal.classList.remove('is-open');
         explorarPostModal.setAttribute('aria-hidden', 'true');
         resetExplorarModal();
+        document.body.classList.remove('explorar-post-modal-open');
     };
 
     if (explorarAddMediaBtn && explorarMediaInput) {
