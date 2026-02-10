@@ -435,6 +435,22 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    if (explorarVideoOverlay) {
+        explorarVideoOverlay.addEventListener('contextmenu', (event) => {
+            event.preventDefault();
+        });
+    }
+    if (explorarImageFull) {
+        explorarImageFull.addEventListener('contextmenu', (event) => {
+            event.preventDefault();
+        });
+    }
+    if (explorarVideoFull) {
+        explorarVideoFull.addEventListener('contextmenu', (event) => {
+            event.preventDefault();
+        });
+    }
+
     function handleExplorarDelete(btn, clickEvent = null) {
         if (!explorarCurrentPostId) return;
         if (typeof showDeleteConfirmPopup !== 'function') return;
@@ -493,7 +509,6 @@ document.addEventListener('DOMContentLoaded', () => {
             touchStartX = event.touches[0]?.clientX ?? null;
             touchStartY = event.touches[0]?.clientY ?? null;
             dragging = false;
-            explorarVideoOverlay.classList.add('is-dragging');
         }, { passive: false });
 
         explorarVideoOverlay.addEventListener('touchmove', (event) => {
@@ -502,9 +517,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const currentY = event.touches[0]?.clientY ?? touchStartY;
             const deltaX = currentX - touchStartX;
             const deltaY = currentY - touchStartY;
-            if (Math.abs(deltaX) > 4 || Math.abs(deltaY) > 4) {
+            if (!dragging && (Math.abs(deltaX) > 18 || Math.abs(deltaY) > 18)) {
                 dragging = true;
+                explorarVideoOverlay.classList.add('is-dragging');
             }
+            if (!dragging) return;
             const scale = 0.65;
             explorarVideoOverlay.style.transform = `translate(${deltaX}px, ${deltaY}px) scale(${scale})`;
         }, { passive: false });
