@@ -1925,7 +1925,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const isMobile = window.matchMedia('(max-width: 768px)').matches;
             if (!isMobile) return;
             if (explorarPage?.classList.contains('is-open')) {
-                const edgeThreshold = window.innerWidth * 0.8;
+                const edgeThreshold = window.innerWidth * 0.3;
                 if (touch.clientX < edgeThreshold) return;
                 isClosing = true;
                 explorarTouchStart = {
@@ -1935,7 +1935,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 };
                 return;
             }
-            const edgeThreshold = window.innerWidth * 0.2;
+            const edgeThreshold = window.innerWidth * 0.3;
             if (touch.clientX > edgeThreshold) return;
             explorarTouchStart = {
                 x: touch.clientX || 0,
@@ -1995,7 +1995,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (isDragging) {
                 isDragging = false;
                 const panelWidth = window.innerWidth;
-                const shouldComplete = Math.abs(deltaX) > panelWidth * 0.2;
+                const shouldComplete = Math.abs(deltaX) > panelWidth * 0.5;
                 if (isClosing) {
                     if (shouldComplete) {
                         closeExplorarPanel();
@@ -2020,10 +2020,10 @@ document.addEventListener('DOMContentLoaded', () => {
             if (elapsed > 700) return;
             if (absX < 45) return;
             if (absX < absY * 2.2) return;
-            if (!isClosing && deltaX > window.innerWidth * 0.2) {
+            if (!isClosing && deltaX > window.innerWidth * 0.5) {
                 openExplorarPanel(true);
             }
-            if (isClosing && deltaX < -window.innerWidth * 0.2) {
+            if (isClosing && deltaX < -window.innerWidth * 0.5) {
                 closeExplorarPanel();
             }
             isClosing = false;

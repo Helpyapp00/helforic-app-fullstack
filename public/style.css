@@ -11457,6 +11457,10 @@ body.explorar-open header.search-open .header-actions {
     .feed-explorar-slider.is-dragging .btn-scroll-destaques {
         display: none !important;
     }
+
+    .floating-sidebar-button {
+        display: none !important;
+    }
 }
 
 .explorar-page-header {
@@ -11997,7 +12001,13 @@ body.explorar-open header.search-open .header-actions {
         scrollbar-gutter: stable;
     }
 }
+.floating-sidebar-button {
+    display: none !important;
+}
 
+.btn-scroll-destaques {
+    display: none !important;
+}
 
 
 
