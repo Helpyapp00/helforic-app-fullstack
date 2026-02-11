@@ -4,17 +4,17 @@ body {
     background: linear-gradient(135deg, rgba(25, 32, 95, 0.8) 0%, rgba(7, 8, 21, 0.9) 100%),
                 url('https://images.unsplash.com/photo-1552664730-d307ca884978?ixlib=rb-4.0.3&auto=format&fit=crop&w=1950&q=80')
                 center/cover no-repeat fixed;
-    display: flex;
-    justify-content: center;
-    align-items: center;
+    /* Alterado de flex/center para block ou flex-start para permitir rolagem natural */
+    display: block; 
     min-height: 100vh;
     margin: 0;
     padding: 20px;
     box-sizing: border-box;
-    overflow-x: hidden;
+    overflow-y: auto; /* Garante rolagem */
 }
 
-.container {
+/* Ajuste para compatibilidade com a classe do HTML */
+.container, .container-cadastro {
     background-color: #ffffff;
     padding: 30px;
     border-radius: 10px;
@@ -23,6 +23,10 @@ body {
     max-width: 800px;
     box-sizing: border-box;
     text-align: center;
+    /* Margem automática para centralizar horizontalmente e dar espaço vertical */
+    margin: 0 auto;
+    /* Garante que o conteúdo interno não trave a rolagem */
+    overflow: visible;
 }
 
 h1 {

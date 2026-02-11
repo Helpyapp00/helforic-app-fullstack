@@ -206,6 +206,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     const token = localStorage.getItem('jwtToken');
     const userType = localStorage.getItem('userType'); 
+    const profileReturnKey = 'helpy:profile-return';
 
     if (!loggedInUserId || !token) {
         alert('Você precisa estar logado para acessar esta página.');
@@ -286,6 +287,31 @@ document.addEventListener('DOMContentLoaded', () => {
     const fotoExpandida = document.getElementById('fotoExpandida');
     const btnFecharFotoExpandida = document.getElementById('btnFecharFotoExpandida');
     const modalFotoBackdrop = document.querySelector('.modal-foto-backdrop');
+
+    const perfilBackBtn = document.getElementById('perfil-back-btn');
+    const initPerfilBack = () => {
+        if (!perfilBackBtn) return;
+        const raw = sessionStorage.getItem(profileReturnKey);
+        if (!raw) return;
+        perfilBackBtn.classList.add('is-visible');
+        perfilBackBtn.addEventListener('click', () => {
+            try {
+                const data = JSON.parse(raw);
+                if (data?.url) {
+                    window.location.href = data.url;
+                    return;
+                }
+            } catch (err) {
+                console.warn('Falha ao ler retorno do perfil', err);
+            }
+            if (history.length > 1) {
+                history.back();
+            } else {
+                window.location.href = '/';
+            }
+        });
+    };
+    initPerfilBack();
 
     // Botões de Ação
     const btnEditarPerfil = document.getElementById('editarPerfilBtn'); 

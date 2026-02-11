@@ -4,6 +4,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const userId = localStorage.getItem('userId');
     const token = localStorage.getItem('jwtToken');
     const userType = localStorage.getItem('userType');
+    const profileReturnKey = 'helpy:profile-return';
+    let shouldRestoreExplorar = false;
+    let pendingExplorarOpen = false;
+    let pendingProfileReturn = null;
+    let pendingProfileReturnTries = 0;
+    let pendingProfileReturnUIApplied = false;
 
     // Tratamento especial para /login: garantir que mostre sempre a página de login real
     if (path === '/login' || path === '/login/') {
@@ -93,6 +99,266 @@ document.addEventListener('DOMContentLoaded', () => {
     const explorarVideoNome = document.getElementById('explorar-video-nome');
     const explorarVideoDesc = document.getElementById('explorar-video-desc');
     const explorarVideoCidade = document.getElementById('explorar-video-cidade');
+
+    const saveProfileReturnState = () => {
+        const mainScroll = document.scrollingElement?.scrollTop ?? window.scrollY ?? 0;
+        const feedScroll = feedExplorarSlider?.querySelector('main')?.scrollTop ?? null;
+        const explorarScroll = explorarPage?.scrollTop ?? null;
+        const explorarOpen = document.documentElement.classList.contains('explorar-open');
+        const openComments = Array.from(document.querySelectorAll('.post .post-comments.visible'))
+            .map((section) => section.closest('.post')?.dataset.postId)
+            .filter(Boolean);
+        const loadedComments = Array.from(document.querySelectorAll('.post'))
+            .map((post) => {
+                const postId = post.dataset.postId;
+                if (!postId) return null;
+                const loadBtn = post.querySelector('.load-more-comments');
+                const loaded = loadBtn ? parseInt(loadBtn.dataset.loaded || '0', 10) : 0;
+                const visibleCount = post.querySelectorAll('.comment:not(.comment-hidden)').length;
+                const targetCount = Number.isFinite(loaded) && loaded > 0 ? loaded : visibleCount;
+                return targetCount > 0 ? { postId, loaded: targetCount } : null;
+            })
+            .filter(Boolean);
+        const openReplyLists = Array.from(document.querySelectorAll('.reply-list:not(.oculto)'))
+            .map((list) => list.closest('.comment')?.dataset.commentId)
+            .filter(Boolean);
+        const openReplyForms = Array.from(document.querySelectorAll('.reply-form:not(.oculto)'))
+            .map((form) => form.closest('.comment')?.dataset.commentId)
+            .filter(Boolean);
+        const activeCommentId = document.querySelector('.comment.is-focused')?.dataset.commentId || null;
+        const activeReplyId = document.querySelector('.reply.is-focused')?.dataset.replyId || null;
+        sessionStorage.setItem(profileReturnKey, JSON.stringify({
+            url: `${window.location.pathname}${window.location.search}${window.location.hash}`,
+            mainScroll,
+            feedScroll,
+            explorarScroll,
+            explorarOpen,
+            openComments,
+            openReplyLists,
+            openReplyForms,
+            loadedComments,
+            activeCommentId,
+            activeReplyId
+        }));
+    };
+
+    const openCommentSection = (postEl) => {
+        if (!postEl) return;
+        const commentsSection = postEl.querySelector('.post-comments');
+        if (commentsSection && commentsSection.classList.contains('visible')) {
+            return;
+        }
+        const commentBtn = postEl.querySelector('.btn-comment');
+        if (commentBtn && typeof toggleCommentSection === 'function') {
+            toggleCommentSection({ currentTarget: commentBtn });
+            return;
+        }
+        if (commentsSection) {
+            commentsSection.classList.add('visible');
+        }
+        if (commentBtn) {
+            commentBtn.classList.add('active');
+        }
+    };
+
+    const applyProfileReturnUIState = () => {
+        if (!pendingProfileReturn || pendingProfileReturnUIApplied) return true;
+        const data = pendingProfileReturn;
+        const openComments = Array.isArray(data?.openComments) ? data.openComments : [];
+        const openReplyLists = Array.isArray(data?.openReplyLists) ? data.openReplyLists : [];
+        const openReplyForms = Array.isArray(data?.openReplyForms) ? data.openReplyForms : [];
+        const loadedComments = Array.isArray(data?.loadedComments) ? data.loadedComments : [];
+        const activeCommentId = data?.activeCommentId || null;
+        const activeReplyId = data?.activeReplyId || null;
+        if (!openComments.length && !openReplyLists.length && !openReplyForms.length && !loadedComments.length) {
+            pendingProfileReturnUIApplied = true;
+            return true;
+        }
+
+        let allFound = true;
+        openComments.forEach((postId) => {
+            const postEl = document.querySelector(`.post[data-post-id="${postId}"]`);
+            if (!postEl) {
+                allFound = false;
+                return;
+            }
+            openCommentSection(postEl);
+        });
+
+        loadedComments.forEach((entry) => {
+            const postEl = document.querySelector(`.post[data-post-id="${entry.postId}"]`);
+            if (!postEl) {
+                allFound = false;
+                return;
+            }
+            const loadBtn = postEl.querySelector('.load-more-comments');
+            if (loadBtn) {
+                let currentLoaded = parseInt(loadBtn.dataset.loaded || '0', 10);
+                let safety = 0;
+                while (currentLoaded < entry.loaded && safety < 6) {
+                    loadBtn.click();
+                    currentLoaded = parseInt(loadBtn.dataset.loaded || '0', 10);
+                    safety += 1;
+                    if (!document.body.contains(loadBtn)) break;
+                }
+                return;
+            }
+            const hidden = Array.from(postEl.querySelectorAll('.comment.comment-hidden'));
+            const toShow = entry.loaded - postEl.querySelectorAll('.comment:not(.comment-hidden)').length;
+            if (toShow > 0) {
+                hidden.slice(0, toShow).forEach((comment) => comment.classList.remove('comment-hidden'));
+            }
+        });
+
+        const targetId = activeReplyId || activeCommentId;
+        if (targetId) {
+            const selector = activeReplyId
+                ? `.reply[data-reply-id="${activeReplyId}"]`
+                : `.comment[data-comment-id="${activeCommentId}"]`;
+            const targetEl = document.querySelector(selector);
+            if (targetEl) {
+                setTimeout(() => {
+                    targetEl.scrollIntoView({ block: 'center', behavior: 'auto' });
+                }, 0);
+            } else {
+                allFound = false;
+            }
+        }
+
+        const allReplyIds = new Set([...openReplyLists, ...openReplyForms]);
+        allReplyIds.forEach((commentId) => {
+            const commentEl = document.querySelector(`.comment[data-comment-id="${commentId}"]`);
+            if (!commentEl) {
+                allFound = false;
+                return;
+            }
+            const replyList = commentEl.querySelector('.reply-list');
+            if (replyList && replyList.classList.contains('oculto') && openReplyLists.includes(commentId)) {
+                const toggleRepliesBtn = commentEl.querySelector('.btn-toggle-replies');
+                if (toggleRepliesBtn) {
+                    toggleRepliesBtn.click();
+                } else {
+                    replyList.classList.remove('oculto');
+                }
+            }
+            const replyForm = commentEl.querySelector('.reply-form');
+            if (replyForm && replyForm.classList.contains('oculto') && openReplyForms.includes(commentId)) {
+                const replyFormBtn = commentEl.querySelector('.btn-show-reply-form');
+                if (replyFormBtn) {
+                    replyFormBtn.click();
+                } else {
+                    replyForm.classList.remove('oculto');
+                }
+            }
+        });
+
+        if (allFound) {
+            pendingProfileReturnUIApplied = true;
+        }
+        return pendingProfileReturnUIApplied;
+    };
+
+    const navigateToProfile = (perfilId) => {
+        if (!perfilId) return;
+        saveProfileReturnState();
+        window.location.href = `/perfil.html?id=${perfilId}`;
+    };
+
+    const applyProfileReturnScroll = () => {
+        if (!pendingProfileReturn) return;
+        const data = pendingProfileReturn;
+        const desiredMain = typeof data?.mainScroll === 'number' ? data.mainScroll : null;
+        const desiredFeed = typeof data?.feedScroll === 'number' ? data.feedScroll : null;
+        const desiredExplorar = typeof data?.explorarScroll === 'number' ? data.explorarScroll : null;
+        if (desiredMain !== null) {
+            window.scrollTo(0, desiredMain);
+        }
+        const feedMain = feedExplorarSlider?.querySelector('main');
+        if (feedMain && desiredFeed !== null) {
+            feedMain.scrollTop = desiredFeed;
+        }
+        if (explorarPage && desiredExplorar !== null) {
+            explorarPage.scrollTop = desiredExplorar;
+        }
+
+        const mainEl = document.scrollingElement;
+        const mainMax = mainEl ? (mainEl.scrollHeight - mainEl.clientHeight) : 0;
+        const mainReady = desiredMain === null || (mainEl && mainMax >= desiredMain - 4);
+        const mainOk = desiredMain === null ||
+            (mainEl && Math.abs(mainEl.scrollTop - desiredMain) < 8) ||
+            (!mainEl || mainMax <= 0);
+
+        const feedMax = feedMain ? (feedMain.scrollHeight - feedMain.clientHeight) : 0;
+        const feedReady = desiredFeed === null || (feedMain && feedMax >= desiredFeed - 4);
+        const feedOk = desiredFeed === null ||
+            !feedMain ||
+            Math.abs(feedMain.scrollTop - desiredFeed) < 8 ||
+            feedMax <= 0;
+
+        const explorarMax = explorarPage ? (explorarPage.scrollHeight - explorarPage.clientHeight) : 0;
+        const explorarReady = desiredExplorar === null || (explorarPage && explorarMax >= desiredExplorar - 4);
+        const explorarOk = desiredExplorar === null ||
+            !explorarPage ||
+            Math.abs(explorarPage.scrollTop - desiredExplorar) < 8 ||
+            explorarMax <= 0;
+
+        const uiOk = applyProfileReturnUIState();
+
+        if (mainOk && feedOk && explorarOk && mainReady && feedReady && explorarReady && uiOk) {
+            sessionStorage.removeItem(profileReturnKey);
+            pendingProfileReturn = null;
+            pendingProfileReturnTries = 0;
+            pendingProfileReturnUIApplied = false;
+            return;
+        }
+
+        if (pendingProfileReturnTries < 12) {
+            pendingProfileReturnTries += 1;
+            setTimeout(applyProfileReturnScroll, 140);
+        } else {
+            sessionStorage.removeItem(profileReturnKey);
+            pendingProfileReturn = null;
+            pendingProfileReturnTries = 0;
+            pendingProfileReturnUIApplied = false;
+        }
+    };
+
+    const restoreProfileReturnState = () => {
+        const raw = sessionStorage.getItem(profileReturnKey);
+        if (!raw) return;
+        try {
+            const data = JSON.parse(raw);
+            const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+            if (data?.url && data.url !== currentUrl) return;
+            shouldRestoreExplorar = !!data?.explorarOpen;
+            pendingExplorarOpen = shouldRestoreExplorar;
+            pendingProfileReturn = data;
+            pendingProfileReturnTries = 0;
+            pendingProfileReturnUIApplied = false;
+            requestAnimationFrame(() => setTimeout(applyProfileReturnScroll, 0));
+        } catch (err) {
+            console.warn('Falha ao restaurar retorno do perfil', err);
+        }
+    };
+
+    document.addEventListener('click', (event) => {
+        const link = event.target.closest('a[href*="/perfil.html?id="]');
+        if (!link) return;
+        document.querySelectorAll('.comment.is-focused, .reply.is-focused').forEach((el) => {
+            el.classList.remove('is-focused');
+        });
+        const replyEl = event.target.closest('.reply');
+        if (replyEl) {
+            replyEl.classList.add('is-focused');
+        }
+        const commentEl = event.target.closest('.comment');
+        if (commentEl) {
+            commentEl.classList.add('is-focused');
+        }
+        saveProfileReturnState();
+    });
+
+    restoreProfileReturnState();
 
     let explorarUserStory = null;
     let explorarStoryQueue = [];
@@ -521,10 +787,17 @@ document.addEventListener('DOMContentLoaded', () => {
         let touchStartX = null;
         let touchStartY = null;
         let dragging = false;
+        let lockingDirection = null;
         explorarVideoOverlay.addEventListener('touchstart', (event) => {
+            const screenX = event.touches[0]?.clientX ?? 0;
+            const edgeThreshold = 30;
+            if (screenX <= edgeThreshold || screenX >= (window.innerWidth - edgeThreshold)) {
+                event.preventDefault();
+            }
             touchStartX = event.touches[0]?.clientX ?? null;
             touchStartY = event.touches[0]?.clientY ?? null;
             dragging = false;
+            lockingDirection = null;
         }, { passive: false });
 
         explorarVideoOverlay.addEventListener('touchmove', (event) => {
@@ -533,6 +806,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const currentY = event.touches[0]?.clientY ?? touchStartY;
             const deltaX = currentX - touchStartX;
             const deltaY = currentY - touchStartY;
+            if (!lockingDirection) {
+                lockingDirection = Math.abs(deltaX) > Math.abs(deltaY) ? 'horizontal' : 'vertical';
+            }
+            if (lockingDirection === 'horizontal') {
+                event.preventDefault();
+            }
             if (!dragging && (Math.abs(deltaX) > 18 || Math.abs(deltaY) > 18)) {
                 dragging = true;
                 explorarVideoOverlay.classList.add('is-dragging');
@@ -557,6 +836,10 @@ document.addEventListener('DOMContentLoaded', () => {
             dragging = false;
         });
     }
+
+    window.addEventListener('popstate', () => {
+        history.pushState(null, document.title, location.href);
+    });
 
     let explorarSelectedFile = null;
 
@@ -1406,9 +1689,7 @@ document.addEventListener('DOMContentLoaded', () => {
             `;
             card.addEventListener('click', () => {
                 const perfilId = profissional._id || item.userId || item.idUser;
-                if (perfilId) {
-                    window.location.href = `/perfil.html?id=${perfilId}`;
-                }
+                navigateToProfile(perfilId);
             });
             destaquesScroll.appendChild(card);
         });
@@ -1433,7 +1714,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const perfilId = profissional._id || item.userId || item.idUser;
         if (destaqueModalPerfil) {
             destaqueModalPerfil.onclick = () => {
-                if (perfilId) window.location.href = `/perfil.html?id=${perfilId}`;
+                navigateToProfile(perfilId);
             };
         }
 
@@ -1526,6 +1807,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const posts = await response.json();
             atualizarSugestoesCidades(posts);
             renderPosts(posts);
+            applyProfileReturnScroll();
             // Reaplica o filtro atual após renderizar/recarregar o feed
             if (typeof filterFeed === 'function') {
                 filterFeed(currentTipoFeed);
@@ -1852,6 +2134,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             const items = Array.isArray(data?.items) ? data.items : [];
             renderExplorarFeed(items);
+            applyProfileReturnScroll();
             if (userId) {
                 const userStories = items.filter((item) => {
                     const itemUserId = item?.userId?._id || item?.userId || item?.autorId || item?.ownerId;
@@ -1897,6 +2180,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!explorarHasFetched) {
             fetchExplorarFeed();
         }
+    }
+
+    if (pendingExplorarOpen) {
+        openExplorarPanel(true);
+        pendingExplorarOpen = false;
     }
 
     function closeExplorarPanel() {
@@ -2280,7 +2568,9 @@ document.addEventListener('DOMContentLoaded', () => {
             }).join('');
 
             const commentPhoto = commentUser.foto || commentUser.avatarUrl || 'imagens/default-user.png';
-            const isCommentLiked = comment.likes && comment.likes.includes(userId);
+            const isCommentLiked = Array.isArray(comment.likes)
+                ? comment.likes.some(likeId => String(likeId) === String(userId))
+                : false;
             const replyCount = comment.replies?.length || 0;
 
             return `
@@ -2348,7 +2638,9 @@ document.addEventListener('DOMContentLoaded', () => {
             }).join('');
 
             const commentPhoto = commentUser.foto || commentUser.avatarUrl || 'imagens/default-user.png';
-            const isCommentLiked = comment.likes && comment.likes.includes(userId);
+            const isCommentLiked = Array.isArray(comment.likes)
+                ? comment.likes.some(likeId => String(likeId) === String(userId))
+                : false;
             const replyCount = comment.replies?.length || 0;
 
             return `
@@ -2724,7 +3016,9 @@ document.addEventListener('DOMContentLoaded', () => {
             ? reply.userId
             : { _id: reply.userId, nome: 'Usuário', foto: '', avatarUrl: '' });
         const replyPhoto = userData.foto || userData.avatarUrl || 'imagens/default-user.png';
-        const isReplyLiked = reply.likes && reply.likes.includes(userId);
+        const isReplyLiked = Array.isArray(reply.likes)
+            ? reply.likes.some(likeId => String(likeId) === String(userId))
+            : false;
         
         return `
         <div class="reply" data-reply-id="${reply._id}">
@@ -2777,9 +3071,7 @@ document.addEventListener('DOMContentLoaded', () => {
             el.addEventListener('click', (e) => {
                 const targetUserId = e.currentTarget.dataset.userid;
                 if (targetUserId) {
-                    // Abre diretamente o arquivo perfil.html com o ID,
-                    // e o próprio perfil.js vai limpar a URL depois com o slug
-                    window.location.href = `/perfil.html?id=${targetUserId}`;
+                    navigateToProfile(targetUserId);
                 }
             });
         });
@@ -2875,6 +3167,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const commentsToShow = hiddenComments;
                     commentsToShow.forEach(comment => {
                         comment.classList.remove('comment-hidden');
+                        // Garante que comentários recém-visíveis não tenham estilos inline de limite
                         const commentText = comment.querySelector('.comment-body p');
                         if (commentText) {
                             commentText.style.maxHeight = '';
@@ -3842,7 +4135,7 @@ document.addEventListener('DOMContentLoaded', () => {
             searchResultsContainer.querySelectorAll('.search-user').forEach(item => {
                 item.addEventListener('click', () => {
                     const targetUserId = item.dataset.userId;
-                    if (targetUserId) window.location.href = `/perfil.html?id=${targetUserId}`;
+                    navigateToProfile(targetUserId);
                 });
             });
         }
@@ -3941,7 +4234,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         const subtitulo = item.querySelector('.search-subtitle')?.textContent?.trim() || '';
                         const foto = item.querySelector('img')?.getAttribute('src') || '';
                         pushUserToHistory({ id: targetUserId, nome, subtitulo, foto });
-                        window.location.href = `/perfil.html?id=${targetUserId}`;
+                        navigateToProfile(targetUserId);
                     }
                 });
             });
@@ -4104,7 +4397,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!content) return;
         
         try {
-            const response = await fetch(`/api/posts/${postId}/comment`, {
+            const response = await fetch(`/api/posts/${postId}/comments`, {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
                 body: JSON.stringify({ content })
@@ -4268,9 +4561,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function handleSendReply(e) {
         const btn = e.currentTarget;
-        const commentId = btn.dataset.commentId;
+        const commentId = btn.dataset.commentId || btn.closest('.comment')?.dataset.commentId;
         const postElement = btn.closest('.post');
-        const postId = postElement.dataset.postId;
+        const postId = postElement ? postElement.dataset.postId : null;
+        if (!commentId || !postId) {
+            console.warn('Responder comentário sem IDs necessários', { commentId, postId });
+            return;
+        }
         const replyForm = btn.closest('.reply-form');
         const input = replyForm.querySelector('.reply-input');
         const content = input.value.trim();
@@ -4321,8 +4618,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function handleLikeComment(e) {
         const btn = e.currentTarget;
-        const commentId = btn.dataset.commentId;
-        const postId = btn.closest('.post').dataset.postId;
+        const commentId = btn.dataset.commentId || btn.closest('.comment')?.dataset.commentId;
+        const postId = btn.closest('.post')?.dataset.postId;
+        if (!commentId || !postId) {
+            console.warn('Like comentário sem IDs necessários', { commentId, postId });
+            return;
+        }
         
         try {
             const response = await fetch(`/api/posts/${postId}/comments/${commentId}/like`, {
@@ -5431,7 +5732,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Navegação para o perfil: botão (quando existir) e avatar
     if (profileButton) {
         profileButton.addEventListener('click', () => {
-            window.location.href = `/perfil.html?id=${userId}`;
+            navigateToProfile(userId);
         });
     }
 
@@ -5467,9 +5768,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (userAvatarHeader) {
         userAvatarHeader.style.cursor = 'pointer';
         userAvatarHeader.addEventListener('click', () => {
-            if (userId) {
-                window.location.href = `/perfil.html?id=${userId}`;
-            }
+            navigateToProfile(userId);
         });
     }
 
@@ -5477,9 +5776,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (userNameHeader) {
         userNameHeader.style.cursor = 'pointer';
         userNameHeader.addEventListener('click', () => {
-            if (userId) {
-                window.location.href = `/perfil.html?id=${userId}`;
-            }
+            navigateToProfile(userId);
         });
     }
 

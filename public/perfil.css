@@ -55,6 +55,29 @@
     align-items: center;
     width: 100%;
     padding-bottom: 20px;
+    position: relative;
+}
+
+.perfil-back-btn {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 48px;
+    height: 34px;
+    border-radius: 10px;
+    border: none;
+    background: transparent;
+    color: var(--text-primary);
+    font-size: 28px;
+    font-weight: 700;
+    display: none;
+    place-items: center;
+    cursor: pointer;
+    box-shadow: none;
+}
+
+.perfil-back-btn.is-visible {
+    display: grid;
 }
 
 .nome-edicao-group {

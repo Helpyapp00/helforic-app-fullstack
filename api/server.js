@@ -240,6 +240,10 @@ app.get('/login', (req, res) => {
     res.sendFile(path.join(__dirname, '../public/login.html'));
 });
 
+app.get('/cadastro', (req, res) => {
+    res.sendFile(path.join(__dirname, '../public/cadastro.html'));
+});
+
 app.get('/perfil/:slug', (req, res) => {
     res.sendFile(path.join(__dirname, '../public/perfil.html'));
 });
@@ -1404,32 +1408,264 @@ app.post('/api/interesses/registrar', authMiddleware, async (req, res) => {
     }
 });
 
-app.post('/api/posts/:postId/comments/:commentId/like', authMiddleware, async (req, res) => {
+// Criar um Comentário
+app.post('/api/posts/:postId/comments', authMiddleware, async (req, res) => {
+    try {
+        const { postId } = req.params;
+        const { content } = req.body;
+        const userId = req.user.id;
+        if (!content || !content.trim()) {
+            return res.status(400).json({ success: false, message: 'Comentário vazio.' });
+        }
+
+        const userIdObjectId = mongoose.Types.ObjectId.isValid(userId)
+            ? new mongoose.Types.ObjectId(userId)
+            : userId;
+
+        const post = await Postagem.findById(postId);
+        if (!post) return res.status(404).json({ success: false, message: 'Post não encontrado' });
+
+        const newComment = {
+            userId: userIdObjectId,
+            content: content.trim(),
+            likes: [],
+            replies: [],
+            createdAt: new Date()
+        };
+
+        post.comments.push(newComment);
+        post.markModified('comments');
+        await post.save();
+
+        const addedComment = post.comments[post.comments.length - 1];
+        await User.populate(addedComment, { path: 'userId', select: 'nome foto avatarUrl' });
+
+        res.status(201).json({ success: true, comment: addedComment });
+    } catch (error) {
+        console.error('Erro ao criar comentário:', error?.stack || error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// Editar Comentário
+app.put('/api/posts/:postId/comments/:commentId', authMiddleware, async (req, res) => {
+    try {
+        const { postId, commentId } = req.params;
+        const { content } = req.body;
+        const userId = req.user.id;
+
+        if (!content || !content.trim()) {
+            return res.status(400).json({ success: false, message: 'Conteúdo vazio.' });
+        }
+
+        const post = await Postagem.findById(postId);
+        if (!post) return res.status(404).json({ message: 'Post não encontrado' });
+
+        const commentsList = Array.isArray(post.comments) ? post.comments : [];
+        const comment = post.comments?.id
+            ? post.comments.id(commentId)
+            : commentsList.find((item) => String(item?._id) === String(commentId));
+
+        if (!comment) return res.status(404).json({ message: 'Comentário não encontrado' });
+
+        // Verifica permissão (apenas dono do comentário pode editar)
+        const commentUserId = comment.userId?._id ? String(comment.userId._id) : String(comment.userId);
+        if (commentUserId !== String(userId)) {
+            return res.status(403).json({ success: false, message: 'Sem permissão para editar este comentário.' });
+        }
+
+        comment.content = content.trim();
+        post.markModified('comments');
+        await post.save();
+
+        res.json({ success: true, comment });
+    } catch (error) {
+        console.error('Erro ao editar comentário:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// Excluir Comentário
+app.delete('/api/posts/:postId/comments/:commentId', authMiddleware, async (req, res) => {
     try {
         const { postId, commentId } = req.params;
         const userId = req.user.id;
 
         const post = await Postagem.findById(postId);
         if (!post) return res.status(404).json({ message: 'Post não encontrado' });
-        
-        const comment = post.comments.id(commentId);
+
+        const commentsList = Array.isArray(post.comments) ? post.comments : [];
+        const commentIndex = commentsList.findIndex((item) => String(item?._id) === String(commentId));
+
+        if (commentIndex === -1) return res.status(404).json({ message: 'Comentário não encontrado' });
+
+        const comment = commentsList[commentIndex];
+        const commentUserId = comment.userId?._id ? String(comment.userId._id) : String(comment.userId);
+        const postUserId = String(post.userId);
+
+        // Permite excluir se for dono do comentário OU dono do post
+        if (commentUserId !== String(userId) && postUserId !== String(userId)) {
+            return res.status(403).json({ success: false, message: 'Sem permissão para excluir este comentário.' });
+        }
+
+        if (post.comments?.id) {
+            post.comments.id(commentId).deleteOne();
+        } else {
+            post.comments.splice(commentIndex, 1);
+        }
+
+        post.markModified('comments');
+        await post.save();
+
+        res.json({ success: true, message: 'Comentário excluído.' });
+    } catch (error) {
+        console.error('Erro ao excluir comentário:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// Editar Resposta
+app.put('/api/posts/:postId/comments/:commentId/replies/:replyId', authMiddleware, async (req, res) => {
+    try {
+        const { postId, commentId, replyId } = req.params;
+        const { content } = req.body;
+        const userId = req.user.id;
+
+        if (!content || !content.trim()) {
+            return res.status(400).json({ success: false, message: 'Conteúdo vazio.' });
+        }
+
+        const post = await Postagem.findById(postId);
+        if (!post) return res.status(404).json({ message: 'Post não encontrado' });
+
+        const commentsList = Array.isArray(post.comments) ? post.comments : [];
+        const comment = post.comments?.id
+            ? post.comments.id(commentId)
+            : commentsList.find((item) => String(item?._id) === String(commentId));
+
         if (!comment) return res.status(404).json({ message: 'Comentário não encontrado' });
 
-        const likeIndex = comment.likes.indexOf(userId);
-        const isLiking = likeIndex === -1; // Se não está na lista, está curtindo
-        
+        const repliesList = Array.isArray(comment.replies) ? comment.replies : [];
+        const reply = comment.replies?.id
+            ? comment.replies.id(replyId)
+            : repliesList.find((item) => String(item?._id) === String(replyId));
+
+        if (!reply) return res.status(404).json({ message: 'Resposta não encontrada' });
+
+        // Verifica permissão
+        const replyUserId = reply.userId?._id ? String(reply.userId._id) : String(reply.userId);
+        if (replyUserId !== String(userId)) {
+            return res.status(403).json({ success: false, message: 'Sem permissão para editar esta resposta.' });
+        }
+
+        reply.content = content.trim();
+        post.markModified('comments');
+        await post.save();
+
+        res.json({ success: true, reply });
+    } catch (error) {
+        console.error('Erro ao editar resposta:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// Excluir Resposta
+app.delete('/api/posts/:postId/comments/:commentId/replies/:replyId', authMiddleware, async (req, res) => {
+    try {
+        const { postId, commentId, replyId } = req.params;
+        const userId = req.user.id;
+
+        const post = await Postagem.findById(postId);
+        if (!post) return res.status(404).json({ message: 'Post não encontrado' });
+
+        const commentsList = Array.isArray(post.comments) ? post.comments : [];
+        const comment = post.comments?.id
+            ? post.comments.id(commentId)
+            : commentsList.find((item) => String(item?._id) === String(commentId));
+
+        if (!comment) return res.status(404).json({ message: 'Comentário não encontrado' });
+
+        const repliesList = Array.isArray(comment.replies) ? comment.replies : [];
+        const replyIndex = repliesList.findIndex((item) => String(item?._id) === String(replyId));
+
+        if (replyIndex === -1) return res.status(404).json({ message: 'Resposta não encontrada' });
+
+        const reply = repliesList[replyIndex];
+        const replyUserId = reply.userId?._id ? String(reply.userId._id) : String(reply.userId);
+        const commentUserId = comment.userId?._id ? String(comment.userId._id) : String(comment.userId);
+        const postUserId = String(post.userId);
+
+        // Permite excluir se for dono da resposta, dono do comentário ou dono do post
+        if (replyUserId !== String(userId) && commentUserId !== String(userId) && postUserId !== String(userId)) {
+            return res.status(403).json({ success: false, message: 'Sem permissão para excluir esta resposta.' });
+        }
+
+        if (comment.replies?.id) {
+            comment.replies.id(replyId).deleteOne();
+        } else {
+            comment.replies.splice(replyIndex, 1);
+        }
+
+        post.markModified('comments');
+        await post.save();
+
+        res.json({ success: true, message: 'Resposta excluída.' });
+    } catch (error) {
+        console.error('Erro ao excluir resposta:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+app.post('/api/posts/:postId/comments/:commentId/like', authMiddleware, async (req, res) => {
+    try {
+        const { postId, commentId } = req.params;
+        const userId = req.user.id;
+
+        console.log('➡️ Curtir comentário:', { postId, commentId, userId });
+
+        if (!postId || !commentId) {
+            return res.status(400).json({ success: false, message: 'IDs inválidos.' });
+        }
+
+        const post = await Postagem.findById(postId);
+        console.log('✅ Post encontrado:', Boolean(post));
+        if (!post) return res.status(404).json({ message: 'Post não encontrado' });
+
+        const commentsList = Array.isArray(post.comments) ? post.comments : [];
+        let comment;
+        try {
+            comment = post.comments?.id ? post.comments.id(commentId) : null;
+        } catch (lookupError) {
+            console.error('Erro ao buscar comentário por id():', lookupError?.stack || lookupError);
+            comment = null;
+        }
+        if (!comment) {
+            comment = commentsList.find((item) => String(item?._id) === String(commentId));
+        }
+        console.log('✅ Comentário encontrado:', Boolean(comment));
+
+        if (!comment) return res.status(404).json({ message: 'Comentário não encontrado' });
+
+        if (!Array.isArray(comment.likes)) {
+            comment.likes = [];
+        }
+        comment.likes = comment.likes.map((likeId) => String(likeId));
+        const likeIndex = comment.likes.indexOf(String(userId));
+
+        console.log('✅ Índice de like:', likeIndex);
+
         if (likeIndex > -1) {
             comment.likes.splice(likeIndex, 1); // Descurtir
         } else {
-            comment.likes.push(userId); // Curtir
-            
+            comment.likes.push(String(userId)); // Curtir
+
             // Cria notificação para o dono do comentário (se não for ele mesmo)
-            const comentarioUserId = comment.userId.toString();
-            if (comentarioUserId !== userId.toString()) {
+            const comentarioUserId = comment.userId?._id ? String(comment.userId._id) : String(comment.userId);
+            if (comentarioUserId !== String(userId)) {
                 try {
                     const usuarioQueCurtiu = await User.findById(userId).select('nome');
                     const nomeUsuario = usuarioQueCurtiu?.nome || 'Alguém';
-                    
+
                     await criarNotificacao(
                         comentarioUserId,
                         'comentario_curtido',
@@ -1446,238 +1682,12 @@ app.post('/api/posts/:postId/comments/:commentId/like', authMiddleware, async (r
                 }
             }
         }
-        
+
+        post.markModified('comments');
         await post.save();
         res.json({ success: true, likes: comment.likes });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
-    }
-});
-
-app.post('/api/posts/:postId/comments/:commentId/reply', authMiddleware, async (req, res) => {
-    try {
-        const { postId, commentId } = req.params;
-        const { content } = req.body;
-        const userId = req.user.id;
-
-        // Garante que userId seja ObjectId válido
-        const userIdObjectId = mongoose.Types.ObjectId.isValid(userId) 
-            ? new mongoose.Types.ObjectId(userId) 
-            : userId;
-
-        const post = await Postagem.findById(postId);
-        if (!post) return res.status(404).json({ message: 'Post não encontrado' });
-
-        const comment = post.comments.id(commentId);
-        if (!comment) return res.status(404).json({ message: 'Comentário não encontrado' });
-
-        const newReply = {
-            userId: userIdObjectId,
-            content,
-            likes: [],
-            createdAt: new Date()
-        };
-
-        comment.replies.push(newReply);
-        await post.save();
-
-        const addedReply = comment.replies[comment.replies.length - 1];
-        await User.populate(addedReply, { path: 'userId', select: 'nome foto avatarUrl' });
-        
-        // Cria notificação para quem fez o comentário original (se não for ele mesmo)
-        // Normaliza os IDs para comparação correta
-        const comentarioUserId = comment.userId?._id ? comment.userId._id.toString() : (comment.userId?.toString() || String(comment.userId));
-        const userIdStr = userIdObjectId.toString();
-        
-        console.log('📝 Criando notificação de resposta:', {
-            comentarioUserId,
-            userIdStr,
-            commentUserIdType: typeof comment.userId,
-            commentUserIdValue: comment.userId,
-            saoDiferentes: comentarioUserId !== userIdStr,
-            postId: post._id.toString(),
-            commentId: comment._id.toString(),
-            replyId: addedReply._id.toString()
-        });
-        
-        if (comentarioUserId && comentarioUserId !== userIdStr) {
-            try {
-                const usuarioQueRespondeu = await User.findById(userId).select('nome');
-                const nomeUsuario = usuarioQueRespondeu?.nome || 'Alguém';
-                const previewResposta = content.length > 50 ? content.substring(0, 50) + '...' : content;
-                
-                console.log('📤 Enviando notificação para:', {
-                    destinatario: comentarioUserId,
-                    tipo: 'comentario_respondido',
-                    titulo: 'Nova resposta ao seu comentário',
-                    mensagem: `${nomeUsuario} respondeu seu comentário: "${previewResposta}"`
-                });
-                
-                const notificacaoCriada = await criarNotificacao(
-                    comentarioUserId,
-                    'comentario_respondido',
-                    'Nova resposta ao seu comentário',
-                    `${nomeUsuario} respondeu seu comentário: "${previewResposta}"`,
-                    {
-                        postId: post._id.toString(),
-                        comentarioId: comment._id.toString(),
-                        respostaId: addedReply._id.toString(),
-                        usuarioId: userIdStr,
-                        usuarioNome: nomeUsuario
-                    },
-                    null
-                );
-                
-                console.log('✅ Notificação de resposta criada:', notificacaoCriada ? 'Sucesso' : 'Falha');
-            } catch (notifError) {
-                console.error('❌ Erro ao criar notificação de resposta:', notifError);
-            }
-        } else {
-            console.log('ℹ️ Usuário respondeu seu próprio comentário ou comentarioUserId inválido, notificação não será criada');
-        }
-        
-        res.status(201).json({ success: true, reply: addedReply });
-    } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
-    }
-});
-
-app.delete('/api/posts/:postId/comments/:commentId', authMiddleware, async (req, res) => {
-    try {
-        const { postId, commentId } = req.params;
-        const userId = req.user.id;
-
-        const post = await Postagem.findById(postId);
-        if (!post) return res.status(404).json({ message: 'Post não encontrado' });
-
-        const comment = post.comments.id(commentId);
-        if (!comment) return res.status(404).json({ message: 'Comentário não encontrado' });
-
-        // Função auxiliar para normalizar ID para string
-        const normalizeId = (id) => {
-            if (!id) return '';
-            // Se for ObjectId do mongoose, usa toString()
-            if (id.toString && typeof id.toString === 'function' && id.constructor && id.constructor.name === 'ObjectId') {
-                return id.toString();
-            }
-            // Se for objeto populado (tem _id)
-            if (id._id) {
-                return String(id._id);
-            }
-            // Caso padrão: converte para string
-            return String(id);
-        };
-
-        // Normaliza todos os IDs
-        const postUserIdStr = normalizeId(post.userId);
-        const commentUserIdStr = normalizeId(comment.userId);
-        const currentUserIdStr = normalizeId(userId);
-        
-        // Comparação direta (mais confiável)
-        const isPostOwner = postUserIdStr === currentUserIdStr && postUserIdStr !== '';
-        const isCommentOwner = commentUserIdStr === currentUserIdStr && commentUserIdStr !== '';
-        
-        // Log detalhado para debug
-        console.log('🔍 Verificando permissão de deletar comentário:', {
-            postUserId: postUserIdStr,
-            commentUserId: commentUserIdStr,
-            currentUserId: currentUserIdStr,
-            postUserIdRaw: post.userId,
-            commentUserIdRaw: comment.userId,
-            currentUserIdRaw: userId,
-            postUserIdType: typeof post.userId,
-            commentUserIdType: typeof comment.userId,
-            commentUserIdConstructor: comment.userId?.constructor?.name,
-            isPostOwner,
-            isCommentOwner,
-            lengths: {
-                postUserId: postUserIdStr.length,
-                commentUserId: commentUserIdStr.length,
-                currentUserId: currentUserIdStr.length
-            }
-        });
-
-        if (!isPostOwner && !isCommentOwner) {
-            console.log('❌ Permissão negada:', { 
-                isPostOwner, 
-                isCommentOwner,
-                postUserId: postUserIdStr,
-                commentUserId: commentUserIdStr,
-                currentUserId: currentUserIdStr,
-                comparison: {
-                    postMatch: postUserIdStr === currentUserIdStr,
-                    commentMatch: commentUserIdStr === currentUserIdStr
-                }
-            });
-            return res.status(403).json({ success: false, message: 'Ação não permitida.' });
-        }
-        
-        console.log('✅ Permissão concedida:', { isPostOwner, isCommentOwner });
-
-        comment.deleteOne(); // Remove o subdocumento
-        await post.save();
-        
-        res.json({ success: true, message: 'Comentário deletado.' });
-    } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
-    }
-});
-
-// Editar um Comentário (Apenas dono do comentário)
-app.put('/api/posts/:postId/comments/:commentId', authMiddleware, async (req, res) => {
-    try {
-        const { postId, commentId } = req.params;
-        const { content } = req.body;
-        const userId = req.user.id;
-
-        console.log(`[PUT] Editando comentário - PostId: ${postId}, CommentId: ${commentId}, UserId: ${userId}`);
-
-        if (!content || content.trim().length === 0) {
-            return res.status(400).json({ success: false, message: 'O conteúdo do comentário não pode estar vazio.' });
-        }
-
-        const post = await Postagem.findById(postId);
-        if (!post) {
-            console.log(`[PUT] Post não encontrado: ${postId}`);
-            return res.status(404).json({ success: false, message: 'Post não encontrado' });
-        }
-
-        const comment = post.comments.id(commentId);
-        if (!comment) {
-            console.log(`[PUT] Comentário não encontrado: ${commentId}`);
-            return res.status(404).json({ success: false, message: 'Comentário não encontrado' });
-        }
-
-        // Função auxiliar para normalizar ID
-        const normalizeId = (id) => {
-            if (!id) return '';
-            if (id.toString && typeof id.toString === 'function' && id.constructor && id.constructor.name === 'ObjectId') {
-                return id.toString();
-            }
-            if (id._id) {
-                return String(id._id);
-            }
-            return String(id);
-        };
-
-        const commentUserIdStr = normalizeId(comment.userId);
-        const currentUserIdStr = normalizeId(userId);
-
-        console.log(`[PUT] Verificando permissão - CommentUserId: ${commentUserIdStr}, CurrentUserId: ${currentUserIdStr}`);
-
-        // Apenas o dono do comentário pode editar
-        if (commentUserIdStr !== currentUserIdStr) {
-            console.log(`[PUT] Permissão negada - usuário não é dono do comentário`);
-            return res.status(403).json({ success: false, message: 'Você só pode editar seus próprios comentários.' });
-        }
-
-        comment.content = content.trim();
-        await post.save();
-
-        console.log(`[PUT] Comentário editado com sucesso - CommentId: ${commentId}`);
-        res.json({ success: true, message: 'Comentário editado com sucesso.', comment });
-    } catch (error) {
-        console.error('[PUT] Erro ao editar comentário:', error);
+        console.error('Erro ao curtir comentário:', error);
         res.status(500).json({ success: false, message: error.message });
     }
 });
@@ -1687,30 +1697,54 @@ app.post('/api/posts/:postId/comments/:commentId/replies/:replyId/like', authMid
     try {
         const { postId, commentId, replyId } = req.params;
         const userId = req.user.id;
+        const userIdStr = String(userId);
 
         const post = await Postagem.findById(postId);
         if (!post) return res.status(404).json({ message: 'Post não encontrado' });
-        const comment = post.comments.id(commentId);
+        const commentsList = Array.isArray(post.comments) ? post.comments : [];
+        const comment = post.comments?.id
+            ? post.comments.id(commentId)
+            : commentsList.find((item) => String(item?._id) === String(commentId));
         if (!comment) return res.status(404).json({ message: 'Comentário não encontrado' });
-        const reply = comment.replies.id(replyId);
+
+        const repliesList = Array.isArray(comment.replies) ? comment.replies : [];
+        const reply = comment.replies?.id
+            ? comment.replies.id(replyId)
+            : repliesList.find((item) => String(item?._id) === String(replyId));
         if (!reply) return res.status(404).json({ message: 'Resposta não encontrada' });
 
-        const likeIndex = reply.likes.indexOf(userId);
-        const isLiking = likeIndex === -1; // Se não está na lista, está curtindo
-        
+        if (!Array.isArray(reply.likes)) {
+            reply.likes = [];
+        }
+        reply.likes = reply.likes.map((likeId) => String(likeId));
+
+        const likeIndex = reply.likes.indexOf(userIdStr);
         if (likeIndex > -1) {
-            reply.likes.splice(likeIndex, 1); // Descurtir
+            reply.likes.splice(likeIndex, 1);
         } else {
-            reply.likes.push(userId); // Curtir
-            
+            reply.likes.push(userIdStr);
+
             // Cria notificação para o dono da resposta (se não for ele mesmo)
-            const respostaUserId = reply.userId.toString();
-            if (respostaUserId !== userId.toString()) {
+            // Garante que pegamos o ID corretamente, seja objeto ou string/ObjectId
+            const rawUserId = reply.userId;
+            const respostaUserId = rawUserId && typeof rawUserId === 'object' && rawUserId._id 
+                ? String(rawUserId._id) 
+                : String(rawUserId);
+            
+            console.log('🔔 Tentando criar notificação de resposta:', {
+                replyId,
+                rawUserId,
+                respostaUserId,
+                currentUserId: userIdStr,
+                isDifferent: respostaUserId !== userIdStr
+            });
+
+            if (respostaUserId && respostaUserId !== 'undefined' && respostaUserId !== userIdStr) {
                 try {
                     const usuarioQueCurtiu = await User.findById(userId).select('nome');
                     const nomeUsuario = usuarioQueCurtiu?.nome || 'Alguém';
-                    
-                    await criarNotificacao(
+
+                    const notifCriada = await criarNotificacao(
                         respostaUserId,
                         'resposta_curtida',
                         'Sua resposta recebeu uma curtida',
@@ -1722,157 +1756,24 @@ app.post('/api/posts/:postId/comments/:commentId/replies/:replyId/like', authMid
                         },
                         null
                     );
+                    console.log('✅ Notificação de resposta criada:', Boolean(notifCriada));
                 } catch (notifError) {
-                    console.error('Erro ao criar notificação de resposta curtida:', notifError);
+                    console.error('❌ Erro ao criar notificação de resposta curtida:', notifError);
                 }
+            } else {
+                console.log('⚠️ Notificação não criada: ID inválido ou é o próprio usuário.');
             }
         }
-        
+
+        post.markModified('comments');
         await post.save();
         res.json({ success: true, likes: reply.likes });
     } catch (error) {
+        console.error('Erro ao curtir resposta:', error);
         res.status(500).json({ success: false, message: error.message });
     }
 });
 
-// Deletar uma Resposta (Reply) (Dono do Post OU dono da resposta)
-app.delete('/api/posts/:postId/comments/:commentId/replies/:replyId', authMiddleware, async (req, res) => {
-    try {
-        const { postId, commentId, replyId } = req.params;
-        const userId = req.user.id;
-
-        const post = await Postagem.findById(postId);
-        if (!post) return res.status(404).json({ message: 'Post não encontrado' });
-
-        const comment = post.comments.id(commentId);
-        if (!comment) return res.status(404).json({ message: 'Comentário não encontrado' });
-        
-        const reply = comment.replies.id(replyId);
-        if (!reply) return res.status(404).json({ message: 'Resposta não encontrada' });
-
-        // Função auxiliar para normalizar ID para string
-        const normalizeId = (id) => {
-            if (!id) return '';
-            // Se for ObjectId do mongoose, usa toString()
-            if (id.toString && typeof id.toString === 'function' && id.constructor && id.constructor.name === 'ObjectId') {
-                return id.toString();
-            }
-            // Se for objeto populado (tem _id)
-            if (id._id) {
-                return String(id._id);
-            }
-            // Caso padrão: converte para string
-            return String(id);
-        };
-
-        // Normaliza todos os IDs
-        const postUserIdStr = normalizeId(post.userId);
-        const replyUserIdStr = normalizeId(reply.userId);
-        const currentUserIdStr = normalizeId(userId);
-        
-        // Comparação direta (mais confiável)
-        const isPostOwner = postUserIdStr === currentUserIdStr && postUserIdStr !== '';
-        const isReplyOwner = replyUserIdStr === currentUserIdStr && replyUserIdStr !== '';
-        
-        // Log detalhado para debug
-        console.log('🔍 Verificando permissão de deletar resposta:', {
-            postUserId: postUserIdStr,
-            replyUserId: replyUserIdStr,
-            currentUserId: currentUserIdStr,
-            postUserIdRaw: post.userId,
-            replyUserIdRaw: reply.userId,
-            currentUserIdRaw: userId,
-            postUserIdType: typeof post.userId,
-            replyUserIdType: typeof reply.userId,
-            replyUserIdConstructor: reply.userId?.constructor?.name,
-            isPostOwner,
-            isReplyOwner,
-            lengths: {
-                postUserId: postUserIdStr.length,
-                replyUserId: replyUserIdStr.length,
-                currentUserId: currentUserIdStr.length
-            }
-        });
-
-        if (!isPostOwner && !isReplyOwner) {
-            console.log('❌ Permissão negada (reply):', { 
-                isPostOwner, 
-                isReplyOwner,
-                postUserId: postUserIdStr,
-                replyUserId: replyUserIdStr,
-                currentUserId: currentUserIdStr,
-                comparison: {
-                    postMatch: postUserIdStr === currentUserIdStr,
-                    replyMatch: replyUserIdStr === currentUserIdStr
-                }
-            });
-            return res.status(403).json({ success: false, message: 'Ação não permitida.' });
-        }
-        
-        console.log('✅ Permissão concedida (reply):', { isPostOwner, isReplyOwner });
-
-        reply.deleteOne(); // Remove o subdocumento
-        await post.save();
-        
-        res.json({ success: true, message: 'Resposta deletada.' });
-    } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
-    }
-});
-
-// Editar uma Resposta (Apenas dono da resposta)
-app.put('/api/posts/:postId/comments/:commentId/replies/:replyId', authMiddleware, async (req, res) => {
-    try {
-        const { postId, commentId, replyId } = req.params;
-        const { content } = req.body;
-        const userId = req.user.id;
-
-        if (!content || content.trim().length === 0) {
-            return res.status(400).json({ success: false, message: 'O conteúdo da resposta não pode estar vazio.' });
-        }
-
-        const post = await Postagem.findById(postId);
-        if (!post) return res.status(404).json({ success: false, message: 'Post não encontrado' });
-
-        const comment = post.comments.id(commentId);
-        if (!comment) return res.status(404).json({ success: false, message: 'Comentário não encontrado' });
-
-        const reply = comment.replies.id(replyId);
-        if (!reply) return res.status(404).json({ success: false, message: 'Resposta não encontrada' });
-
-        // Função auxiliar para normalizar ID
-        const normalizeId = (id) => {
-            if (!id) return '';
-            if (id.toString && typeof id.toString === 'function' && id.constructor && id.constructor.name === 'ObjectId') {
-                return id.toString();
-            }
-            if (id._id) {
-                return String(id._id);
-            }
-            return String(id);
-        };
-
-        const replyUserIdStr = normalizeId(reply.userId);
-        const currentUserIdStr = normalizeId(userId);
-
-        // Apenas o dono da resposta pode editar
-        if (replyUserIdStr !== currentUserIdStr) {
-            return res.status(403).json({ success: false, message: 'Você só pode editar suas próprias respostas.' });
-        }
-
-        reply.content = content.trim();
-        await post.save();
-
-        res.json({ success: true, message: 'Resposta editada com sucesso.', reply });
-    } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
-    }
-});
-
-
-// ----------------------------------------------------------------------
-// ROTAS DE SERVIÇOS E AVALIAÇÃO
-// ----------------------------------------------------------------------
 app.get('/api/servicos/:userId', authMiddleware, async (req, res) => {
     try {
         const { userId } = req.params;
