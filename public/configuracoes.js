@@ -1033,6 +1033,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (user.avatarUrl || user.foto) {
                     localStorage.setItem('userPhotoUrl', user.avatarUrl || user.foto);
                 }
+                if (user.cidade) {
+                    localStorage.setItem('userCity', user.cidade);
+                    // Força recarregamento da home se estiver em SPA ou recarrega a página
+                    // Se for página separada, o usuário vai navegar de volta.
+                    // Se for modal, podemos disparar um evento customizado.
+                    window.dispatchEvent(new CustomEvent('profileUpdated', { detail: { cidade: user.cidade } }));
+                }
                 loadHeaderInfo();
 
                 if (msgDadosPessoais) {

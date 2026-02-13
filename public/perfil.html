@@ -403,27 +403,32 @@
         </div>
         <!-- 🌟 NOVO: Seção de Avaliações Verificadas -->
         <div id="secao-avaliacoes-verificadas" class="secao-perfil" style="display: none;">
+            <!-- Movi a área de avaliação para cá -->
+            <div id="secao-avaliacao" class="secao-avaliacao-interna" style="display: none; margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid var(--border-color);">
+                <h3 style="margin-bottom: 15px;">Deixe sua Avaliação</h3>
+                <form id="formAvaliacao">
+                    <div style="display: flex; align-items: center; justify-content: center; gap: 15px; flex-wrap: wrap;">
+                        <div id="estrelas-avaliacao-input" class="estrelas" style="margin-bottom: 0;">
+                            <span data-value="1" style="font-size: 24.75px; width: 24.75px; height: 22px; display: inline-flex; align-items: center; justify-content: center;"><i class="far fa-star" style="font-size: 22px;"></i></span>
+                            <span data-value="2" style="font-size: 24.75px; width: 24.75px; height: 22px; display: inline-flex; align-items: center; justify-content: center;"><i class="far fa-star" style="font-size: 22px;"></i></span>
+                            <span data-value="3" style="font-size: 24.75px; width: 24.75px; height: 22px; display: inline-flex; align-items: center; justify-content: center;"><i class="far fa-star" style="font-size: 22px;"></i></span>
+                            <span data-value="4" style="font-size: 24.75px; width: 24.75px; height: 22px; display: inline-flex; align-items: center; justify-content: center;"><i class="far fa-star" style="font-size: 22px;"></i></span>
+                            <span data-value="5" style="font-size: 24.75px; width: 24.75px; height: 22px; display: inline-flex; align-items: center; justify-content: center;"><i class="far fa-star" style="font-size: 22px;"></i></span>
+                        </div>
+                        <button id="btnEnviarAvaliacao" type="submit" style="background: none; border: none; padding: 0; cursor: pointer; display: block; margin-top: 0;">
+                            <img id="imgBtnEnviarAvaliacao" src="/imagens/enviar.tema.claro.png" alt="Enviar Avaliação" style="height: 40px;">
+                        </button>
+                    </div>
+                    <p id="notaSelecionada" style="margin-top: 5px; text-align: center;"></p>
+                    <textarea id="comentarioAvaliacaoInput" placeholder="Escreva um comentário sobre o serviço..." style="margin-top: 15px;"></textarea>
+                </form>
+            </div>
+
             <h3>
                 <i class="fas fa-star" style="color: #ffc107;"></i> 
                 Avaliações Verificadas 
             </h3>
             <div id="lista-avaliacoes-verificadas" class="lista-avaliacoes"></div>
-        </div>
-
-        <div id="secao-avaliacao" class="secao-perfil" style="display: none;">
-            <h3>Deixe sua Avaliação</h3>
-            <form id="formAvaliacao">
-                <div id="estrelas-avaliacao-input" class="estrelas">
-                    <span data-value="1"><i class="far fa-star"></i></span>
-                    <span data-value="2"><i class="far fa-star"></i></span>
-                    <span data-value="3"><i class="far fa-star"></i></span>
-                    <span data-value="4"><i class="far fa-star"></i></span>
-                    <span data-value="5"><i class="far fa-star"></i></span>
-                </div>
-                <p id="notaSelecionada"></p>
-                <textarea id="comentarioAvaliacaoInput" placeholder="Escreva um comentário sobre o serviço..."></textarea>
-                <button id="btnEnviarAvaliacao" class="salvar-btn" type="submit">Enviar Avaliação</button>
-            </form>
         </div>
     </div>
 

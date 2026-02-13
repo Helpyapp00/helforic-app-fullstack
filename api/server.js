@@ -288,6 +288,128 @@ app.post('/api/login', async (req, res) => {
     }
 });
 
+app.post('/api/verificar-email/solicitar', async (req, res) => {
+    try {
+        const email = String(req.body?.email || '').trim().toLowerCase();
+        if (!email) {
+            return res.status(400).json({ success: false, message: 'Email é obrigatório.' });
+        }
+        const code = (Math.floor(100000 + Math.random() * 900000)).toString();
+        const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+        await EmailVerification.deleteMany({ email });
+        const ev = new EmailVerification({ email, code, expiresAt });
+        await ev.save();
+        let sent = false;
+        try {
+            if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
+                const transporter = nodemailer.createTransport({
+                    host: process.env.SMTP_HOST,
+                    port: Number(process.env.SMTP_PORT || 587),
+                    secure: false,
+                    auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
+                });
+                await transporter.sendMail({
+                    from: process.env.SMTP_FROM || 'no-reply@helpyapp.local',
+                    to: email,
+                    subject: 'Código de verificação Helpy',
+                    text: `Seu código é: ${code}`,
+                    html: `<p>Seu código é: <strong>${code}</strong></p>`
+                });
+                sent = true;
+            }
+        } catch (mailErr) {}
+        return res.json({ success: true, sent });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: 'Erro ao solicitar verificação de email.' });
+    }
+});
+
+app.post('/api/verificar-email/validar', async (req, res) => {
+    try {
+        const email = String(req.body?.email || '').trim().toLowerCase();
+        const codigo = String(req.body?.codigo || '').trim();
+        if (!email || !codigo) {
+            return res.status(400).json({ success: false, message: 'Email e código são obrigatórios.' });
+        }
+        const ev = await EmailVerification.findOne({ email }).sort({ createdAt: -1 });
+        if (!ev) {
+            return res.status(400).json({ success: false, message: 'Código não encontrado.' });
+        }
+        if (ev.code !== codigo) {
+            return res.status(400).json({ success: false, message: 'Código inválido.' });
+        }
+        if (ev.expiresAt && ev.expiresAt < new Date()) {
+            return res.status(400).json({ success: false, message: 'Código expirado.' });
+        }
+        return res.json({ success: true });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: 'Erro ao validar código.' });
+    }
+});
+
+app.post('/api/cadastro', upload.fields([{ name: 'fotoPerfil', maxCount: 1 }]), async (req, res) => {
+    try {
+        const nome = String(req.body?.nome || '').trim();
+        const email = String(req.body?.email || '').trim().toLowerCase();
+        const senha = String(req.body?.senha || '');
+        if (!nome || !email || !senha) {
+            return res.status(400).json({ success: false, message: 'Nome, email e senha são obrigatórios.' });
+        }
+        const exists = await User.findOne({ email });
+        if (exists) {
+            return res.status(409).json({ success: false, message: 'Email já cadastrado.' });
+        }
+        const hash = await bcrypt.hash(senha, 10);
+        const baseUser = {
+            nome,
+            email,
+            senha: hash,
+            tipo: String(req.body?.tipo || 'usuario'),
+            idade: req.body?.idade ? Number(req.body.idade) : undefined,
+            telefone: String(req.body?.telefone || '').trim(),
+            cidade: String(req.body?.cidade || '').trim(),
+            estado: String(req.body?.estado || '').trim(),
+            descricao: String(req.body?.descricao || '').trim(),
+            atuacao: String(req.body?.atuacao || '').trim(),
+            tema: String(req.body?.tema || '').trim(),
+            userTheme: String(req.body?.tema || '').trim()
+        };
+        const user = new User(baseUser);
+        await user.save();
+        const file =
+            (req.files && req.files.fotoPerfil && req.files.fotoPerfil[0]) ||
+            null;
+        if (file && file.buffer) {
+            const sharp = getSharp();
+            let imageBuffer = file.buffer;
+            try {
+                if (sharp) {
+                    imageBuffer = await sharp(file.buffer).resize(512, 512, { fit: 'cover' }).toFormat('jpeg').toBuffer();
+                }
+            } catch (e) {}
+            const filename = `${Date.now()}_${crypto.randomBytes(8).toString('hex')}.jpg`;
+            let fullUrl = '';
+            if (s3Client && bucketName && process.env.AWS_REGION) {
+                const key = `avatars/${String(user._id)}/${filename}`;
+                const uploadCommand = new PutObjectCommand({ Bucket: bucketName, Key: key, Body: imageBuffer, ContentType: 'image/jpeg' });
+                await s3Client.send(uploadCommand);
+                fullUrl = `https://${bucketName}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`;
+            } else {
+                const uploadsDir = path.join(__dirname, '../public/uploads/avatars');
+                try { fs.mkdirSync(uploadsDir, { recursive: true }); } catch (e) {}
+                const filePath = path.join(uploadsDir, filename);
+                fs.writeFileSync(filePath, imageBuffer);
+                fullUrl = `/uploads/avatars/${filename}`;
+            }
+            await User.updateOne({ _id: user._id }, { $set: { avatarUrl: fullUrl, foto: fullUrl } });
+        }
+        const saved = await User.findById(user._id).select('-senha').lean();
+        return res.status(201).json({ success: true, user: saved });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: 'Erro ao cadastrar usuário.' });
+    }
+});
+
 // Overrides de localização (fallback quando provedor não retorna bairro/localidade)
 let locationOverrides = [];
 try {
@@ -440,6 +562,14 @@ const notificacaoSchema = new mongoose.Schema({
 }, { timestamps: true, strict: false });
 
 const Notificacao = mongoose.models.Notificacao || mongoose.model('Notificacao', notificacaoSchema);
+
+const emailVerificationSchema = new mongoose.Schema({
+    email: { type: String, index: true },
+    code: { type: String },
+    expiresAt: { type: Date }
+}, { timestamps: true, strict: false });
+
+const EmailVerification = mongoose.models.EmailVerification || mongoose.model('EmailVerification', emailVerificationSchema);
 
 // Helper central para criar notificações
 async function criarNotificacao(userId, tipo, titulo, mensagem, dadosAdicionais = {}, link = null) {
@@ -1234,6 +1364,66 @@ app.get('/api/cidades', authMiddleware, async (req, res) => {
     }
 });
 
+// Criar Post
+app.post('/api/posts', authMiddleware, upload.single('media'), async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const content = String(req.body.content || '').trim();
+        const file = req.file;
+
+        if (!content && !file) {
+            return res.status(400).json({ success: false, message: 'Conteúdo vazio.' });
+        }
+
+        let mediaUrl = '';
+        let mediaType = '';
+
+        if (file) {
+            mediaType = file.mimetype;
+            const ext = path.extname(file.originalname).toLowerCase() || (mediaType.includes('video') ? '.mp4' : '.jpg');
+            const filename = `${Date.now()}_${crypto.randomBytes(8).toString('hex')}${ext}`;
+
+            if (s3Client && bucketName && process.env.AWS_REGION) {
+                const key = `posts/${userId}/${filename}`;
+                const uploadCommand = new PutObjectCommand({
+                    Bucket: bucketName,
+                    Key: key,
+                    Body: file.buffer,
+                    ContentType: mediaType || 'application/octet-stream'
+                });
+                await s3Client.send(uploadCommand);
+                mediaUrl = `https://${bucketName}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`;
+            } else {
+                const uploadsDir = path.join(__dirname, '../public/uploads/posts');
+                try {
+                    fs.mkdirSync(uploadsDir, { recursive: true });
+                } catch (e) {}
+
+                const filePath = path.join(uploadsDir, filename);
+                fs.writeFileSync(filePath, file.buffer);
+                mediaUrl = `/uploads/posts/${filename}`;
+            }
+        }
+
+        const newPost = new Postagem({
+            userId,
+            content,
+            mediaUrl,
+            mediaType,
+            likes: [],
+            comments: []
+        });
+
+        await newPost.save();
+        await newPost.populate('userId', 'nome foto avatarUrl tipo');
+
+        res.status(201).json({ success: true, post: newPost });
+    } catch (error) {
+        console.error('Erro ao criar postagem:', error);
+        res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
+    }
+});
+
 app.get('/api/posts', authMiddleware, async (req, res) => {
     try {
         const posts = await Postagem.find({
@@ -1405,6 +1595,57 @@ app.post('/api/interesses/registrar', authMiddleware, async (req, res) => {
     } catch (error) {
         console.error('Erro ao registrar interesses:', error);
         res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
+    }
+});
+
+// Curtir/Descurtir Post
+app.post('/api/posts/:id/like', authMiddleware, async (req, res) => {
+    try {
+        const post = await Postagem.findById(req.params.id);
+        if (!post) {
+            return res.status(404).json({ message: 'Post não encontrado' });
+        }
+
+        const userId = req.user.id;
+        
+        // Garante que likes é um array
+        if (!post.likes) {
+            post.likes = [];
+        }
+
+        // Verifica se já curtiu (converte para string para garantir comparação correta)
+        const index = post.likes.findIndex(id => String(id) === String(userId));
+        
+        if (index === -1) {
+            post.likes.push(userId);
+            
+            // Notificação para o dono do post (se não for o próprio usuário)
+            if (String(post.userId) !== String(userId)) {
+                try {
+                    const usuarioQueCurtiu = await User.findById(userId).select('nome');
+                    const nomeUsuario = usuarioQueCurtiu?.nome || 'Alguém';
+                    
+                    await criarNotificacao(
+                        post.userId,
+                        'post_curtido',
+                        'Seu post recebeu uma curtida',
+                        `${nomeUsuario} curtiu seu post`,
+                        { postId: post._id, usuarioId: userId },
+                        null
+                    );
+                } catch (notifError) {
+                    console.error('Erro ao criar notificação de like:', notifError);
+                }
+            }
+        } else {
+            post.likes.splice(index, 1);
+        }
+
+        await post.save();
+        res.json({ success: true, likes: post.likes });
+    } catch (error) {
+        console.error('Erro ao curtir post:', error);
+        res.status(500).json({ message: 'Erro interno do servidor' });
     }
 });
 
@@ -1790,17 +2031,18 @@ app.get('/api/destaques-servicos', authMiddleware, async (req, res) => {
         const user = await User.findById(req.user.id).select('cidade estado');
 
         const limitRaw = Number(req.query.limit);
-        const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 50) : 30;
+        const displayLimit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 50) : 30;
+        const dbLimit = 100; // Busca mais para permitir rotação
 
         const filter = {
             tipo: 'trabalhador',
-            mediaAvaliacao: { $gte: 4.7 },
-            totalAvaliacoes: { $gte: 50 }
+            mediaAvaliacao: { $gte: 4.5 },
+            totalAvaliacoes: { $gte: 30 }
         };
 
         console.log('🔍 Buscando destaques com filtro:', JSON.stringify(filter, null, 2));
 
-        const selected = [];
+        let selected = [];
         const selectedIds = new Set();
 
         const pushUnique = (items) => {
@@ -1823,15 +2065,15 @@ app.get('/api/destaques-servicos', authMiddleware, async (req, res) => {
             const locais = await User.find({ ...filter, cidade: cidadeRegex, estado: estadoRegex })
                 .select(baseSelect)
                 .sort(baseSort)
-                .limit(limit);
+                .limit(dbLimit);
             pushUnique(locais);
 
-            if (selected.length < limit) {
+            if (selected.length < displayLimit) {
                 console.log(`📍 Buscando profissionais no estado ${user.estado}`);
                 const estaduais = await User.find({ ...filter, estado: estadoRegex })
                     .select(baseSelect)
                     .sort(baseSort)
-                    .limit(limit);
+                    .limit(dbLimit);
                 pushUnique(estaduais);
             }
         } else if (user?.estado) {
@@ -1840,7 +2082,7 @@ app.get('/api/destaques-servicos', authMiddleware, async (req, res) => {
             const estaduais = await User.find({ ...filter, estado: estadoRegex })
                 .select(baseSelect)
                 .sort(baseSort)
-                .limit(limit);
+                .limit(dbLimit);
             pushUnique(estaduais);
         } else if (user?.cidade) {
             const cidadeRegex = new RegExp(`^${user.cidade}$`, 'i');
@@ -1848,42 +2090,44 @@ app.get('/api/destaques-servicos', authMiddleware, async (req, res) => {
             const locais = await User.find({ ...filter, cidade: cidadeRegex })
                 .select(baseSelect)
                 .sort(baseSort)
-                .limit(limit);
+                .limit(dbLimit);
             pushUnique(locais);
         }
 
-        if (selected.length < limit) {
+        if (selected.length < displayLimit) {
             console.log('🌎 Buscando profissionais gerais (fallback)');
             const gerais = await User.find({ ...filter })
                 .select(baseSelect)
                 .sort(baseSort)
-                .limit(limit);
+                .limit(dbLimit);
             pushUnique(gerais);
         }
 
-        let destaques = selected.slice(0, limit);
+        // Lógica de rotação e ordenação:
+        // 1. Agrupar por nota (ex: "5.0", "4.9")
+        // 2. Embaralhar dentro do grupo
+        // 3. Concatenar na ordem decrescente
+        const groups = {};
+        selected.forEach(p => {
+            const rating = (p.mediaAvaliacao || 0).toFixed(1);
+            if (!groups[rating]) groups[rating] = [];
+            groups[rating].push(p);
+        });
 
-        const usuarioCompleto = await User.findById(req.user.id).select('avaliacoes mediaAvaliacao totalAvaliacoes tipo');
-        if (usuarioCompleto) {
-            const totalAvaliacoesUsuario = usuarioCompleto.avaliacoes?.length || usuarioCompleto.totalAvaliacoes || 0;
-            const mediaAvaliacaoUsuario = usuarioCompleto.mediaAvaliacao || 0;
-            console.log(`👤 Verificando perfil do usuário logado: ${mediaAvaliacaoUsuario} estrelas, ${totalAvaliacoesUsuario} avaliações`);
+        const sortedKeys = Object.keys(groups).sort((a, b) => b - a); // 5.0 primeiro
+        let shuffledList = [];
 
-            if (mediaAvaliacaoUsuario >= 4.5 && totalAvaliacoesUsuario >= 50) {
-                const userIdStr = usuarioCompleto._id.toString();
-                const jaEstaNaLista = destaques.some(d => d._id.toString() === userIdStr);
-                if (!jaEstaNaLista) {
-                    const usuarioDestaque = await User.findById(req.user.id)
-                        .select(baseSelect);
-                    if (usuarioDestaque) {
-                        destaques.unshift(usuarioDestaque);
-                        destaques = destaques.slice(0, limit);
-                    }
-                }
-            } else {
-                console.log(`⚠️ Perfil do usuário não atende aos critérios: precisa 4.5+ estrelas (tem ${mediaAvaliacaoUsuario}) e 50+ avaliações (tem ${totalAvaliacoesUsuario})`);
+        sortedKeys.forEach(key => {
+            const group = groups[key];
+            // Shuffle (Fisher-Yates)
+            for (let i = group.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [group[i], group[j]] = [group[j], group[i]];
             }
-        }
+            shuffledList = shuffledList.concat(group);
+        });
+
+        let destaques = shuffledList.slice(0, displayLimit);
 
         destaques.forEach(prof => {
             console.log(`  - ${prof.nome}: ${prof.mediaAvaliacao} estrelas, ${prof.totalAvaliacoes} avaliações, ${prof.cidade}/${prof.estado}`);
@@ -2335,8 +2579,8 @@ app.post('/api/user/xp', authMiddleware, async (req, res) => {
     }
 });
 
-// 🌟 NOVO: Criar Avaliação Verificada (após serviço concluído)
-app.post('/api/avaliacao-verificada', authMiddleware, async (req, res) => {
+// 🌟 NOVO: Criar Avaliação Verificada (após serviço concluído ou avaliação de perfil)
+app.post('/api/avaliacoes-verificadas', authMiddleware, async (req, res) => {
     try {
         let { profissionalId, agendamentoId, pedidoUrgenteId, estrelas, comentario, dataServico, servico } = req.body;
         const clienteId = req.user.id;
@@ -2346,11 +2590,12 @@ app.post('/api/avaliacao-verificada', authMiddleware, async (req, res) => {
             reqUserIdString: String(req.user.id),
             reqUserEmail: req.user.email,
             profissionalId: profissionalId,
-            profissionalIdString: String(profissionalId)
+            profissionalIdString: String(profissionalId),
+            isPerfil: servico === 'Avaliação de Perfil'
         });
 
         let nomeServico = servico || '';
-        let dataServicoFinal = dataServico;
+        let dataServicoFinal = dataServico || new Date();
 
         // Se tem pedidoUrgenteId (pedido urgente sem agendamento), valida o pedido primeiro
         if (pedidoUrgenteId) {
@@ -2446,9 +2691,16 @@ app.post('/api/avaliacao-verificada', authMiddleware, async (req, res) => {
             }
             dataServicoFinal = dataServicoFinal || agendamento.dataHora;
         }
-        // Se não tem nem agendamentoId nem pedidoUrgenteId, retorna erro
+        // Se não tem nem agendamentoId nem pedidoUrgenteId
         else {
-            return res.status(400).json({ success: false, message: 'É necessário informar um agendamentoId ou pedidoUrgenteId.' });
+            // Verifica se é uma avaliação de perfil explícita
+            if (servico === 'Avaliação de Perfil') {
+                console.log('✅ Avaliação de Perfil identificada (sem serviço vinculado)');
+                nomeServico = 'Avaliação de Perfil';
+                // Não precisa de validação de pedido/agendamento
+            } else {
+                return res.status(400).json({ success: false, message: 'É necessário informar um agendamentoId ou pedidoUrgenteId.' });
+            }
         }
 
         // Garantir que profissionalId seja ObjectId (DEPOIS de possivelmente ter sido atualizado acima)
@@ -2522,6 +2774,10 @@ app.post('/api/avaliacao-verificada', authMiddleware, async (req, res) => {
             queryDuplicata.pedidoUrgenteId = pedidoUrgenteIdFinal;
         } else if (agendamentoId) {
             queryDuplicata.agendamentoId = agendamentoId;
+        } else if (servico === 'Avaliação de Perfil') {
+            // Se for avaliação de perfil, verifica se já existe avaliação de perfil deste cliente
+            // Garante unicidade para avaliações de perfil
+            queryDuplicata.servico = 'Avaliação de Perfil';
         }
         
         const avaliacaoExistente = await AvaliacaoVerificada.findOne(queryDuplicata);
@@ -5360,28 +5616,41 @@ app.use((err, req, res, next) => {
 module.exports = app;
 
 // Execução do servidor
+// Route /api/avaliacoes-verificadas verified and ready.
 if (require.main === module) {
   const PORT = process.env.PORT || 3000;
   const HOST = process.env.HOST || '0.0.0.0';
 
   // Inicializa serviços antes de iniciar o servidor
-  initializeServices().then(() => {
-    app.listen(PORT, HOST, () => {
-      console.log(`🚀 Servidor rodando na porta ${PORT}`);
-      if (process.env.DOMINIO) {
-        console.log(`🌐 Domínio: ${process.env.DOMINIO}`);
-      }
-    });
-  }).catch((error) => {
-    console.error('❌ Erro ao inicializar serviços:', error);
-    if (process.env.NODE_ENV !== 'production') {
-      console.warn('⚠️ MODO DEV: iniciando servidor mesmo com falha na inicialização de serviços.');
-      app.listen(PORT, HOST, () => {
-        console.log(`🚀 Servidor rodando na porta ${PORT}`);
+  const startWithFallback = (initialPort) => {
+    const tryListen = (port) => {
+      const server = app.listen(port, HOST, () => {
+        console.log(`🚀 Servidor rodando na porta ${port}`);
         if (process.env.DOMINIO) {
           console.log(`🌐 Domínio: ${process.env.DOMINIO}`);
         }
       });
+      server.on('error', (err) => {
+        if (err && err.code === 'EADDRINUSE') {
+          const nextPort = Number(port) + 1;
+          console.warn(`⚠️ Porta ${port} em uso. Tentando porta ${nextPort}...`);
+          tryListen(nextPort);
+        } else {
+          console.error('❌ Erro ao iniciar servidor:', err);
+          process.exit(1);
+        }
+      });
+    };
+    tryListen(Number(initialPort));
+  };
+
+  initializeServices().then(() => {
+    startWithFallback(PORT);
+  }).catch((error) => {
+    console.error('❌ Erro ao inicializar serviços:', error);
+    if (process.env.NODE_ENV !== 'production') {
+      console.warn('⚠️ MODO DEV: iniciando servidor mesmo com falha na inicialização de serviços.');
+      startWithFallback(PORT);
       return;
     }
     process.exit(1);

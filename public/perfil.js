@@ -1058,24 +1058,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 const usuarioMatch = usuarioIdStr && usuarioIdStr === loggedInUserIdStr;
                 const match = clienteMatch || usuarioMatch;
                 
-                console.log('🔍 Comparando avaliação:', {
-                    avaliacaoId: av._id,
-                    clienteId: clienteId,
-                    clienteIdStr: clienteIdStr,
-                    usuarioId: usuarioId,
-                    usuarioIdStr: usuarioIdStr,
-                    loggedInUserId: loggedInUserId,
-                    loggedInUserIdStr: loggedInUserIdStr,
-                    clienteMatch: clienteMatch,
-                    usuarioMatch: usuarioMatch,
-                    match: match,
-                    servico: av.servico,
-                    clienteIdRaw: JSON.stringify(av.clienteId),
-                    clienteIdType: typeof av.clienteId,
-                    clienteIdIsObject: typeof av.clienteId === 'object' && av.clienteId !== null
-                });
+                // 🛑 CORREÇÃO: Para avaliação geral de perfil, ignorar avaliações de serviço específico
+                // Se tiver pedidoUrgenteId ou agendamentoId, conta como avaliação de serviço
+                const isServiceEval = av.pedidoUrgenteId || av.agendamentoId;
                 
-                return match;
+                if (match) {
+                    if (isServiceEval) {
+                        console.log('ℹ️ Avaliação encontrada do usuário, mas é de serviço (ignorando para bloqueio geral):', {
+                            id: av._id,
+                            pedido: av.pedidoUrgenteId,
+                            agendamento: av.agendamentoId
+                        });
+                        return false; // Não conta como avaliação de perfil geral
+                    }
+                    console.log('✅ Avaliação de PERFIL GERAL encontrada:', av._id);
+                    return true;
+                }
+                
+                return false;
             });
             
             console.log('🔍 verificarAvaliacaoJaFeitaAPI - resultado:', jaAvaliou);
@@ -1183,14 +1183,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const marcarAvaliacaoFeita = (estrelas, pedidoIdForcado = null, agendamentoIdForcado = null) => {
         if (!avaliacaoSessionKey) atualizarChavesAvaliacao();
-        sessionStorage.setItem(avaliacaoSessionKey, '1');
-        localStorage.setItem(avaliacaoSessionKey, '1');
         
         // Usa os valores forçados, depois da URL, depois do localStorage
         const pedidoIdFinal = pedidoIdForcado || pedidoIdAvaliacao || pedidoIdUltimoServicoConcluido;
         const agendamentoIdFinal = agendamentoIdForcado || agendamentoIdAvaliacao || agendamentoIdUltimoServico;
         
-        // Se tem pedidoId ou agendamentoId, marca também como avaliado este serviço específico
+        // Se tem pedidoId ou agendamentoId, marca APENAS o serviço específico
         if (pedidoIdFinal || agendamentoIdFinal) {
             const chaveServico = pedidoIdFinal 
                 ? `avaliacaoServico:${loggedInUserId}-${pedidoIdFinal}`
@@ -1204,7 +1202,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 agendamentoIdForcado
             });
         } else {
-            console.log('⚠️ Não foi possível identificar pedidoId/agendamentoId para marcar como avaliado');
+            // Se NÃO tem serviço específico, marca a avaliação geral
+            sessionStorage.setItem(avaliacaoSessionKey, '1');
+            localStorage.setItem(avaliacaoSessionKey, '1');
+            console.log('✅ Marcado como avaliado o PERFIL GERAL:', avaliacaoSessionKey);
+            
             const chavePermanente = `avaliacaoPerfil:${loggedInUserId}-${profileId || profileIdFromUrl || slugFromPath || 'desconhecido'}:permanente`;
             localStorage.setItem(chavePermanente, '1');
             avaliacaoJaFeitaCache = true;
@@ -1240,23 +1242,76 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const avaliacaoLiberadaGeral = async () => isFluxoServico || !(await avaliacaoJaFeita());
 
+    // Função para atualizar o botão de enviar avaliação de acordo com o tema
+    function atualizarBotaoEnviarAvaliacao() {
+        const btnImg = document.getElementById('imgBtnEnviarAvaliacao');
+        if (!btnImg) return;
+        
+        const temaAtual = localStorage.getItem('theme') || 'light';
+        // Se tema for dark, usa imagem escura? 
+        // Geralmente imagens de botões seguem o contraste.
+        // Se o fundo é escuro (dark mode), o botão deve ser visível.
+        // "enviar.tema.claro.png" provavelmente é para tema CLARO.
+        // "enviar.tema.escuro.png" para tema ESCURO.
+        // Vamos assumir correspondência direta.
+        const isDark = temaAtual === 'dark';
+        btnImg.src = isDark ? '/imagens/enviar.tema.escuro.png' : '/imagens/enviar.tema.claro.png';
+    }
+
     async function bloquearAvaliacaoGeral() {
         if (!secaoAvaliacao) return;
-        // Se já avaliou (storage), esconde completamente a seção
-        if (await avaliacaoJaFeita()) {
+        
+        // Normalização extra para garantir que o próprio perfil seja bloqueado
+        const loggedInUserIdStr = String(loggedInUserId || '').trim();
+        const profileIdStr = String(profileId || '').trim();
+        const isMe = loggedInUserIdStr && profileIdStr && loggedInUserIdStr === profileIdStr;
+        
+        // Se for o próprio perfil, sempre esconde
+        if (isOwnProfile || isMe) {
+            console.log('🔒 Bloqueando avaliação: é o próprio perfil');
             secaoAvaliacao.style.display = 'none';
             return;
         }
+
+        // Se já avaliou (storage), esconde
+        if (await avaliacaoJaFeita()) {
+            console.log('🔒 Bloqueando avaliação: já avaliou (storage)');
+            secaoAvaliacao.style.display = 'none';
+            return;
+        }
+        
         // Verifica via API também antes de mostrar
+        // IMPORTANTE: Aqui já deve considerar avaliações de serviço anteriores como bloqueio
         const jaAvaliouAPI = await verificarAvaliacaoJaFeitaAPI();
         if (jaAvaliouAPI) {
+            console.log('🔒 Bloqueando avaliação: já avaliou (API/Serviço Anterior)');
             secaoAvaliacao.style.display = 'none';
             return;
         }
-        // Se chegou aqui, não avaliou ainda, mas NÃO deve mostrar a seção em visitas normais
-        // A função bloquearAvaliacaoGeral só deve esconder, não mostrar
-        // A lógica de mostrar está em outro lugar (visita normal)
-        secaoAvaliacao.style.display = 'none';
+        
+        // Se chegou aqui, não avaliou ainda.
+        // Se não for o próprio perfil e for visita normal, DEVE MOSTRAR
+        if (!isMe && !isOwnProfile && !veioDeNotificacao && !hashSecaoAvaliacao && origemAvaliacao !== 'servico_concluido') {
+            console.log('🔓 Liberando avaliação geral: perfil de terceiro não avaliado');
+            
+            // GARANTIR QUE A SEÇÃO PAI ESTÁ VISÍVEL (secao-avaliacoes-verificadas)
+            const secaoAvaliacoesVerificadas = document.getElementById('secao-avaliacoes-verificadas');
+            if (secaoAvaliacoesVerificadas) {
+                 secaoAvaliacoesVerificadas.style.display = 'block';
+            }
+
+            secaoAvaliacao.style.display = 'block';
+            
+            // Esconde campo de comentário para avaliação geral
+            const comentarioInput = document.getElementById('comentarioAvaliacaoInput');
+            if (comentarioInput) comentarioInput.style.display = 'none';
+            
+            // Atualiza botão
+            atualizarBotaoEnviarAvaliacao();
+
+            // Também mostra o formulário se estiver oculto
+            if (formAvaliacao) formAvaliacao.style.display = 'block';
+        }
     }
 
     // Função de inicialização da página (chamada depois de resolver slug/ID)
@@ -1381,13 +1436,49 @@ document.addEventListener('DOMContentLoaded', () => {
             const uid = a.usuarioId?._id || a.usuarioId || a.usuario;
             return uid && String(uid) === String(loggedInUserId);
         });
-        if (minhas.length > 0) {
-            const ultima = minhas[ minhas.length - 1 ];
-            const estrelas = ultima?.estrelas || ultima?.nota || '';
-            // Não passa pedidoId/agendamentoId para não marcar serviço específico como avaliado
-            marcarAvaliacaoFeita(estrelas, null, null);
-            await bloquearAvaliacaoGeral();
+        
+        // Verifica se existe alguma avaliação GERAL (sem pedido/agendamento)
+        const temAvaliacaoGeral = minhas.some(av => !av.pedidoUrgenteId && !av.agendamentoId);
+
+        if (!avaliacaoSessionKey) atualizarChavesAvaliacao();
+        const chavePermanente = `avaliacaoPerfil:${loggedInUserId}-${profileId || profileIdFromUrl || slugFromPath || 'desconhecido'}:permanente`;
+
+        if (temAvaliacaoGeral) {
+            // Se tem avaliação geral no servidor, garante que está no storage
+            sessionStorage.setItem(avaliacaoSessionKey, '1');
+            localStorage.setItem(avaliacaoSessionKey, '1');
+            localStorage.setItem(chavePermanente, '1');
+            console.log('✅ Sincronização: Avaliação geral encontrada e marcada no storage');
+        } else {
+            // Se NÃO tem avaliação geral no servidor, LIMPA do storage (auto-healing)
+            // Isso corrige casos onde o storage ficou "sujo" incorretamente
+            sessionStorage.removeItem(avaliacaoSessionKey);
+            localStorage.removeItem(avaliacaoSessionKey);
+            localStorage.removeItem(chavePermanente);
+            // Também reseta o cache da API
+            avaliacaoJaFeitaCache = null;
+            console.log('🧹 Sincronização: Nenhuma avaliação geral encontrada - storage limpo');
         }
+        
+        // Sincroniza histórico local de serviços com o servidor
+        if (minhas.length > 0) {
+            console.log('🔍 Sincronizando histórico de avaliações de serviço locais:', minhas.length);
+            minhas.forEach(av => {
+                const pId = av.pedidoUrgenteId?._id || av.pedidoUrgenteId;
+                const aId = av.agendamentoId?._id || av.agendamentoId;
+                
+                if (pId || aId) {
+                    const chaveServico = pId 
+                        ? `avaliacaoServico:${loggedInUserId}-${pId}`
+                        : `avaliacaoServico:${loggedInUserId}-${aId}`;
+                    localStorage.setItem(chaveServico, '1');
+                }
+            });
+        }
+        
+        // Tenta exibir ou ocultar a seção com base no histórico atualizado
+        // IMPORTANTE: Chama sempre para garantir que a seção apareça para novos visitantes (que não têm avaliações)
+        await bloquearAvaliacaoGeral();
     }
     // Atualiza a URL do navegador para usar o slug, sem recarregar a página
     function atualizarUrlPerfil(user) {
@@ -1426,6 +1517,8 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Reseta o flag de avaliações carregadas para forçar reload
         avaliacoesCarregadas = false;
+        // Reseta o cache de avaliação já feita para evitar estados antigos
+        avaliacaoJaFeitaCache = null;
         
         try {
             console.log('📡 Fazendo fetch para /api/usuario/' + profileId);
@@ -1474,49 +1567,6 @@ document.addEventListener('DOMContentLoaded', () => {
             fetchPostagens(user._id);
             
             // (Removido) Abas
-            
-            // Verifica se já avaliou após carregar o perfil e esconde a seção se necessário
-            // IMPORTANTE: Não executa se veio de notificação (já foi processado acima)
-            setTimeout(async () => {
-                if (!secaoAvaliacao) return;
-                
-                // Se veio de notificação ou tem hash de avaliação, não processa aqui (já foi processado acima)
-                const temHashAvaliacao = window.location.hash && window.location.hash.includes('secao-avaliacao');
-                const temOrigemServico = origemAvaliacao === 'servico_concluido';
-                if (temHashAvaliacao || temOrigemServico || veioDeNotificacao) {
-                    console.log('🔍 Veio de notificação ou tem hash, não processando verificação assíncrona aqui');
-                    return;
-                }
-                
-                // Primeiro verifica storage (rápido)
-                const jaAvaliouStorage = avaliacaoJaFeita && avaliacaoJaFeita();
-                
-                if (jaAvaliouStorage) {
-                    console.log('✅ Perfil carregado - já avaliou (storage), mantendo seção oculta');
-                    secaoAvaliacao.style.display = 'none';
-                    await mostrarMensagemAvaliado();
-                    return;
-                }
-                
-                // Se não tem no storage, verifica via API ANTES de mostrar
-                console.log('🔍 Verificando via API após carregar perfil...');
-                const jaAvaliouAPI = await verificarAvaliacaoJaFeitaAPI();
-                
-                if (jaAvaliouAPI) {
-                    console.log('✅ Perfil carregado - já avaliou (API), mantendo seção oculta');
-                    secaoAvaliacao.style.display = 'none';
-                    await mostrarMensagemAvaliado();
-                } else {
-                    // Só mostra se realmente não avaliou E não for o próprio perfil
-                    if (!isOwnProfile) {
-                        console.log('✅ Perfil carregado - primeira visita, verificando se deve mostrar seção...');
-                        // A lógica de mostrar está no bloco else if (secaoAvaliacao) abaixo
-                        // Não mostra aqui para evitar duplicação
-                    } else {
-                        secaoAvaliacao.style.display = 'none';
-                    }
-                }
-            }, 1000); // Aguarda 1 segundo para garantir que tudo foi carregado
             
         } catch (error) {
             console.error('Erro ao buscar perfil:', error); 
@@ -1678,7 +1728,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             body: JSON.stringify({ disponivelAgora: disponivel })
                         });
                         
-                        const data = await response.json();
+                        data = await response.json();
                         if (data.success && disponibilidadeTexto) {
                             disponibilidadeTexto.textContent = disponivel ? 'Disponível agora' : 'Indisponível';
                         }
@@ -1954,6 +2004,12 @@ document.addEventListener('DOMContentLoaded', () => {
     let carregandoAvaliacoes = false;
     
     async function loadAvaliacoesVerificadas(profissionalId, forcarRecarregar = false) {
+        // Validação inicial
+        if (!profissionalId) {
+            console.warn('⚠️ loadAvaliacoesVerificadas chamado sem profissionalId');
+            return;
+        }
+
         // Verifica diretamente o hash para evitar problemas de escopo
         const temHashSecaoAvaliacao = window.location.hash && window.location.hash.includes('secao-avaliacao');
         const origem = temHashSecaoAvaliacao ? 'SECAO-AVALIACAO' : 'PERFIL-NORMAL';
@@ -2050,6 +2106,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     const usuarioMatch = usuarioIdStr && usuarioIdStr === loggedInUserIdStr;
                     const match = clienteMatch || usuarioMatch;
                     
+                    // 🛑 CORREÇÃO: Para avaliação geral de perfil, ignorar avaliações de serviço específico
+                    // Se tiver pedidoUrgenteId ou agendamentoId, conta como avaliação de serviço
+                    const isServiceEval = av.pedidoUrgenteId || av.agendamentoId;
+
                     console.log('🔍 loadAvaliacoesVerificadas - Comparando:', {
                         avaliacaoId: av._id,
                         clienteId: clienteId,
@@ -2061,6 +2121,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         clienteMatch: clienteMatch,
                         usuarioMatch: usuarioMatch,
                         match: match,
+                        isServiceEval: isServiceEval,
                         servico: av.servico,
                         clienteIdRaw: JSON.stringify(av.clienteId),
                         clienteIdType: typeof av.clienteId,
@@ -2068,9 +2129,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                     
                     if (match) {
+                        if (isServiceEval) {
+                            console.log('ℹ️ Avaliação encontrada do usuário, mas é de serviço (ignorando para bloqueio geral em loadAvaliacoesVerificadas)');
+                            return false; 
+                        }
                         console.log('✅ Avaliação do usuário logado encontrada em loadAvaliacoesVerificadas');
+                        return true;
                     }
-                    return match;
+                    return false;
                 });
                 
                 if (jaAvaliou) {
@@ -2273,7 +2339,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     return true;
                 }
                 
-                // Fallback: compara por nome (menos confiável)
+                // Fallback por nome removido para evitar falsos positivos em perfis de terceiros
+                // A comparação deve ser estrita pelo ID do usuário logado
+                /*
                 const nome = av.clienteId?.nome || av.usuarioId?.nome || av.nome || '';
                 if (sameName(nome)) {
                     console.log('✅ ehMinha: Match encontrado por nome:', {
@@ -2284,6 +2352,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                     return true;
                 }
+                */
                 
                 console.log('❌ ehMinha: Nenhum match encontrado:', {
                     avaliacaoId: av._id,
@@ -2292,7 +2361,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     clienteIdType: typeof clienteId,
                     viewerId: viewerIdNormalizado,
                     viewerIdRaw: viewerId,
-                    nome: nome,
                     viewerName: viewerName,
                     match: false,
                     servico: av.servico,
@@ -2388,7 +2456,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const renderizarAvaliacaoCompleta = (av, index) => {
                 const isMinha = ehMinha(av);
                 const nomeBase = av.clienteId?.nome || 'Cliente';
-                const nomeExibicao = isMinha ? `${nomeBase} · VOCÊ` : nomeBase;
+                // Cria o HTML do badge "Você" separado, estilo discreto
+                const voceBadge = isMinha ? ' <span style="color: #6c757d; font-size: 0.85em; font-weight: normal; margin-left: 5px;">(Você)</span>' : '';
+                const nomeExibicao = nomeBase;
                 const avatar = av.clienteId?.avatarUrl || av.clienteId?.foto || '/imagens/default-user.png';
                 const estrelas = '★'.repeat(av.estrelas) + '☆'.repeat(5 - av.estrelas);
                 const dataServico = av.dataServico ? new Date(av.dataServico).toLocaleDateString('pt-BR') : '';
@@ -2659,7 +2729,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="avaliacao-cliente">
             <img src="${avatar}" alt="${nomeBase}" class="avatar-pequeno">
             <div>
-                <strong>${nomeExibicao}</strong>
+                <strong>${nomeExibicao}${voceBadge}</strong>
                 <span class="badge-verificado-item">
                     <i class="fas fa-check-circle"></i> Cliente Verificado
                 </span>
@@ -2790,6 +2860,8 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } catch (error) {
             console.error('❌ Erro ao carregar avaliações verificadas:', error);
+            console.error('📋 Stack trace do erro:', error.stack);
+            
             // Garante que a seção está visível mesmo em caso de erro
             if (secaoAvaliacoesVerificadas) {
                 secaoAvaliacoesVerificadas.style.display = 'block';
@@ -5017,8 +5089,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (formAvaliacao) formAvaliacao.dataset.value = value;
                 estrelasAvaliacao.forEach(s => {
                     const sValue = s.dataset.value;
-                    if (sValue <= value) s.innerHTML = '<i class="fas fa-star"></i>';
-                    else s.innerHTML = '<i class="far fa-star"></i>';
+                    const icon = s.querySelector('i');
+                    if (sValue <= value) {
+                        if (icon) icon.className = 'fas fa-star';
+                    } else {
+                        if (icon) icon.className = 'far fa-star';
+                    }
                 });
                 if (notaSelecionada) notaSelecionada.textContent = `Você selecionou ${value} estrela(s).`;
             });
@@ -5107,6 +5183,14 @@ document.addEventListener('DOMContentLoaded', () => {
     // Função para renderizar fotos na seção de avaliação
     async function renderizarFotosSecaoAvaliacao() {
         if (!secaoAvaliacao) return;
+
+        // 🛑 GUARDA: Se não for fluxo de serviço concluído, NÃO mostra fotos
+        if (origemAvaliacao !== 'servico_concluido' && !hashSecaoAvaliacao) {
+             console.log('🛑 renderizarFotosSecaoAvaliacao bloqueado: não é fluxo de serviço');
+             const fotosAnteriores = secaoAvaliacao.querySelector('.fotos-pedido-container');
+             if (fotosAnteriores) fotosAnteriores.remove();
+             return;
+        }
         
         // Remove fotos anteriores se existirem
         const fotosContainerAnterior = secaoAvaliacao.querySelector('.fotos-pedido-container');
@@ -5970,7 +6054,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         console.log('⚠️ Não veio de notificação - não abrindo lembrete flutuante');
                         // Se não veio de notificação, apenas mostra a seção de avaliação normalmente
                         if (secaoAvaliacao) {
-        secaoAvaliacao.style.display = 'block';
+                            secaoAvaliacao.style.display = 'block';
+                            // GENERICO: Esconde comentário
+                            const comentarioInput = document.getElementById('comentarioAvaliacaoInput');
+                            if (comentarioInput) comentarioInput.style.display = 'none';
+                            atualizarBotaoEnviarAvaliacao();
                         }
                     }
                 }
@@ -5981,8 +6069,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 const jaAvaliou = await avaliacaoJaFeita();
                 if (!jaAvaliou && !modalAvaliacaoAberto) {
                     secaoAvaliacao.style.display = 'block';
+                    
+                    // SERVICO: Mostra comentário
+                    const comentarioInput = document.getElementById('comentarioAvaliacaoInput');
+                    if (comentarioInput) comentarioInput.style.display = 'block';
+                    atualizarBotaoEnviarAvaliacao();
+                    
                     await renderizarFotosSecaoAvaliacao();
-        if (formAvaliacao) formAvaliacao.style.display = 'none';
+                    if (formAvaliacao) formAvaliacao.style.display = 'none';
                     modalAvaliacaoAberto = true;
                     abrirLembreteAvaliacao();
                 } else if (jaAvaliou) {
@@ -6312,8 +6406,51 @@ document.addEventListener('DOMContentLoaded', () => {
                     token: token ? token.substring(0, 20) + '...' : 'NENHUM TOKEN',
                     profileId
                 });
-                
-                // Validação do token
+
+                // Se não tiver IDs de serviço, vamos criar uma avaliação de perfil (sem serviço atrelado)
+                // Mas vamos usar o endpoint de avaliações verificadas para aparecer na mesma lista
+                if (!pedidoUrgenteIdFinal && !agendamentoIdFinal && !isFluxoServico) {
+                    console.log('📤 Enviando avaliação de PERFIL (sem serviço vinculado)...');
+                    response = await fetch('/api/avaliacoes-verificadas', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify({
+                            profissionalId: profileId,
+                            estrelas: parseInt(estrelas, 10),
+                            comentario: comentario || '', // Comentário opcional
+                            // IDs nulos explicitamente
+                            agendamentoId: null,
+                            pedidoUrgenteId: null,
+                            servico: 'Avaliação de Perfil' // Marcador interno
+                        })
+                    });
+                } else {
+                    // Fluxo normal com serviço
+                    if (!pedidoUrgenteIdFinal && !agendamentoIdFinal) {
+                        console.error('❌ Erro crítico: Tentativa de enviar avaliação verificada sem ID de serviço no fluxo de serviço');
+                        alert('Erro ao identificar o serviço. Por favor, tente novamente pelo link da notificação.');
+                        return;
+                    }
+                    
+                    response = await fetch('/api/avaliacoes-verificadas', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify({
+                            profissionalId: profileId,
+                            agendamentoId: agendamentoIdFinal,
+                            pedidoUrgenteId: pedidoUrgenteIdFinal,
+                            estrelas: parseInt(estrelas, 10),
+                            comentario: comentario,
+                            servico: nomeServicoPayload
+                        })
+                    });
+                }
                 if (!token) {
                     console.error('❌ Token não encontrado no localStorage!');
                     alert('Erro: Você precisa estar logado para avaliar. Por favor, faça login novamente.');
@@ -6343,195 +6480,86 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 
                 if (isFluxoServico && (agendamentoIdFinal || pedidoUrgenteIdFinal)) {
-                    const payload = {
-                        profissionalId: profileId,
-                        estrelas: parseInt(estrelas, 10),
-                        comentario: comentario,
-                        dataServico: new Date().toISOString(),
-                        servico: nomeServicoPayload
-                    };
-                    
-                    // Adiciona agendamentoId ou pedidoUrgenteId conforme disponível
-                    if (agendamentoIdFinal) {
-                        payload.agendamentoId = agendamentoIdFinal;
-                        console.log('✅ Adicionando agendamentoId ao payload:', agendamentoIdFinal);
-                    }
-                    if (pedidoUrgenteIdFinal) {
-                        payload.pedidoUrgenteId = pedidoUrgenteIdFinal;
-                        console.log('✅ Adicionando pedidoUrgenteId ao payload:', pedidoUrgenteIdFinal);
-                    }
-                    console.log('📤 Enviando avaliação verificada com payload:', JSON.stringify(payload, null, 2));
-                    console.log('📤 Nome do serviço no payload:', payload.servico);
-                    console.log('📤 pedidoUrgenteId no payload:', payload.pedidoUrgenteId);
-                    console.log('🔑 Token sendo usado:', token ? token.substring(0, 20) + '...' : 'NENHUM TOKEN');
-                    
-                    response = await fetch('/api/avaliacao-verificada', {
-                        method: 'POST',
-                        headers: {
-                            'Authorization': `Bearer ${token}`,
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify(payload)
-                    });
-                    
-                    console.log('📥 Resposta do servidor:', {
-                        status: response.status,
-                        statusText: response.statusText,
-                        ok: response.ok
-                    });
-                    
-                    const responseText = await response.text();
-                    console.log('📥 Resposta (texto):', responseText);
-                    
-                    try {
-                        data = JSON.parse(responseText);
-                    } catch (e) {
-                        console.error('❌ Erro ao parsear resposta JSON:', e);
-                        throw new Error('Resposta inválida do servidor');
-                    }
-                    
-                    console.log('📥 Resposta (JSON):', data);
-                    
-                    if (!response.ok) {
-                        console.error('❌ Erro na resposta:', {
-                            status: response.status,
-                            data: data
-                        });
-                        throw new Error(data.message || 'Erro ao enviar avaliação verificada.');
-                    }
-                    
-                    console.log('✅ Avaliação enviada com sucesso!', data);
-                    localStorage.setItem('ultimaAvaliacaoClienteId', loggedInUserId || '');
-                    if (nomeServicoPayload) {
-                        localStorage.setItem('ultimaAvaliacaoServico', nomeServicoPayload);
-                        // Cacheia também com o ID do pedido/agendamento para uso futuro
-                        if (pedidoUrgenteIdFinal) {
-                            localStorage.setItem(`nomeServico:${pedidoUrgenteIdFinal}`, nomeServicoPayload);
-                        }
-                        if (agendamentoIdFinal) {
-                            localStorage.setItem(`nomeServico:${agendamentoIdFinal}`, nomeServicoPayload);
-                        }
-                    }
-                    
-                    // Mostra toast de sucesso
-                    const toast = document.createElement('div');
-                    toast.className = 'toast-sucesso';
-                    toast.innerHTML = '<span class="check-animado">✔</span> Perfil Avaliado';
-                    document.body.appendChild(toast);
-                    setTimeout(() => toast.classList.add('show'), 10);
-                    setTimeout(() => toast.remove(), 2500);
-                    
-                    // Marca como avaliado - passa os IDs do serviço que foi avaliado
-                    marcarAvaliacaoFeita(estrelas, pedidoUrgenteIdFinal || null, agendamentoIdFinal || null);
-                    
-                    // Esconde a seção de avaliação e mostra mensagem nas avaliações verificadas
-                    await mostrarMensagemAvaliado();
-                    
-                    // REMOVIDO: Não recarrega mais as avaliações após enviar
-                    // Apenas redireciona para o feed após avaliar
-                    
-                    // Se veio de pedido urgente, redireciona para o feed
-                    if (pedidoUrgenteIdFinal) {
-                        // Redireciona imediatamente para o feed sem recarregar nada
-                        setTimeout(() => {
-                            window.location.href = '/index.html';
-                        }, 500);
-                    }
-                } else {
-                    console.warn('⚠️ NÃO está criando avaliação verificada porque:', {
-                        isFluxoServico,
-                        agendamentoIdFinal,
-                        pedidoUrgenteIdFinal,
-                        motivo: !isFluxoServico ? 'isFluxoServico é false' : (!agendamentoIdFinal && !pedidoUrgenteIdFinal ? 'Não tem agendamentoId nem pedidoUrgenteId' : 'Desconhecido')
-                    });
-                    
-                    // Se é fluxo de serviço mas não tem ID, não permite avaliar
-                    if (isFluxoServico && !agendamentoIdFinal && !pedidoUrgenteIdFinal) {
-                        alert('Erro: Não foi possível identificar o serviço a ser avaliado. Por favor, use o link da notificação.');
-                        return;
-                    }
-                    
-                    // Bloqueio: só 1 avaliação geral por visita/sessão (apenas para visitas normais, não fluxo de serviço)
-                    if (!isFluxoServico) {
-                        const jaAvaliouGeral = await avaliacaoJaFeita();
-                        if (jaAvaliouGeral) {
-                            alert('Você já avaliou este perfil. Para avaliar novamente, use o link enviado após concluir um serviço.');
-                            return;
-                        }
-                    } else {
-                        // Se é fluxo de serviço mas não tem ID, não permite
-                        alert('Erro: Não foi possível identificar o serviço a ser avaliado. Por favor, use o link da notificação.');
-                        return;
-                    }
-
-                    // Avaliação geral do trabalhador (só para visitas normais, não fluxo de serviço)
-                    response = await fetch('/api/avaliar-trabalhador', {
-                        method: 'POST',
-                        headers: {
-                            'Authorization': `Bearer ${token}`,
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            trabalhadorId: profileId,
-                            estrelas: parseInt(estrelas, 10),
-                            comentario: comentario,
-                            servico: nomeServicoPayload
-                        })
-                    });
-                    data = await response.json();
-                    if (!response.ok) throw new Error(data.message || 'Erro ao enviar avaliação.');
-                    
-                    // Mostra toast de sucesso
-                    const toast = document.createElement('div');
-                    toast.className = 'toast-sucesso';
-                    toast.innerHTML = '<span class="check-animado">✔</span> Perfil Avaliado';
-                    document.body.appendChild(toast);
-                    setTimeout(() => toast.classList.add('show'), 10);
-                    setTimeout(() => toast.remove(), 2500);
-                    
-                    // Marca bloqueio na sessão/localStorage - usa IDs do localStorage se não estiverem na URL
-                    const pedidoIdParaMarcar = pedidoIdAvaliacao || pedidoIdUltimoServicoConcluido;
-                    const agendamentoIdParaMarcar = agendamentoIdAvaliacao || agendamentoIdUltimoServico;
-                    marcarAvaliacaoFeita(estrelas, pedidoIdParaMarcar || null, agendamentoIdParaMarcar || null);
-                    localStorage.setItem('ultimaAvaliacaoClienteId', loggedInUserId || '');
-                    if (nomeServicoPayload) localStorage.setItem('ultimaAvaliacaoServico', nomeServicoPayload);
-                    
-                    // Esconde a seção de avaliação e mostra mensagem nas avaliações verificadas
-                    await mostrarMensagemAvaliado();
-                    
-                    // Recarrega as avaliações verificadas para mostrar a nova avaliação
-                    if (profileId) {
-                        loadAvaliacoesVerificadas(profileId);
-                    }
-                    // Guarda a última avaliação geral para exibir no quadro de verificadas quando não houver outras
-                    try {
-                    const cacheKey = `ultimaAvaliacaoGeral:${profileId}:${loggedInUserId || ''}`;
-                    const nomeViewer = (localStorage.getItem('userName') || 'Você').trim();
-                    const fotoViewer = localStorage.getItem('userPhotoUrl') || 'imagens/default-user.png';
-                    const servicoNomeLink =
-                        urlParams.get('servico') ||
-                        urlParams.get('titulo') ||
-                        localStorage.getItem('ultimoServicoNome') ||
-                        localStorage.getItem('ultimaDescricaoPedido') ||
-                        localStorage.getItem('ultimaCategoriaPedido') ||
-                        localStorage.getItem('ultimaDemanda') ||
-                        'Serviço concluído';
-                        const cacheObj = {
-                            clienteId: { _id: loggedInUserId || '', nome: nomeViewer, avatarUrl: fotoViewer },
-                            estrelas: parseInt(estrelas, 10),
-                            comentario,
-                            dataServico: new Date().toISOString(),
-                            agendamentoId: { servico: servicoNomeLink },
-                            servico: servicoNomeLink,
-                            servicoNome: servicoNomeLink,
-                            origemLocal: true
-                        };
-                        localStorage.setItem(cacheKey, JSON.stringify(cacheObj));
-                    } catch (e) {
-                        console.warn('Falha ao salvar cache da avaliação local:', e);
-                    }
-                    await bloquearAvaliacaoGeral();
+                    // ... (código existente) ...
+                    // OBSERVAÇÃO: A lógica acima (linhas 6400-6440) já enviou a requisição fetch.
+                    // O código abaixo (linhas 6470+) é uma DUPLICAÇÃO ou código legado que estava aqui.
+                    // A requisição já foi feita nos blocos if/else acima.
+                    // Vamos remover essa duplicação para evitar enviar duas vezes.
+                    // A variável 'response' já foi preenchida acima.
+                } else if (!isFluxoServico) {
+                     // Caso de avaliação de perfil já tratado acima
                 }
+
+                data = await response.json();
+
+                if (!response.ok) {
+                    console.error('❌ Erro na resposta:', {
+                        status: response.status,
+                        data: data
+                    });
+                    throw new Error(data.message || 'Erro ao enviar avaliação verificada.');
+                }
+                
+                console.log('✅ Avaliação enviada com sucesso!', data);
+                localStorage.setItem('ultimaAvaliacaoClienteId', loggedInUserId || '');
+                if (nomeServicoPayload) {
+                    localStorage.setItem('ultimaAvaliacaoServico', nomeServicoPayload);
+                    // Cacheia também com o ID do pedido/agendamento para uso futuro
+                    if (pedidoUrgenteIdFinal) {
+                        localStorage.setItem(`nomeServico:${pedidoUrgenteIdFinal}`, nomeServicoPayload);
+                    }
+                    if (agendamentoIdFinal) {
+                        localStorage.setItem(`nomeServico:${agendamentoIdFinal}`, nomeServicoPayload);
+                    }
+                }
+                
+                // Mostra toast de sucesso
+                const toast = document.createElement('div');
+                toast.className = 'toast-sucesso';
+                toast.innerHTML = '<span class="check-animado">✔</span> Perfil Avaliado';
+                document.body.appendChild(toast);
+                setTimeout(() => toast.classList.add('show'), 10);
+                setTimeout(() => toast.remove(), 2500);
+                
+                // Marca como avaliado - passa os IDs do serviço que foi avaliado
+                marcarAvaliacaoFeita(estrelas, pedidoUrgenteIdFinal || null, agendamentoIdFinal || null);
+                
+                // Esconde a seção de avaliação imediatamente
+                if (secaoAvaliacao) secaoAvaliacao.style.display = 'none';
+
+                // Se não for fluxo de serviço, adiciona a avaliação na lista
+                if (!isFluxoServico) {
+                    await loadAvaliacoesVerificadas(profileId, true);
+                    
+                    // Garante que a seção pai (avaliacoes verificadas) esteja visível
+                    const secaoAvaliacoesVerificadas = document.getElementById('secao-avaliacoes-verificadas');
+                    if (secaoAvaliacoesVerificadas) {
+                        secaoAvaliacoesVerificadas.style.display = 'block';
+                    }
+                }
+                
+                // REMOVIDO: Não recarrega mais as avaliações após enviar
+                // Apenas redireciona para o feed após avaliar
+                
+                // Se veio de pedido urgente, redireciona para o feed
+                if (pedidoUrgenteIdFinal) {
+                    // Redireciona imediatamente para o feed sem recarregar nada
+                    setTimeout(() => {
+                        window.location.href = '/index.html';
+                    }, 500);
+                } else {
+                    // Se não for fluxo de serviço, removemos o form do DOM ou escondemos
+                    if (formAvaliacao) formAvaliacao.style.display = 'none';
+                    const msgAgradecimento = document.createElement('p');
+                    msgAgradecimento.textContent = 'Obrigado por avaliar!';
+                    msgAgradecimento.style.textAlign = 'center';
+                    msgAgradecimento.style.color = 'var(--text-secondary)';
+                    msgAgradecimento.style.marginTop = '10px';
+                    if (secaoAvaliacao && secaoAvaliacao.parentNode) {
+                        secaoAvaliacao.parentNode.insertBefore(msgAgradecimento, secaoAvaliacao);
+                    }
+                }
+
 
                 // Limpa formulário
                 formAvaliacao.reset();

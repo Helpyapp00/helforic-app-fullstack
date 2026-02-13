@@ -1546,6 +1546,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         .then((resp) => resp.json())
                         .then((data) => {
                             const user = data?.usuario || data?.user || data;
+                            if (user?.cidade) {
+                                localStorage.setItem('userCity', user.cidade);
+                            }
                             const apiPhoto = user?.avatarUrl || user?.foto;
                             if (apiPhoto) {
                                 localStorage.setItem('userPhotoUrl', apiPhoto);
@@ -1639,7 +1642,22 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!destaquesScroll) return;
         destaquesScroll.innerHTML = '<p class="mensagem-vazia" style="padding:8px 10px;margin:0;">Carregando...</p>';
         try {
-            const response = await fetch('/api/destaques-servicos', {
+            // Garante que temos a cidade do usuário para filtro
+            // Sempre busca do servidor para garantir consistência
+            if (token) {
+                try {
+                    const uResp = await fetch('/api/user/me', { headers: { 'Authorization': `Bearer ${token}` } });
+                    if (uResp.ok) {
+                        const uData = await uResp.json();
+                        const u = uData?.usuario || uData?.user || uData;
+                        if (u?.cidade) {
+                            localStorage.setItem('userCity', u.cidade);
+                        }
+                    }
+                } catch (e) { console.warn('Falha ao obter cidade user:', e); }
+            }
+
+            const response = await fetch(`/api/destaques-servicos?_t=${Date.now()}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const data = await response.json();
@@ -1647,7 +1665,33 @@ document.addEventListener('DOMContentLoaded', () => {
                 throw new Error(data.message || 'Erro ao carregar destaques');
             }
             const recebidos = data.destaques || [];
-            destaquesCache = recebidos.length > 0 ? recebidos : buildDemoDestaques();
+            
+            let filtered = recebidos;
+            const userCity = localStorage.getItem('userCity');
+            
+            if (userCity && recebidos.length > 0) {
+                // O servidor já deve retornar filtrado, mas o frontend pode refinar se necessário.
+                // Se o servidor retornou items de outra cidade (ex: cache de query), o filtro aqui resolve.
+                // Mas se o user mudou a cidade, o localStorage deve estar atualizado.
+                filtered = recebidos.filter(item => {
+                    // Item pode ser o próprio user object ou ter .user/.userId
+                    const p = item.user || item.userId || item; // item pode ser o user direto se vier do endpoint modificado
+                    // No novo endpoint, 'item' É o objeto do usuário (profissional)
+                    // Mas verificamos se tem wrapper
+                    const prof = p._id ? p : item;
+                    
+                    return prof.cidade && prof.cidade.trim().toLowerCase() === userCity.trim().toLowerCase();
+                });
+            }
+
+            // Se veio da API mas o filtro removeu tudo, exibe vazio.
+            // Se a API não trouxe nada, exibe demo.
+            if (recebidos.length > 0 && filtered.length === 0) {
+                destaquesCache = [];
+            } else {
+                destaquesCache = filtered.length > 0 ? filtered : buildDemoDestaques();
+            }
+
             renderDestaquesMini(destaquesCache);
             setTimeout(atualizarBotoesDestaques, 120);
         } catch (error) {
@@ -4163,7 +4207,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             try {
-                const response = await fetch(`/api/busca?q=${encodeURIComponent(q)}`, {
+                const response = await fetch(`/api/buscar-usuarios?q=${encodeURIComponent(q)}`, {
                     headers: {
                         'Authorization': `Bearer ${token}`
                     }

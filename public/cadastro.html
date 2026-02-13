@@ -8,8 +8,8 @@
     <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
     <link rel="preload" href="/imagens/default-user.png" as="image">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css"/>
-    <link rel="stylesheet" href="/style.css"> <!-- Usando style.css base -->
-    <link rel="stylesheet" href="/cadastro.css">
+    <link rel="stylesheet" href="/style.css?v=20260212-15"> <!-- Usando style.css base -->
+    <link rel="stylesheet" href="/cadastro.css?v=20260212-15">
 </head>
 <body>
   <!-- 🧹 Silencia console.* em produção (ative com localStorage.DEBUG=1) -->
@@ -57,18 +57,15 @@
       </div>
 
       <div class="form-row">
-        <div class="form-group">
+        <div class="form-group" style="flex: 0 0 80px;"> <!-- Idade menor -->
           <label for="idade">Idade</label>
           <input type="number" id="idade" name="idade" min="18" required>
         </div>
-        <!-- 🛑 ATUALIZAÇÃO: Campos de localização separados -->
         <div class="form-group">
           <label for="cidade">Cidade</label>
           <input type="text" id="cidade" name="cidade" required placeholder="Ex: Juiz de Fora">
         </div>
-      </div>
-      <div class="form-row">
-         <div class="form-group">
+        <div class="form-group">
           <label for="estado">Estado</label>
           <select id="estado" name="estado" required>
             <option value="">Selecione seu estado</option>
@@ -101,18 +98,16 @@
             <option value="TO">Tocantins</option>
           </select>
         </div>
-        <!-- Fim da Atualização -->
-
-        <div class="form-group">
+      </div>
+      
+      <div class="form-row">
+        <div class="form-group grupo-tipo">
           <label for="tipo">Você é:</label>
           <select id="tipo" name="tipo">
             <option value="usuario">Usuário</option>
             <option value="empresa">Empresa</option>
           </select>
         </div>
-      </div>
-      
-      <div class="form-row">
         <div id="atuacao-group" class="form-group">
           <label for="atuacao">Área de atuação (opcional)</label>
           <input type="text" id="atuacao" name="atuacao" placeholder="Ex: Eletricista">
@@ -162,28 +157,6 @@
         <div class="form-group full-width">
           <label style="margin-bottom: 15px; display: block;">Escolha o tema da interface</label>
           <div class="tema-selecao-container">
-            <div class="tema-opcao" data-tema="light">
-              <div class="tema-preview light-preview">
-                <div class="preview-header">
-                  <div class="preview-avatar"></div>
-                  <div class="preview-lines">
-                    <div class="preview-line"></div>
-                    <div class="preview-line short"></div>
-                  </div>
-                </div>
-                <div class="preview-content">
-                  <div class="preview-card"></div>
-                  <div class="preview-card"></div>
-                </div>
-              </div>
-              <div class="tema-label">
-                <i class="fas fa-sun"></i>
-                <span>Claro</span>
-              </div>
-              <div class="tema-arrow">
-                <i class="fas fa-chevron-right"></i>
-              </div>
-            </div>
             <div class="tema-opcao" data-tema="dark">
               <div class="tema-preview dark-preview">
                 <div class="preview-header">
@@ -203,11 +176,33 @@
                 <span>Escuro</span>
               </div>
               <div class="tema-arrow">
-                <i class="fas fa-chevron-left"></i>
+                <i class="fas fa-check"></i>
+              </div>
+            </div>
+            <div class="tema-opcao" data-tema="light">
+              <div class="tema-preview light-preview">
+                <div class="preview-header">
+                  <div class="preview-avatar"></div>
+                  <div class="preview-lines">
+                    <div class="preview-line"></div>
+                    <div class="preview-line short"></div>
+                  </div>
+                </div>
+                <div class="preview-content">
+                  <div class="preview-card"></div>
+                  <div class="preview-card"></div>
+                </div>
+              </div>
+              <div class="tema-label">
+                <i class="fas fa-sun"></i>
+                <span>Claro</span>
+              </div>
+              <div class="tema-arrow">
+                <i class="fas fa-check"></i>
               </div>
             </div>
           </div>
-          <input type="hidden" id="tema" name="tema" value="light" required>
+          <input type="hidden" id="tema" name="tema" value="dark" required>
         </div>
       </div>
 
@@ -216,6 +211,11 @@
 
     <!-- Etapa 2 - Validar Código -->
     <div id="etapa-validar-codigo" class="etapa-cadastro" style="display: none;">
+      <!-- Botão Voltar no Canto Superior Esquerdo -->
+      <button type="button" id="btn-voltar-formulario" class="btn-voltar-topo" title="Voltar">
+        <i class="fas fa-arrow-left"></i>
+      </button>
+
       <h2 style="text-align: center; margin-bottom: 20px;">Verificação de Email</h2>
       <p style="text-align: center; color: #666; margin-bottom: 30px;">
         Enviamos um código de 6 dígitos para <strong id="email-exibido"></strong><br>
@@ -227,19 +227,19 @@
           <input type="text" id="codigo-verificacao" name="codigo-verificacao" required placeholder="000000" maxlength="6" pattern="[0-9]{6}" style="text-align: center; font-size: 24px; letter-spacing: 8px; font-weight: bold;">
         </div>
       </div>
-      <div class="form-row" style="margin-top: 25px;">
-        <button type="button" id="btn-voltar-formulario" class="btn-submit-cadastro">
-          <i class="fas fa-arrow-left"></i> Voltar
-        </button>
-        <button type="button" id="btn-validar-codigo" class="btn-submit-cadastro">
-          <i class="fas fa-check-circle"></i> Validar e Criar Conta
+      
+      <!-- Link Reenviar (Movido para cima do botão) -->
+      <div style="text-align: center; margin-top: 15px; margin-bottom: 5px;">
+        <a href="#" id="link-reenviar-codigo" style="color: #666; text-decoration: none; font-size: 14px; font-weight: 600;">
+          <i class="fas fa-redo" style="font-size: 12px;"></i> Reenviar código
+        </a>
+      </div>
+
+      <div class="form-row">
+        <button type="button" id="btn-validar-codigo" class="btn-submit-cadastro" style="margin-top: 10px;">
+          <i class="fas fa-check-circle"></i> Criar Conta
         </button>
       </div>
-      <p style="text-align: center; margin-top: 20px;">
-        <a href="#" id="link-reenviar-codigo">
-          <i class="fas fa-redo"></i> Reenviar código
-        </a>
-      </p>
     </div>
 
       <div class="link-login-container">
@@ -257,7 +257,6 @@
           </div>
       </div>
   </div>
-  <script src="/cadastro.js"></script>
+  <script src="/cadastro.js?v=20260212-02"></script>
 </body>
 </html>
-

@@ -1,4 +1,19 @@
 document.addEventListener('DOMContentLoaded', function() {
+    try {
+        document.documentElement.style.overflowY = 'auto';
+        document.body.style.overflowY = 'auto';
+    } catch (e) {}
+
+    // Fecha qualquer overlay/modal que possa travar a rolagem do body
+    try {
+        const overlays = document.querySelectorAll('.modal-overlay, #image-modal-pedido, .image-modal-overlay');
+        overlays.forEach((el) => {
+            el.classList.add('hidden');
+            el.style.display = 'none';
+        });
+        document.body.style.overflow = '';
+        document.documentElement.style.overflow = '';
+    } catch (e) {}
     // Elementos das etapas
     const etapaValidarCodigo = document.getElementById('etapa-validar-codigo');
     const formCadastro = document.getElementById('form-cadastro');
@@ -47,9 +62,9 @@ document.addEventListener('DOMContentLoaded', function() {
         temaOpcoes.forEach(o => {
             const optTema = o.getAttribute('data-tema');
             if (optTema === tema) {
-                o.classList.add('selecionado');
+                o.classList.add('selected');
             } else {
-                o.classList.remove('selecionado');
+                o.classList.remove('selected');
             }
         });
 
@@ -95,30 +110,16 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Seleção visual de tema
-    // - DESKTOP / TELAS MAIORES: dois cards lado a lado, clique escolhe diretamente aquele tema
-    // - MOBILE (max-width: 650px): efeito de "slider", clicar funciona como toggle (claro <-> escuro)
-    function isTemaMobile() {
-        return window.matchMedia('(max-width: 650px)').matches;
-    }
-
+    // Simplificado: clique seleciona diretamente o tema, independente do dispositivo
     temaOpcoes.forEach(opcao => {
         opcao.addEventListener('click', function() {
             const temaDaOpcao = opcao.getAttribute('data-tema') || 'light';
-
-            if (isTemaMobile()) {
-                // MOBILE: comportamento de toggle (slide entre claro e escuro)
-                const atual = temaInput && temaInput.value ? temaInput.value : 'light';
-                const proximo = atual === 'light' ? 'dark' : 'light';
-                setTema(proximo);
-            } else {
-                // DESKTOP: clica diretamente no card que quer (sem alternar sozinho)
-                setTema(temaDaOpcao);
-            }
+            setTema(temaDaOpcao);
         });
     });
 
-    // Tema claro por padrão
-    setTema(temaInput && temaInput.value ? temaInput.value : 'light');
+    // Inicializa com o valor do input (padrão 'dark' se não definido)
+    setTema(temaInput && temaInput.value ? temaInput.value : 'dark');
 
     // --- Funções de Feedback ---
     function showMessage(message, type) {
@@ -228,18 +229,34 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function syncAtuacaoVisibility() {
         if (!tipoSelect || !atuacaoGroup) return;
-        const tipo = String(tipoSelect.value || '').toLowerCase();
-        const isEmpresa = tipo === 'empresa';
-        atuacaoGroup.classList.toggle('atuacao-hidden', isEmpresa);
-        if (isEmpresa && atuacaoInput) {
-            atuacaoInput.value = '';
-        }
+        // Mantém a Área de atuação sempre visível, apenas sem required
+        atuacaoGroup.classList.remove('atuacao-hidden');
     }
 
     if (tipoSelect) {
         tipoSelect.addEventListener('change', syncAtuacaoVisibility);
     }
     syncAtuacaoVisibility();
+
+    // --- Fallback para rolagem com a roda do mouse ---
+    // Alguns navegadores/interações em inputs impedem o scroll da página. Garantimos manualmente.
+    try {
+        window.addEventListener('wheel', function(e) {
+            if (e && typeof e.deltaY === 'number') {
+                // Não cancela se algum modal ativo exigir bloqueio (não aplicável aqui)
+                window.scrollBy({ top: e.deltaY, behavior: 'auto' });
+            }
+        }, { passive: true });
+        // Evita que roda do mouse altere número/seleção e não role a página
+        const wheelTargets = document.querySelectorAll('#form-cadastro input[type=\"number\"], #form-cadastro select');
+        wheelTargets.forEach(el => {
+            el.addEventListener('wheel', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                window.scrollBy({ top: e.deltaY, behavior: 'auto' });
+            }, { passive: false });
+        });
+    } catch (e) {}
 
     // --- Lógica de Formatação de Telefone ---
     telefoneInput.addEventListener('input', function(e) {

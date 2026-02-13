@@ -559,11 +559,11 @@ html.dark-mode {
 /* Fim das Variáveis */
 
 
+/* Rolagem padrão restaurada */
 html,
 body {
-    overscroll-behavior-x: none !important;
-    overscroll-behavior-y: none !important;
-    touch-action: pan-y !important;
+    overscroll-behavior: auto !important;
+    touch-action: auto !important;
 }
 
 #explorar-video-overlay,
