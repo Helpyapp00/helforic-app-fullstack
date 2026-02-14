@@ -383,6 +383,10 @@ body.explorar-video-open .mobile-bottom-nav {
     display: none !important;
 }
 
+.explorar-video-overlay:not(.hidden) .explorar-video-back {
+    display: grid !important;
+}
+
 .explorar-video-delete {
     position: absolute;
     top: 18px;
@@ -414,13 +418,14 @@ body.explorar-video-open .mobile-bottom-nav {
     position: absolute;
     left: 16px;
     right: 16px;
-    bottom: 24px;
+    bottom: 64px;
     display: flex;
     flex-direction: column;
     gap: 8px;
     color: #fff;
     z-index: 2;
     text-shadow: 0 2px 8px rgba(0, 0, 0, 0.7);
+    pointer-events: none;
 }
 
 .explorar-video-perfil {
@@ -11216,7 +11221,7 @@ body.explorar-post-modal-open #explorar-page {
     position: relative;
     max-height: calc(100vh - 32px);
     max-height: calc(100svh - 32px);
-    overflow: hidden;
+    overflow-y: auto;
 }
 
 .explorar-post-modal-card {
@@ -11257,6 +11262,7 @@ body.explorar-post-modal-open #explorar-page {
     display: grid;
     place-items: center;
     border-radius: 10px;
+    z-index: 5;
 }
 
 .explorar-post-preview {
@@ -11342,6 +11348,25 @@ body.explorar-post-modal-open #explorar-page {
     align-items: flex-end;
     gap: 12px;
 }
+.explorar-post-actions .explorar-card-desc {
+    min-height: 88px;
+    padding: 12px;
+}
+.explorar-post-send {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    align-self: center;
+    flex-shrink: 0;
+}
+.explorar-post-send img {
+    width: 28px;
+    height: 28px;
+    display: block;
+}
 
 .explorar-post-actions .explorar-card-desc {
     flex: 1;
@@ -11384,33 +11409,56 @@ body.explorar-post-modal-open #explorar-page {
     .explorar-post-modal-card {
         width: 100vw;
         margin: 0;
-        padding: 14px;
+        padding: 0;
         height: calc(100vh - 40px - var(--bottom-nav-height, 56px) - 5px - env(safe-area-inset-bottom, 0px));
         height: calc(100svh - 40px - var(--bottom-nav-height, 56px) - 5px - env(safe-area-inset-bottom, 0px));
         height: calc(100dvh - 40px - var(--bottom-nav-height, 56px) - 5px - env(safe-area-inset-bottom, 0px));
         max-height: calc(100vh - 40px - var(--bottom-nav-height, 56px) - 5px - env(safe-area-inset-bottom, 0px));
         max-height: calc(100svh - 40px - var(--bottom-nav-height, 56px) - 5px - env(safe-area-inset-bottom, 0px));
         max-height: calc(100dvh - 40px - var(--bottom-nav-height, 56px) - 5px - env(safe-area-inset-bottom, 0px));
+        position: relative;
+        overflow: hidden;
     }
 
     .explorar-post-preview {
-        min-height: 70dvh;
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        min-height: 100%;
+        margin: 0;
+        aspect-ratio: unset;
     }
 
     .explorar-post-preview img,
-    .explorar-post-preview video {
-        max-height: 80dvh;
-    }
+    .explorar-post-preview video { width: 100%; height: 100%; }
+    .explorar-post-preview video { object-fit: cover; max-height: none; }
+    .explorar-post-preview img { object-fit: contain; max-height: none; }
 
     .explorar-post-actions {
-        align-items: stretch;
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+        z-index: 3;
+        padding: 12px 12px 8px;
+        background: linear-gradient(180deg, rgba(0,0,0,0.0) 0%, rgba(0,0,0,0.55) 40%, rgba(0,0,0,0.55) 100%) !important;
+        backdrop-filter: blur(2px);
+        display: flex;
+        align-items: flex-end;
         gap: 10px;
     }
 
     .explorar-post-actions .explorar-card-desc {
-        min-height: 72px;
+        flex: 0 0 78%;
+        max-width: 78%;
+        min-height: 64px;
         padding: 10px 12px;
+        background: rgba(0, 0, 0, 0.4) !important;
+        border: 1px solid rgba(255, 255, 255, 0.2) !important;
+        color: #fff !important;
     }
+    .explorar-post-actions .explorar-card-desc::placeholder { color: rgba(255, 255, 255, 0.75); }
 
     .explorar-post-send {
         width: 40px;
@@ -11425,8 +11473,15 @@ body.explorar-post-modal-open #explorar-page {
     }
 
     .explorar-post-send img {
-        width: 30px;
-        height: 30px;
+        width: 28px;
+        height: 28px;
+    }
+
+    .explorar-post-close {
+        top: 8px;
+        right: 8px;
+        background: transparent !important;
+        color: #fff;
     }
 }
 
@@ -12169,5 +12224,151 @@ body.explorar-open header.search-open .header-actions {
     display: none !important;
 }
 
+/* =========================================
+   FIXES E AJUSTES FINAIS (Grid, Modal, Explorar)
+   ========================================= */
+
+/* FIX: Botão Voltar Desktop */
+.menu-header-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+}
+
+.desktop-back-btn {
+    display: none; /* Default hidden */
+    background: transparent;
+    border: none;
+    color: var(--text-primary);
+    font-size: 1.2rem;
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 50%;
+    transition: background-color 0.2s;
+}
+
+.desktop-back-btn:hover {
+    background-color: rgba(128, 128, 128, 0.1);
+}
+
+@media (min-width: 1024px) {
+    body.explorar-open .desktop-back-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+}
+
+/* FIX: Scrollbar Global Customizada */
+::-webkit-scrollbar {
+    width: 10px;
+    background-color: transparent;
+}
+
+::-webkit-scrollbar-track {
+    background-color: rgba(0, 0, 0, 0.05);
+}
+
+::-webkit-scrollbar-thumb {
+    background-color: rgba(0, 0, 0, 0.2);
+    border-radius: 10px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(0, 0, 0, 0.4);
+}
+
+/* Dark mode scrollbar */
+@media (prefers-color-scheme: dark) {
+    ::-webkit-scrollbar-track {
+        background-color: rgba(255, 255, 255, 0.05);
+    }
+    ::-webkit-scrollbar-thumb {
+        background-color: rgba(255, 255, 255, 0.2);
+    }
+    ::-webkit-scrollbar-thumb:hover {
+        background-color: rgba(255, 255, 255, 0.4);
+    }
+}
+
+/* FIX: Limitar grid de mídia a 4 itens no feed (caso o JS não corte) */
+.post-media-grid.grid-4 .post-media-wrapper:nth-child(n+5) {
+    display: none;
+}
+
+/* FIX: Redimensionar mídia do explorar em desktop */
+@media (min-width: 1024px) {
+    #explorar-feed-list .post-media-item,
+    #explorar-feed-list video,
+    #explorar-feed-list img {
+        max-height: 500px;
+        width: auto;
+        max-width: 100%;
+        object-fit: contain;
+        background: black;
+        margin: 0 auto;
+        display: block;
+    }
+    
+    #explorar-feed-list .post {
+        max-width: 600px;
+        margin: 0 auto 20px auto;
+    }
+}
+
+/* FIX: Garantir que modal de postagem vazio não apareça (specificity override) */
+#modal-postagem-completa.hidden {
+    display: none !important;
+}
+
+/* FIX: Centralizar modal em desktop */
+@media (min-width: 1024px) {
+    #modal-postagem-completa.modal-overlay {
+        justify-content: center !important;
+        align-items: center !important;
+        padding: 20px !important;
+    }
+    
+    #modal-postagem-completa .modal-content.modal-grande {
+        max-width: 900px;
+        width: 90%;
+        height: 85vh;
+        border-radius: 12px;
+        overflow: hidden;
+    }
+}
+
+/* Ajuste de largura dos cards do Explorar em telas maiores
+   e contenção da mídia ao conteúdo (evita área horizontal ociosa) */
+@media (min-width: 1024px) {
+    .explorar-feed-list {
+        align-items: center;
+    }
+    .explorar-card {
+        max-width: 680px;
+        margin: 0 auto 20px auto;
+    }
+    .explorar-card-media {
+        aspect-ratio: auto !important;
+        height: auto !important;
+        min-height: unset !important;
+        display: block;
+        background: #000;
+    }
+    .explorar-card-media video,
+    .explorar-card-media img {
+        max-height: 720px;
+        width: 100%;
+        height: auto;
+        max-width: 100%;
+        object-fit: contain;
+        display: block;
+        margin: 0 auto;
+        background: #000;
+    }
+}
 
 

@@ -99,6 +99,15 @@ document.addEventListener('DOMContentLoaded', () => {
             modalImagem.style.display = 'none';
             document.body.style.overflow = '';
         }
+
+        // 🔒 FIX: Garantir que o modal de postagem esteja fechado ao carregar
+        const modalPostagemAutoFix = document.getElementById('modal-postagem-completa');
+        if (modalPostagemAutoFix && !modalPostagemAutoFix.classList.contains('hidden')) {
+            console.log('🔒 Fechando modal de postagem detectado aberto no carregamento');
+            modalPostagemAutoFix.classList.add('hidden');
+            modalPostagemAutoFix.style.display = ''; // Remove estilos inline
+            document.body.style.overflow = '';
+        }
     }, 50);
     
     // --- Identificação do Usuário ---
@@ -3263,52 +3272,61 @@ document.addEventListener('DOMContentLoaded', () => {
             // Verifica se já curtiu
             const isLiked = post.isLiked || (post.likes && Array.isArray(post.likes) && post.likes.includes(loggedInUserId));
             
-            // Imagem de preview (ou ícone se não tiver imagem)
-            if (post.mediaUrl && post.mediaType === 'image') {
-                thumbnail.innerHTML = `
-                    <img src="${post.mediaUrl}" alt="Postagem" class="thumbnail-image">
-                    <div class="thumbnail-overlay">
-                        <div class="thumbnail-info">
-                            <i class="fas fa-thumbs-up ${isLiked ? 'liked' : ''}"></i> <span class="like-count">${post.likesCount || 0}</span>
-                            <i class="fas fa-comment"></i> <span class="comment-count">${post.commentsCount || 0}</span>
-                        </div>
-                    </div>
-                `;
-            } else if (post.mediaUrl && post.mediaType === 'video') {
-                thumbnail.innerHTML = `
-                    <div class="thumbnail-video-wrapper">
-                        <video src="${post.mediaUrl}" class="thumbnail-video"></video>
-                        <i class="fas fa-play-circle thumbnail-play-icon"></i>
-                    </div>
-                    <div class="thumbnail-overlay">
-                        <div class="thumbnail-info">
-                            <i class="fas fa-thumbs-up ${isLiked ? 'liked' : ''}"></i> <span class="like-count">${post.likesCount || 0}</span>
-                            <i class="fas fa-comment"></i> <span class="comment-count">${post.commentsCount || 0}</span>
-                        </div>
-                    </div>
-                `;
+            // Lógica de mídia (suporte a múltiplas fotos)
+            let mediaContent = '';
+            let mediaList = post.media || [];
+            
+            // Fallback para posts antigos
+            if (post.mediaUrl && mediaList.length === 0) {
+                mediaList.push({
+                    url: post.mediaUrl,
+                    type: post.mediaType || 'image/jpeg'
+                });
+            }
+
+            if (mediaList.length > 0) {
+                const firstMedia = mediaList[0];
+                const isVideo = firstMedia.type && firstMedia.type.includes('video');
+                const extraCount = mediaList.length - 1;
+                
+                if (isVideo) {
+                    mediaContent = `
+                        <div class="thumbnail-video-wrapper">
+                            <video src="${firstMedia.url}" class="thumbnail-video"></video>
+                            <i class="fas fa-play-circle thumbnail-play-icon"></i>
+                            ${extraCount > 0 ? `<div class="more-media-overlay" style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); color: white; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: bold; pointer-events: none;">+${extraCount}</div>` : ''}
+                        </div>`;
+                } else {
+                    mediaContent = `
+                        <img src="${firstMedia.url}" alt="Postagem" class="thumbnail-image">
+                        ${extraCount > 0 ? `<div class="more-media-overlay" style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); color: white; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: bold; pointer-events: none;">+${extraCount}</div>` : ''}`;
+                }
             } else {
                 // Sem mídia - mostra ícone de texto
-                thumbnail.innerHTML = `
+                mediaContent = `
                     <div class="thumbnail-text-icon">
                         <i class="fas fa-file-alt"></i>
                         <p class="thumbnail-text-preview">${post.content ? (post.content.substring(0, 50) + (post.content.length > 50 ? '...' : '')) : ''}</p>
-                    </div>
-                    <div class="thumbnail-overlay">
-                        <div class="thumbnail-info">
-                            <i class="fas fa-thumbs-up ${isLiked ? 'liked' : ''}"></i> <span class="like-count">${post.likesCount || 0}</span>
-                            <i class="fas fa-comment"></i> <span class="comment-count">${post.commentsCount || 0}</span>
-                        </div>
-                    </div>
-                `;
+                    </div>`;
             }
+
+            thumbnail.innerHTML = `
+                ${mediaContent}
+                <div class="thumbnail-overlay">
+                    <div class="thumbnail-info">
+                        <i class="fas fa-thumbs-up ${isLiked ? 'liked' : ''}"></i> <span class="like-count">${post.likesCount || 0}</span>
+                        <i class="fas fa-comment"></i> <span class="comment-count">${post.commentsCount || 0}</span>
+                    </div>
+                </div>
+            `;
             
             // Armazena dados da postagem para o modal
             thumbnail.dataset.postData = JSON.stringify({
                 _id: post._id,
                 content: post.content,
-                mediaUrl: post.mediaUrl,
+                mediaUrl: post.mediaUrl, // Mantém para compatibilidade
                 mediaType: post.mediaType,
+                media: post.media, // Adiciona array de media
                 userId: post.userId,
                 createdAt: post.createdAt,
                 likesCount: post.likesCount || 0,
@@ -3362,12 +3380,56 @@ document.addEventListener('DOMContentLoaded', () => {
         const likesCount = postCompleto.likes?.length || postCompleto.likesCount || 0;
         
         let mediaHTML = '';
-        if (postCompleto.mediaUrl) {
-            if (postCompleto.mediaType === 'video') {
-                mediaHTML = `<video src="${postCompleto.mediaUrl}" class="post-video" controls></video>`;
-            } else if (postCompleto.mediaType === 'image') {
-                mediaHTML = `<img src="${postCompleto.mediaUrl}" alt="Imagem da postagem" class="post-image">`;
-            }
+        let mediaList = postCompleto.media || [];
+        
+        // Se houver mediaUrl antigo/legado e não houver lista, converte para lista
+        if (postCompleto.mediaUrl && mediaList.length === 0) {
+            mediaList.push({
+                url: postCompleto.mediaUrl,
+                type: postCompleto.mediaType || 'image/jpeg'
+            });
+        }
+        
+        // Garante que o post esteja no cache para o lightbox funcionar
+        if (!window.postsCache) window.postsCache = {};
+        window.postsCache[postCompleto._id] = postCompleto;
+
+        if (mediaList.length > 0) {
+            const totalMedia = mediaList.length;
+            let gridClass = '';
+            if (totalMedia === 1) gridClass = 'grid-1';
+            else if (totalMedia === 2) gridClass = 'grid-2';
+            else if (totalMedia === 3) gridClass = 'grid-3';
+            else gridClass = 'grid-4';
+
+            // Pega apenas os primeiros 4 itens para exibir
+            const visibleMedia = mediaList.slice(0, 4);
+            
+            mediaHTML = `<div class="post-media-grid ${gridClass}">`;
+            
+            visibleMedia.forEach((media, index) => {
+                const isLast = index === 3;
+                const remaining = totalMedia - 4;
+                const isVideo = media.type && media.type.includes('video');
+                
+                let content = '';
+                if (isVideo) {
+                     content = `<video src="${media.url}" class="post-media-item" preload="metadata"></video>`;
+                } else {
+                     content = `<img src="${media.url}" alt="Mídia da postagem" class="post-media-item" loading="lazy">`;
+                }
+
+                // Wrapper para clique e overlay
+                mediaHTML += `
+                    <div class="post-media-wrapper" onclick="window.abrirLightbox('${postCompleto._id}', ${index})">
+                        ${content}
+                        ${(isLast && remaining > 0) ? `<div class="more-media-overlay">+${remaining}</div>` : ''}
+                        ${isVideo ? '<div class="video-indicator"><i class="fas fa-play"></i></div>' : ''}
+                    </div>
+                `;
+            });
+            
+            mediaHTML += '</div>';
         }
         
         let deleteButton = '';
@@ -3818,33 +3880,90 @@ document.addEventListener('DOMContentLoaded', () => {
         // Deletar postagem
         const btnDeletePost = postElement.querySelector('.delete-post-btn');
         if (btnDeletePost) {
-            btnDeletePost.addEventListener('click', async (e) => {
+            btnDeletePost.addEventListener('click', (e) => {
                 e.stopPropagation();
-                if (!confirm('Tem certeza que deseja excluir esta postagem?')) return;
                 
-                try {
-                    const response = await fetch(`/api/posts/${postId}`, {
-                        method: 'DELETE',
-                        headers: { 'Authorization': `Bearer ${token}` }
-                    });
-                    const data = await response.json();
-                    if (response.ok && data.success) {
-                        // Remove a miniatura
-                        const thumbnail = document.querySelector(`.post-thumbnail[data-post-id="${postId}"]`);
-                        if (thumbnail) thumbnail.remove();
-                        // Fecha o modal
-                        const modalPostagem = document.getElementById('modal-postagem-completa');
-                        if (modalPostagem) {
-                            modalPostagem.classList.add('hidden');
-                            document.body.style.overflow = '';
+                // Remove qualquer popup existente para evitar duplicatas
+                const existingPopup = document.querySelector('.delete-confirm-popup');
+                if (existingPopup) existingPopup.remove();
+
+                console.log('🗑️ Criando popup de confirmação de exclusão (estilo feed)');
+                
+                const confirmDiv = document.createElement('div');
+                confirmDiv.className = 'delete-confirm-popup';
+                
+                // Estilo e posicionamento baseados no CSS global (.delete-confirm-popup) e lógica fixed para evitar overflow
+                confirmDiv.style.position = 'fixed';
+                confirmDiv.style.zIndex = '999999'; // Z-index altíssimo para garantir visibilidade sobre qualquer modal
+                
+                // Renderiza HTML compatível com style.css
+                confirmDiv.innerHTML = `
+                    <div class="delete-confirm-text">Tem certeza?</div>
+                    <div class="delete-confirm-buttons">
+                        <button class="btn-confirm-yes">Sim</button>
+                        <button class="btn-confirm-no">Não</button>
+                    </div>
+                `;
+
+                // Adiciona ao body para evitar cortes por overflow:hidden de containers pais
+                document.body.appendChild(confirmDiv);
+
+                // Posiciona dinamicamente alinhado à direita do botão
+                const rect = btnDeletePost.getBoundingClientRect();
+                confirmDiv.style.top = (rect.bottom + 5) + 'px';
+                // Alinha à direita do botão
+                const rightPos = window.innerWidth - rect.right;
+                confirmDiv.style.right = rightPos + 'px';
+                confirmDiv.style.left = 'auto';
+
+                confirmDiv.querySelector('.btn-confirm-yes').onclick = async (ev) => {
+                    ev.stopPropagation();
+                    console.log('🗑️ Confirmou exclusão');
+                    confirmDiv.remove();
+                    
+                    try {
+                        const response = await fetch(`/api/posts/${postId}`, {
+                            method: 'DELETE',
+                            headers: { 'Authorization': `Bearer ${token}` }
+                        });
+                        const data = await response.json();
+                        if (response.ok && data.success) {
+                            // Remove a miniatura
+                            const thumbnail = document.querySelector(`.post-thumbnail[data-post-id="${postId}"]`);
+                            if (thumbnail) thumbnail.remove();
+                            // Fecha o modal
+                            const modalPostagem = document.getElementById('modal-postagem-completa');
+                            if (modalPostagem) {
+                                modalPostagem.classList.add('hidden');
+                                document.body.style.overflow = '';
+                            }
+                        } else {
+                            throw new Error(data.message || 'Erro ao deletar postagem.');
                         }
-                    } else {
-                        throw new Error(data.message || 'Erro ao deletar postagem.');
+                    } catch (error) {
+                        console.error('Erro ao deletar postagem:', error);
+                        alert(error.message || 'Erro ao deletar postagem.');
                     }
-                } catch (error) {
-                    console.error('Erro ao deletar postagem:', error);
-                    alert(error.message || 'Erro ao deletar postagem.');
-                }
+                };
+                
+                confirmDiv.querySelector('.btn-confirm-no').onclick = (ev) => {
+                    ev.stopPropagation();
+                    console.log('🗑️ Cancelou exclusão');
+                    confirmDiv.remove();
+                };
+                
+                // Fecha ao clicar fora
+                const closeOnClickOutside = (event) => {
+                    if (!confirmDiv.contains(event.target) && event.target !== btnDeletePost && !btnDeletePost.contains(event.target)) {
+                        confirmDiv.remove();
+                        document.removeEventListener('mousedown', closeOnClickOutside);
+                    }
+                };
+                setTimeout(() => {
+                    document.addEventListener('mousedown', closeOnClickOutside);
+                }, 0);
+
+                console.log('🗑️ Popup adicionado ao body (fixed position)');
             });
         }
         

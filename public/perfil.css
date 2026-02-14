@@ -1690,8 +1690,6 @@ html.dark-mode #inputPostagemPerfilTexto:focus {
     height: 100dvh !important;
     padding: 0 !important;
     margin: 0 !important;
-    justify-content: flex-start !important;
-    align-items: stretch !important;
     overflow: hidden !important; /* evita scroll no overlay; rola dentro do modal-body */
     z-index: 10003 !important; /* acompanha o inline do HTML */
 }
@@ -1725,49 +1723,56 @@ html.dark-mode #inputPostagemPerfilTexto:focus {
     }
 }
 
-#modal-postagem-completa .modal-content.modal-grande {
-    width: 100vw !important;
-    max-width: none !important;
-    height: 100% !important;
-    max-height: none !important;
-    margin: 0 !important;
-    border-radius: 0 !important;
-    display: flex !important;
-    flex-direction: column !important;
-    overflow: hidden !important;
-}
+@media (max-width: 1023px) {
+    #modal-postagem-completa.modal-overlay {
+        justify-content: flex-start !important;
+        align-items: stretch !important;
+    }
 
-#modal-postagem-completa #modal-postagem-content {
-    flex: 1 1 auto;
-    min-height: 0;
-    overflow-y: auto !important; /* rolagem do conteúdo inteiro (imagem -> comentários) */
-    overflow-x: hidden !important;
-    /* reserva espaço pra barra fixa de comentar não cobrir o final */
-    padding-bottom: var(--modal-comment-form-height, 74px);
-}
+    #modal-postagem-completa .modal-content.modal-grande {
+        width: 100vw !important;
+        max-width: none !important;
+        height: 100% !important;
+        max-height: none !important;
+        margin: 0 !important;
+        border-radius: 0 !important;
+        display: flex !important;
+        flex-direction: column !important;
+        overflow: hidden !important;
+    }
 
-/* Tira qualquer scroll do container do modal (rolagem fica no #modal-postagem-content) */
-#modal-postagem-completa .modal-content.modal-grande {
-    overflow: hidden !important;
-}
+    #modal-postagem-completa #modal-postagem-content {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow-y: auto !important; /* rolagem do conteúdo inteiro (imagem -> comentários) */
+        overflow-x: hidden !important;
+        /* reserva espaço pra barra fixa de comentar não cobrir o final */
+        padding-bottom: var(--modal-comment-form-height, 74px);
+    }
 
-#modal-postagem-completa .modal-body {
-    overflow: hidden !important;
-}
+    /* Tira qualquer scroll do container do modal (rolagem fica no #modal-postagem-content) */
+    #modal-postagem-completa .modal-content.modal-grande {
+        overflow: hidden !important;
+    }
 
-/* Comment-form fixa como "barra inferior" do modal, SEM precisar rolar até ela */
-#modal-postagem-completa .comment-form.comment-form-fixed {
-    position: fixed !important;
-    left: 0 !important;
-    right: 0 !important;
-    bottom: 0 !important;
-    width: 100vw !important;
-    z-index: 10010 !important;
-    background: var(--bg-secondary) !important;
-    border-top: 1px solid var(--border-color) !important;
-    padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px)) !important;
-    margin: 0 !important;
-    box-sizing: border-box !important;
+    #modal-postagem-completa .modal-body {
+        overflow: hidden !important;
+    }
+
+    /* Comment-form fixa como "barra inferior" do modal, SEM precisar rolar até ela */
+    #modal-postagem-completa .comment-form.comment-form-fixed {
+        position: fixed !important;
+        left: 0 !important;
+        right: 0 !important;
+        bottom: 0 !important;
+        width: 100vw !important;
+        z-index: 10010 !important;
+        background: var(--bg-secondary) !important;
+        border-top: 1px solid var(--border-color) !important;
+        padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px)) !important;
+        margin: 0 !important;
+        box-sizing: border-box !important;
+    }
 }
 
 /* ------------------------------------------------------------

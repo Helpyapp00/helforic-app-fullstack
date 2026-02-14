@@ -57,7 +57,7 @@ if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
 
 const upload = multer({
     storage: multer.memoryStorage(),
-    limits: { fileSize: 10 * 1024 * 1024 }
+    limits: { fileSize: 500 * 1024 * 1024 }
 });
 
 function authMiddleware(req, res, next) {
@@ -116,8 +116,8 @@ function getSharp() {
 
 const app = express();
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '500mb' }));
+app.use(express.urlencoded({ extended: true, limit: '500mb' }));
 app.use(express.static(path.join(__dirname, '../public')));
 
 const INTERESSE_KEYWORDS_BASE = [
@@ -1365,21 +1365,27 @@ app.get('/api/cidades', authMiddleware, async (req, res) => {
 });
 
 // Criar Post
-app.post('/api/posts', authMiddleware, upload.single('media'), async (req, res) => {
+app.post('/api/posts', authMiddleware, upload.array('media', 10), async (req, res) => {
     try {
         const userId = req.user.id;
         const content = String(req.body.content || '').trim();
-        const file = req.file;
+        const files = req.files || [];
 
-        if (!content && !file) {
+        // Se veio um único arquivo via upload.single (fallback) ou manualmente em req.file
+        if (!files.length && req.file) {
+            files.push(req.file);
+        }
+
+        if (!content && files.length === 0) {
             return res.status(400).json({ success: false, message: 'Conteúdo vazio.' });
         }
 
-        let mediaUrl = '';
-        let mediaType = '';
+        const mediaList = [];
 
-        if (file) {
-            mediaType = file.mimetype;
+        // Processa cada arquivo
+        for (const file of files) {
+            let mediaUrl = '';
+            let mediaType = file.mimetype;
             const ext = path.extname(file.originalname).toLowerCase() || (mediaType.includes('video') ? '.mp4' : '.jpg');
             const filename = `${Date.now()}_${crypto.randomBytes(8).toString('hex')}${ext}`;
 
@@ -1403,13 +1409,22 @@ app.post('/api/posts', authMiddleware, upload.single('media'), async (req, res) 
                 fs.writeFileSync(filePath, file.buffer);
                 mediaUrl = `/uploads/posts/${filename}`;
             }
+            
+            mediaList.push({
+                url: mediaUrl,
+                type: mediaType
+            });
         }
+
+        // Mantém compatibilidade com campos antigos (usa o primeiro item)
+        const primaryMedia = mediaList.length > 0 ? mediaList[0] : null;
 
         const newPost = new Postagem({
             userId,
             content,
-            mediaUrl,
-            mediaType,
+            mediaUrl: primaryMedia ? primaryMedia.url : '',
+            mediaType: primaryMedia ? primaryMedia.type : '',
+            media: mediaList,
             likes: [],
             comments: []
         });
@@ -3626,7 +3641,7 @@ const handleMulterError = (err, req, res, next) => {
         if (err.code === 'LIMIT_FILE_SIZE') {
             return res.status(400).json({ 
                 success: false, 
-                message: 'Arquivo muito grande. Tamanho máximo: 10MB por arquivo.' 
+                message: 'Arquivo muito grande. Tamanho máximo: 500MB por arquivo.' 
             });
         }
         if (err.code === 'LIMIT_FILE_COUNT') {
@@ -5600,7 +5615,7 @@ app.use((err, req, res, next) => {
         if (err.code === 'LIMIT_FILE_SIZE') {
             return res.status(400).json({
                 success: false,
-                message: 'Arquivo muito grande. O tamanho máximo permitido é 10MB.'
+                message: 'Arquivo muito grande. O tamanho máximo permitido é 500MB.'
             });
         }
         

@@ -82,6 +82,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const explorarCategoriaCurrent = document.getElementById('explorar-categoria-current');
     const explorarCategoriasModal = document.getElementById('explorar-categorias-modal');
     const explorarAddMediaBtn = document.getElementById('explorar-add-media');
+    const explorarValidationMsg = document.getElementById('explorar-validation-msg');
     const explorarMediaInput = document.getElementById('explorar-media-input');
     const explorarPostModal = document.getElementById('explorar-post-modal');
     const explorarPostClose = document.getElementById('explorar-post-close');
@@ -555,6 +556,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!explorarVideoOverlay || !explorarVideoFull || !src) return;
         explorarVideoOverlay.classList.remove('is-dragging');
         explorarVideoOverlay.style.transform = '';
+        explorarVideoOverlay.removeAttribute('inert');
         if (info?.postId || info?.ownerId || typeof info?.isStory === 'boolean') {
             setExplorarOverlayMeta({
                 postId: info?.postId,
@@ -595,6 +597,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         explorarVideoFull.classList.remove('hidden');
         explorarVideoFull.src = src;
+        explorarVideoFull.controls = true;
+        explorarVideoFull.muted = true;
+        explorarVideoFull.playsInline = true;
+        try { explorarVideoFull.setAttribute('controlsList', 'nofullscreen'); } catch {}
         explorarVideoFull.currentTime = 0;
         explorarVideoOverlay.classList.remove('hidden');
         explorarVideoOverlay.setAttribute('aria-hidden', 'false');
@@ -652,6 +658,13 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!explorarVideoOverlay || !explorarVideoFull) return;
         explorarVideoOverlay.classList.add('hidden');
         explorarVideoOverlay.setAttribute('aria-hidden', 'true');
+        // Evita foco em elementos dentro de um container aria-hidden
+        try {
+            if (explorarVideoOverlay.contains(document.activeElement)) {
+                /** @type {HTMLElement} */(document.activeElement)?.blur?.();
+            }
+            explorarVideoOverlay.setAttribute('inert', '');
+        } catch {}
         explorarVideoFull.pause();
         explorarVideoFull.removeAttribute('src');
         explorarVideoFull.load();
@@ -675,13 +688,17 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (explorarStoryPrev) {
-        explorarStoryPrev.addEventListener('click', () => {
+        explorarStoryPrev.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
             goToExplorarStory(explorarStoryIndex - 1);
         });
     }
 
     if (explorarStoryNext) {
-        explorarStoryNext.addEventListener('click', () => {
+        explorarStoryNext.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
             goToExplorarStory(explorarStoryIndex + 1);
         });
     }
@@ -728,9 +745,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }, { passive: false });
     }
     if (explorarVideoFull) {
-        explorarVideoFull.addEventListener('touchstart', (event) => {
-            event.preventDefault();
-        }, { passive: false });
+        explorarVideoFull.addEventListener('touchstart', () => {}, { passive: true });
     }
 
     function handleExplorarDelete(btn, clickEvent = null) {
@@ -788,6 +803,57 @@ document.addEventListener('DOMContentLoaded', () => {
         let touchStartY = null;
         let dragging = false;
         let lockingDirection = null;
+
+        // Clique para avançar/voltar stories (restrito das áreas dos botões)
+        const isInsideRect = (x, y, rect) => {
+            if (!rect) return false;
+            return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
+        };
+        const expandRect = (rect, pad = 12) => {
+            if (!rect) return null;
+            return {
+                left: rect.left - pad,
+                right: rect.right + pad,
+                top: rect.top - pad,
+                bottom: rect.bottom + pad
+            };
+        };
+        explorarVideoOverlay.addEventListener('click', (event) => {
+            if (!explorarStoryMode || explorarStoryQueue.length <= 1) return;
+            // Evita navegar quando clicar nos controles do vídeo
+            const target = event.target;
+            if (target && (target.closest?.('.explorar-video-delete')
+                || target.closest?.('#explorar-video-back')
+                || target.closest?.('.explorar-video-info')
+                || target.closest?.('.explorar-story-nav'))) {
+                return;
+            }
+            // Se clicar na barra de controles (parte inferior do vídeo), ignora
+            const overlayRect = explorarVideoOverlay.getBoundingClientRect();
+            const x = event.clientX;
+            const y = event.clientY;
+            const backBtn = document.getElementById('explorar-video-back');
+            const delBtn = document.getElementById('explorar-video-delete');
+            const backRect = expandRect(backBtn ? backBtn.getBoundingClientRect() : null, 16);
+            const delRect = expandRect(delBtn ? delBtn.getBoundingClientRect() : null, 16);
+            if (isInsideRect(x, y, backRect) || isInsideRect(x, y, delRect)) {
+                return;
+            }
+            // Zona inferior (~controles nativos): ignora
+            const bottomSafe = overlayRect.bottom - 90;
+            if (y >= bottomSafe) return;
+
+            const relX = x - overlayRect.left;
+            const width = overlayRect.width;
+            // Largura maior para facilitar o toque: 30% cada lado
+            const leftZone = width * 0.3;
+            const rightZone = width * 0.7;
+            if (relX >= rightZone) {
+                goToExplorarStory(explorarStoryIndex + 1);
+            } else if (relX <= leftZone) {
+                goToExplorarStory(explorarStoryIndex - 1);
+            }
+        });
         explorarVideoOverlay.addEventListener('touchstart', (event) => {
             const screenX = event.touches[0]?.clientX ?? 0;
             const edgeThreshold = 30;
@@ -798,6 +864,9 @@ document.addEventListener('DOMContentLoaded', () => {
             touchStartY = event.touches[0]?.clientY ?? null;
             dragging = false;
             lockingDirection = null;
+            // Pausa story/vídeo enquanto pressiona/arrasta
+            if (typeof pauseExplorarStory === 'function' && explorarStoryMode) pauseExplorarStory();
+            try { explorarVideoFull?.pause?.(); } catch {}
         }, { passive: false });
 
         explorarVideoOverlay.addEventListener('touchmove', (event) => {
@@ -809,31 +878,99 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!lockingDirection) {
                 lockingDirection = Math.abs(deltaX) > Math.abs(deltaY) ? 'horizontal' : 'vertical';
             }
-            if (lockingDirection === 'horizontal') {
-                event.preventDefault();
-            }
+            // Bloqueia rolagem durante o gesto
+            event.preventDefault();
             if (!dragging && (Math.abs(deltaX) > 18 || Math.abs(deltaY) > 18)) {
                 dragging = true;
                 explorarVideoOverlay.classList.add('is-dragging');
             }
             if (!dragging) return;
-            const scale = 0.65;
-            explorarVideoOverlay.style.transform = `translate(${deltaX}px, ${deltaY}px) scale(${scale})`;
+            // Só aplica transformação visual em arraste vertical (gesto de fechar)
+            if (lockingDirection === 'vertical') {
+                const scale = 0.9;
+                explorarVideoOverlay.style.transform = `translate(${deltaX}px, ${deltaY}px) scale(${scale})`;
+            }
         }, { passive: false });
 
-        explorarVideoOverlay.addEventListener('touchend', () => {
+        explorarVideoOverlay.addEventListener('touchend', (event) => {
+            const touch = event.changedTouches && event.changedTouches[0];
+            const endX = touch?.clientX ?? 0;
+            const endY = touch?.clientY ?? 0;
+            const overlayRect = explorarVideoOverlay.getBoundingClientRect();
+            const deltaX = (endX - (touchStartX ?? endX));
+            const deltaY = (endY - (touchStartY ?? endY));
+            const closeVerticalThreshold = 120;
             if (!dragging) {
+                // Tap: navegar esquerda/direita (mesma lógica do desktop), com zonas reservadas
+                if (explorarStoryMode && explorarStoryQueue.length > 1) {
+                    const backBtn = document.getElementById('explorar-video-back');
+                    const delBtn = document.getElementById('explorar-video-delete');
+                    const prevBtn = document.getElementById('explorar-story-prev');
+                    const nextBtn = document.getElementById('explorar-story-next');
+                    const isInsideRect = (x, y, rect) => rect ? (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) : false;
+                    const backRect = expandRect(backBtn ? backBtn.getBoundingClientRect() : null, 16);
+                    const delRect = expandRect(delBtn ? delBtn.getBoundingClientRect() : null, 16);
+                    const prevRect = expandRect(prevBtn ? prevBtn.getBoundingClientRect() : null, 12);
+                    const nextRect = expandRect(nextBtn ? nextBtn.getBoundingClientRect() : null, 12);
+                    if (isInsideRect(endX, endY, backRect) ||
+                        isInsideRect(endX, endY, delRect) ||
+                        isInsideRect(endX, endY, prevRect) ||
+                        isInsideRect(endX, endY, nextRect)) {
+                        // Toque em botões reservados: não navega
+                    } else {
+                        const bottomSafe = overlayRect.bottom - 90;
+                        if (endY < bottomSafe) {
+                            const relX = endX - overlayRect.left;
+                            // 30% laterais no mobile também
+                            const rightZone = overlayRect.width * 0.7;
+                            const leftZone = overlayRect.width * 0.3;
+                            if (relX >= rightZone) {
+                                goToExplorarStory(explorarStoryIndex + 1);
+                            } else if (relX <= leftZone) {
+                                goToExplorarStory(explorarStoryIndex - 1);
+                            }
+                        }
+                    }
+                }
                 explorarVideoOverlay.classList.remove('is-dragging');
                 explorarVideoOverlay.style.transform = '';
                 touchStartX = null;
                 touchStartY = null;
+                // Retoma reprodução/tempo se não fechar
+                if (typeof resumeExplorarStory === 'function' && explorarStoryMode) resumeExplorarStory();
+                try { explorarVideoFull?.play?.(); } catch {}
                 return;
             }
-            closeExplorarVideo();
+            // Drag: fecha apenas com arraste vertical suficiente, senão tenta navegar
+            if (lockingDirection === 'vertical' && Math.abs(deltaY) > closeVerticalThreshold) {
+                closeExplorarVideo();
+            } else {
+                if (explorarStoryMode && explorarStoryQueue.length > 1) {
+                    const bottomSafe = overlayRect.bottom - 90;
+                    if (endY < bottomSafe) {
+                        const relX = endX - overlayRect.left;
+                        const rightZone = overlayRect.width * 0.7;
+                        const leftZone = overlayRect.width * 0.3;
+                        if (relX >= rightZone) {
+                            goToExplorarStory(explorarStoryIndex + 1);
+                        } else if (relX <= leftZone) {
+                            goToExplorarStory(explorarStoryIndex - 1);
+                        }
+                    }
+                }
+            }
             explorarVideoOverlay.classList.remove('is-dragging');
             touchStartX = null;
             touchStartY = null;
             dragging = false;
+            // Retoma reprodução/tempo se não foi fechado
+            if (!explorarVideoOverlay.classList.contains('hidden')) {
+                if (typeof resumeExplorarStory === 'function' && explorarStoryMode) resumeExplorarStory();
+                try { explorarVideoFull?.play?.(); } catch {}
+                explorarVideoOverlay.style.transform = '';
+            } else {
+                explorarVideoOverlay.style.transform = '';
+            }
         });
     }
 
@@ -894,13 +1031,59 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     if (explorarAddMediaBtn && explorarMediaInput) {
+        const showExplorarMsg = (msg) => {
+            if (!explorarValidationMsg) return;
+            explorarValidationMsg.textContent = msg;
+            explorarValidationMsg.classList.add('visible');
+            setTimeout(() => {
+                explorarValidationMsg.classList.remove('visible');
+            }, 3000);
+        };
+
         explorarAddMediaBtn.addEventListener('click', () => {
             explorarMediaInput.click();
         });
         explorarMediaInput.addEventListener('change', (event) => {
             const file = event.target.files && event.target.files[0];
             if (file) {
-                openExplorarModal(file);
+                // Determine Limit based on OS
+                const ua = navigator.userAgent;
+                let maxSize = 500 * 1024 * 1024; // Default Desktop 500MB
+                if (/Android/i.test(ua)) {
+                    maxSize = 72 * 1024 * 1024;
+                } else if (/iPhone|iPad|iPod/i.test(ua)) {
+                    maxSize = 287 * 1024 * 1024;
+                }
+
+                // Validação de Tamanho
+                if (file.size > maxSize) {
+                    showExplorarMsg('Exedeu o limite de tamanho do video');
+                    explorarMediaInput.value = ''; // Limpa o input
+                    return;
+                }
+
+                // Validação de Vídeo (Duração max 30s)
+                if (file.type.startsWith('video/')) {
+                    const video = document.createElement('video');
+                    video.preload = 'metadata';
+                    video.onloadedmetadata = function() {
+                        window.URL.revokeObjectURL(video.src);
+                        if (video.duration > 31) { // Margem de erro de 1s
+                            showExplorarMsg('Apenas videos de 30 segundos');
+                            explorarMediaInput.value = ''; // Limpa o input
+                        } else {
+                            openExplorarModal(file);
+                        }
+                    };
+                    video.onerror = function() {
+                         window.URL.revokeObjectURL(video.src);
+                         console.error('Erro ao carregar metadados do vídeo.');
+                         openExplorarModal(file);
+                    };
+                    video.src = URL.createObjectURL(file);
+                } else {
+                    openExplorarModal(file);
+                }
             }
         });
     }
@@ -1351,10 +1534,28 @@ document.addEventListener('DOMContentLoaded', () => {
     if (headerExplorarBtn) {
         headerExplorarBtn.addEventListener('click', () => {
             const isMobile = window.matchMedia('(max-width: 768px)').matches;
-            if (isMobile) return;
+            
+            // Toggle logic for desktop
+            if (!isMobile) {
+                if (document.body.classList.contains('explorar-open')) {
+                    closeExplorarPanel();
+                } else {
+                    openExplorarPanel(true);
+                }
+                return;
+            }
+
             fecharModaisPrecisoAgoraEPedidoUrgente();
             fecharBuscaUI();
             openExplorarPanel();
+        });
+    }
+
+    // Botão Voltar Desktop (ao lado do Menu)
+    const desktopBackBtn = document.getElementById('desktop-back-btn');
+    if (desktopBackBtn) {
+        desktopBackBtn.addEventListener('click', () => {
+            closeExplorarPanel();
         });
     }
 
@@ -1949,6 +2150,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (explorarLazyObserver) {
             explorarLazyObserver.disconnect();
         }
+        const isDesktop = window.matchMedia('(min-width: 1024px)').matches;
+        const observerOptions = isDesktop
+            ? { root: null, rootMargin: '400px 0px', threshold: 0.25 }
+            : { root: explorarFeedList, rootMargin: '200px 0px', threshold: 0.25 };
+
         explorarLazyObserver = new IntersectionObserver((entries) => {
             entries.forEach((entry) => {
                 if (!entry.isIntersecting) return;
@@ -1965,9 +2171,104 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 explorarLazyObserver.unobserve(entry.target);
             });
-        }, { root: explorarFeedList, rootMargin: '200px 0px', threshold: 0.25 });
+        }, observerOptions);
 
         explorarFeedList.querySelectorAll('.explorar-card').forEach((card) => explorarLazyObserver.observe(card));
+    }
+
+    // Aplica src imediato aos primeiros cartões visíveis (fallback para garantir carregamento inicial)
+    function primeExplorarMediaSrc() {
+        if (!explorarFeedList) return;
+        const cards = Array.from(explorarFeedList.querySelectorAll('.explorar-card')).slice(0, 2);
+        cards.forEach((card) => {
+            const media = card.querySelector('video[data-src], img[data-src]');
+            if (media) {
+                const src = media.getAttribute('data-src');
+                if (src) {
+                    media.setAttribute('src', src);
+                    media.removeAttribute('data-src');
+                    if (media.tagName === 'VIDEO') {
+                        try { media.load(); } catch {}
+                    }
+                }
+            }
+        });
+    }
+
+    // --------------------------
+    // Autoplay/Pause de vídeos
+    // --------------------------
+    let videoAutoObserver = null;
+    function setupVideoAutoplayObserver() {
+        if (!('IntersectionObserver' in window)) return;
+        if (videoAutoObserver) {
+            videoAutoObserver.disconnect();
+        }
+        const thresholds = [0.25, 0.5, 0.65, 0.8, 1];
+        videoAutoObserver = new IntersectionObserver((entries) => {
+            entries.forEach((entry) => {
+                const video = entry.target;
+                const ratio = entry.intersectionRatio || 0;
+                if (entry.isIntersecting && ratio >= 0.65) {
+                    // Garante política de autoplay
+                    try {
+                        video.muted = true;
+                        video.playsInline = true;
+                        const p = video.play();
+                        if (p && typeof p.catch === 'function') {
+                            p.catch(() => {});
+                        }
+                    } catch {}
+                } else {
+                    try {
+                        video.pause();
+                    } catch {}
+                }
+            });
+        }, { root: null, rootMargin: '0px', threshold: thresholds });
+
+        // Observa vídeos já presentes
+        attachAutoObserverToExistingVideos();
+
+        // Observa adições no feed principal e no explorar
+        const observeContainer = (el) => {
+            if (!el) return;
+            const mo = new MutationObserver((mutations) => {
+                mutations.forEach((m) => {
+                    m.addedNodes.forEach((node) => {
+                        if (!(node instanceof HTMLElement)) return;
+                        node.querySelectorAll?.('video').forEach((v) => {
+                            v.muted = true;
+                            v.playsInline = true;
+                            videoAutoObserver.observe(v);
+                        });
+                        if (node.tagName === 'VIDEO') {
+                            node.muted = true;
+                            node.playsInline = true;
+                            videoAutoObserver.observe(node);
+                        }
+                    });
+                });
+            });
+            mo.observe(el, { childList: true, subtree: true });
+        };
+
+        observeContainer(document.getElementById('posts-container'));
+        observeContainer(document.getElementById('explorar-feed-list'));
+    }
+
+    function attachAutoObserverToExistingVideos() {
+        const candidates = [
+            ...document.querySelectorAll('#posts-container video.post-media-item'),
+            ...document.querySelectorAll('#explorar-feed-list video')
+        ];
+        candidates.forEach((v) => {
+            try {
+                v.muted = true;
+                v.playsInline = true;
+                videoAutoObserver.observe(v);
+            } catch {}
+        });
     }
 
     function buildExplorarActionLinks(item) {
@@ -2010,7 +2311,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 card.dataset.explorarId = String(rawItemId);
             }
             const mediaUrl = item.mediaUrl || item.imagemUrl || '';
-            const isVideo = item.mediaType === 'video';
+            const isVideo = String(item.mediaType || '').includes('video');
             const badge = item.tipo === 'anuncio' ? 'Anuncio' : '';
             const title = item.titulo || item.nome || 'Oferta local';
             const desc = item.descricao || item.content || '';
@@ -2152,6 +2453,9 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         setupExplorarLazyLoading();
+        primeExplorarMediaSrc();
+        // Após carregar cards, garantir autoplay/pause conforme visibilidade
+        setupVideoAutoplayObserver();
     }
 
     async function fetchExplorarFeed() {
@@ -2210,17 +2514,28 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!explorarPage) return;
         const isMobile = window.matchMedia('(max-width: 768px)').matches;
         if (!force && !isMobile) return;
+        
         explorarPage.classList.add('is-open');
         explorarPage.classList.remove('is-dragging');
         explorarPage.style.transform = '';
         explorarPage.setAttribute('aria-hidden', 'false');
         document.documentElement.classList.add('explorar-open');
         document.body.classList.add('explorar-open');
-        if (isMobile && feedExplorarSlider) {
-            feedExplorarSlider.classList.add('is-explorar');
-            feedExplorarSlider.classList.remove('is-dragging');
-            feedExplorarSlider.style.transform = 'translateX(0)';
+
+        if (isMobile) {
+            if (feedExplorarSlider) {
+                feedExplorarSlider.classList.add('is-explorar');
+                feedExplorarSlider.classList.remove('is-dragging');
+                feedExplorarSlider.style.transform = 'translateX(0)';
+            }
+        } else {
+            // Desktop: Esconder o feed principal para mostrar o explorar no lugar
+            const mainFeed = document.querySelector('main');
+            if (mainFeed) mainFeed.style.display = 'none';
+            // Garantir que o feedExplorarSlider ocupe o espaço se necessário
+            if (feedExplorarSlider) feedExplorarSlider.style.flex = '1';
         }
+
         if (!explorarHasFetched) {
             fetchExplorarFeed();
         }
@@ -2239,10 +2554,17 @@ document.addEventListener('DOMContentLoaded', () => {
         explorarPage.setAttribute('aria-hidden', 'true');
         document.documentElement.classList.remove('explorar-open');
         document.body.classList.remove('explorar-open');
+        
+        // Restaurar visibilidade do feed (Desktop)
+        const mainFeed = document.querySelector('main');
+        if (mainFeed) mainFeed.style.display = '';
+        if (feedExplorarSlider) feedExplorarSlider.style.flex = '';
+
         if (feedExplorarSlider) {
             feedExplorarSlider.classList.remove('is-explorar');
             feedExplorarSlider.classList.remove('is-dragging');
-            feedExplorarSlider.style.transform = 'translateX(-100vw)';
+            // Remove inline transform to let CSS handle state (mobile: -100vw, desktop: none)
+            feedExplorarSlider.style.transform = '';
         }
     }
 
@@ -2507,6 +2829,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderSinglePostElement(post) {
+        // Armazena posts em cache para acesso global (ex: lightbox)
+        if (!window.postsCache) window.postsCache = {};
+        window.postsCache[post._id] = post;
+
         if (!post?.userId) return null;
 
         const postElement = document.createElement('article');
@@ -2544,12 +2870,65 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         let mediaHTML = '';
-        if (post.mediaUrl) {
-            if (post.mediaType === 'video') {
-                mediaHTML = `<video src="${post.mediaUrl}" class="post-video" controls preload="metadata"></video>`;
-            } else if (post.mediaType === 'image') {
-                mediaHTML = `<img src="${post.mediaUrl}" alt="Imagem da postagem" class="post-image" loading="lazy" decoding="async">`;
-            }
+        const mediaList = post.media || [];
+        
+        // Se houver mediaUrl antigo/legado e não houver lista, converte para lista
+        if (post.mediaUrl && mediaList.length === 0) {
+            mediaList.push({
+                url: post.mediaUrl,
+                type: post.mediaType || 'image/jpeg'
+            });
+        }
+
+        if (mediaList.length > 0) {
+            // Separa imagens de vídeos para tratamento (embora o grid misture, o lightbox precisa saber)
+            // Lógica de Grid
+            const totalMedia = mediaList.length;
+            let gridClass = '';
+            if (totalMedia === 1) gridClass = 'grid-1';
+            else if (totalMedia === 2) gridClass = 'grid-2';
+            else if (totalMedia === 3) gridClass = 'grid-3';
+            else gridClass = 'grid-4';
+
+            // Pega apenas os primeiros 4 itens para exibir
+            const visibleMedia = mediaList.slice(0, 4);
+            
+            mediaHTML = `<div class="post-media-grid ${gridClass}">`;
+            
+            visibleMedia.forEach((media, index) => {
+                const isLast = index === 3;
+                const remaining = totalMedia - 4;
+                const isVideo = media.type && media.type.includes('video'); // Usa includes para garantir (ex: video/mp4)
+                
+                let content = '';
+                if (isVideo) {
+                     content = `<video src="${media.url}" class="post-media-item" preload="metadata" muted playsinline></video>`;
+                } else {
+                     content = `<img src="${media.url}" alt="Mídia da postagem" class="post-media-item" loading="lazy">`;
+                }
+
+                // Wrapper para clique e overlay
+                mediaHTML += `
+                    <div class="post-media-wrapper" onclick="abrirLightbox('${post._id}', ${index})">
+                        ${content}
+                        ${(isLast && remaining > 0) ? `<div class="more-media-overlay">+${remaining}</div>` : ''}
+                        ${isVideo ? '<div class="video-indicator"><i class="fas fa-play"></i></div>' : ''}
+                    </div>
+                `;
+            });
+            
+            mediaHTML += '</div>';
+            
+            // Armazena dados da mídia no elemento DOM para o lightbox usar
+            // Vamos usar um atributo data-media-json no article ou salvar em um objeto global se preferir,
+            // mas data attribute é mais seguro para SPA simples.
+            // Porém, JSON em atributo pode ser grande. Vamos tentar usar window.postsData ou algo assim?
+            // Melhor: codificar em base64 ou apenas confiar que o array 'posts' global (se existir) tem os dados.
+            // Como 'renderSinglePostElement' recebe 'post', e não temos garantia de acesso global fácil,
+            // vamos serializar no dataset do wrapper principal apenas os URLs ou IDs?
+            // Simplificação: vamos salvar no objeto global window.postsCache se necessário, ou apenas passar via parametro onclick.
+            // Problema: onclick stringify pode quebrar.
+            // Solução: Adicionar event listeners depois de criar o elemento, em vez de onclick inline string.
         }
 
         const levelBadge = postAuthorLevel
@@ -3109,7 +3488,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function setupPostListeners() {
-        document.querySelectorAll('.delete-post-btn').forEach(btn => btn.addEventListener('click', handleDeletePost));
         document.querySelectorAll('.post-avatar, .user-name').forEach(el => {
             el.style.cursor = 'pointer';
             el.addEventListener('click', (e) => {
@@ -3340,11 +3718,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    async function handleDeletePost(event) {
-        const button = event.currentTarget;
-        const postId = button.dataset.id;
-        const postElement = button.closest('.post');
-        if (!confirm('Tem certeza que deseja excluir esta postagem?')) return;
+    async function deletePost(postId, postElement) {
         try {
             const response = await fetch(`/api/posts/${postId}`, {
                 method: 'DELETE',
@@ -3353,6 +3727,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await response.json();
             if (response.ok && data.success) {
                 postElement.remove();
+                // Remove do cache
+                if (window.postsCache) delete window.postsCache[postId];
             } else {
                 throw new Error(data.message || 'Erro ao deletar postagem.');
             }
@@ -3368,7 +3744,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnAdicionarFotoPost = document.getElementById('btn-adicionar-foto-post');
     const previewFotosPost = document.getElementById('preview-fotos-post');
     const fotosPostSelecionadas = [];
-    const MAX_FOTOS_POST = 4;
+    const MAX_FOTOS_POST = 10;
 
     function atualizarVisibilidadeBotoesPost() {
         const temFotos = fotosPostSelecionadas.length > 0;
@@ -3415,37 +3791,196 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    window.abrirLightbox = function(postId, initialIndex) {
+        const post = window.postsCache[postId];
+        if (!post || !post.media || !post.media.length) return;
+
+        // Se houver mediaUrl legado e media não foi populado corretamente no cache
+        let mediaList = post.media;
+        if (post.mediaUrl && (!mediaList || mediaList.length === 0)) {
+            mediaList = [{ url: post.mediaUrl, type: post.mediaType || 'image/jpeg' }];
+        }
+
+        let currentIndex = initialIndex;
+
+        // Remove lightbox existente
+        const existingLightbox = document.querySelector('.lightbox-overlay');
+        if (existingLightbox) existingLightbox.remove();
+
+        const lightbox = document.createElement('div');
+        lightbox.className = 'lightbox-overlay active';
+        
+        const updateContent = () => {
+            const media = mediaList[currentIndex];
+            const isVideo = media.type && media.type.includes('video');
+            
+            let mediaContent = '';
+            if (isVideo) {
+                mediaContent = `<video src="${media.url}" class="lightbox-media" controls autoplay></video>`;
+            } else {
+                mediaContent = `<img src="${media.url}" class="lightbox-media">`;
+            }
+            
+            // Botões de navegação
+            const showPrev = currentIndex > 0;
+            const showNext = currentIndex < mediaList.length - 1;
+
+            const prevBtn = showPrev ? `
+                <button class="lightbox-nav lightbox-prev" onclick="event.stopPropagation(); changeLightboxImage(-1)">
+                    <span>&lt;</span>
+                </button>` : '';
+                
+            const nextBtn = showNext ? `
+                <button class="lightbox-nav lightbox-next" onclick="event.stopPropagation(); changeLightboxImage(1)">
+                    <span>&gt;</span>
+                </button>` : '';
+
+            lightbox.innerHTML = `
+                <button class="lightbox-close" onclick="fecharLightbox()">&times;</button>
+                <div class="lightbox-content" onclick="event.stopPropagation()">
+                    ${prevBtn}
+                    ${mediaContent}
+                    ${nextBtn}
+                </div>
+            `;
+        };
+
+        window.changeLightboxImage = (direction) => {
+            const newIndex = currentIndex + direction;
+            if (newIndex >= 0 && newIndex < mediaList.length) {
+                currentIndex = newIndex;
+                updateContent();
+            }
+        };
+
+        window.fecharLightbox = () => {
+            lightbox.classList.remove('active');
+            setTimeout(() => lightbox.remove(), 300);
+        };
+
+        lightbox.addEventListener('click', window.fecharLightbox);
+        
+        updateContent();
+        document.body.appendChild(lightbox);
+        
+        // Teclado
+        const handleKey = (e) => {
+            if (!document.querySelector('.lightbox-overlay')) {
+                document.removeEventListener('keydown', handleKey);
+                return;
+            }
+            if (e.key === 'Escape') window.fecharLightbox();
+            if (e.key === 'ArrowLeft') window.changeLightboxImage(-1);
+            if (e.key === 'ArrowRight') window.changeLightboxImage(1);
+        };
+        document.addEventListener('keydown', handleKey);
+    };
+
+    // Função global para deletar post com modal personalizado (simulando inline se possível, mas usando o modal de confirmação existente ou criando um novo)
+    // O usuário pediu "modal pequeno perto da lixeira".
+    // Como temos showDeleteConfirmPopup usado em comentários, vamos reutilizá-lo ou adaptá-lo.
+    // Verificando se showDeleteConfirmPopup existe e é exportado ou global.
+    // Assumindo que showDeleteConfirmPopup está definido em algum lugar neste arquivo (vou verificar se já li).
+    
+    // Se showDeleteConfirmPopup não estiver global, vamos criá-lo ou usar lógica similar inline.
+    // Vou substituir o confirm() nativo pela lógica de popup.
+
+    // Escuta cliques no documento para delegar delete-post-btn
+    document.addEventListener('click', async (event) => {
+        const button = event.target.closest('.delete-post-btn');
+        if (button) {
+            event.preventDefault();
+            event.stopPropagation();
+            const postId = button.dataset.id;
+            const postElement = button.closest('.post');
+
+            // Usa o modal de confirmação existente ou cria um inline
+            if (typeof showDeleteConfirmPopup === 'function') {
+                showDeleteConfirmPopup(button, async () => {
+                    await deletePost(postId, postElement);
+                });
+            } else {
+                // Fallback: cria um modal inline simples se a função não existir
+                const confirmDiv = document.createElement('div');
+                confirmDiv.className = 'delete-confirm-popup'; // Usar classe existente se houver
+                confirmDiv.style.position = 'absolute';
+                confirmDiv.style.background = '#fff';
+                confirmDiv.style.border = '1px solid #ccc';
+                confirmDiv.style.padding = '10px';
+                confirmDiv.style.borderRadius = '5px';
+                confirmDiv.style.boxShadow = '0 2px 10px rgba(0,0,0,0.1)';
+                confirmDiv.style.zIndex = '1000';
+                confirmDiv.style.color = '#000';
+                
+                // Posiciona perto do botão
+                const rect = button.getBoundingClientRect();
+                // Ajuste simples de posição
+                // Melhor: anexar ao pai do botão e usar position absolute
+                button.parentNode.style.position = 'relative';
+                confirmDiv.style.top = '100%';
+                confirmDiv.style.right = '0';
+
+                confirmDiv.innerHTML = `
+                    <p style="margin: 0 0 10px; font-size: 14px;">Tem certeza?</p>
+                    <div style="display: flex; gap: 5px; justify-content: flex-end;">
+                        <button class="confirm-yes" style="background: #dc3545; color: white; border: none; padding: 4px 8px; border-radius: 3px; cursor: pointer;">Sim</button>
+                        <button class="confirm-no" style="background: #ccc; border: none; padding: 4px 8px; border-radius: 3px; cursor: pointer;">Não</button>
+                    </div>
+                `;
+
+                confirmDiv.querySelector('.confirm-yes').onclick = async () => {
+                    confirmDiv.remove();
+                    await deletePost(postId, postElement);
+                };
+                confirmDiv.querySelector('.confirm-no').onclick = () => {
+                    confirmDiv.remove();
+                };
+
+                button.parentNode.appendChild(confirmDiv);
+            }
+        }
+    });
+
+    if (postMediaInput && !postMediaInput.hasAttribute('multiple')) {
+        postMediaInput.setAttribute('multiple', 'multiple');
+    }
+
+    const abrirSeletorPost = () => postMediaInput.click();
+
+    if (btnSelecionarFotoPost) {
+        btnSelecionarFotoPost.addEventListener('click', abrirSeletorPost);
+    }
+    if (btnAdicionarFotoPost) {
+        btnAdicionarFotoPost.addEventListener('click', abrirSeletorPost);
+    }
+
     if (postMediaInput) {
-        const abrirSeletorPost = () => postMediaInput.click();
-
-        if (btnSelecionarFotoPost) {
-            btnSelecionarFotoPost.addEventListener('click', abrirSeletorPost);
-        }
-        if (btnAdicionarFotoPost) {
-            btnAdicionarFotoPost.addEventListener('click', abrirSeletorPost);
-        }
-
         postMediaInput.addEventListener('change', (e) => {
             const files = Array.from(e.target.files || []);
             if (!files.length) return;
 
+            let addedCount = 0;
             files.forEach((file) => {
-                if (!file.type.startsWith('image/')) return;
+                if (!file.type.startsWith('image/') && !file.type.startsWith('video/')) return;
                 if (fotosPostSelecionadas.length >= MAX_FOTOS_POST) return;
                 if (!fotosPostSelecionadas.includes(file)) {
                     fotosPostSelecionadas.push(file);
                     criarThumbnailPost(file);
+                    addedCount++;
                 }
             });
 
-            if (fotosPostSelecionadas.length >= MAX_FOTOS_POST && files.length > 0) {
-                showMessage(postFormMessage, `Máximo de ${MAX_FOTOS_POST} imagens por publicação.`, 'info');
+            if (fotosPostSelecionadas.length >= MAX_FOTOS_POST && (files.length > addedCount || fotosPostSelecionadas.length === MAX_FOTOS_POST)) {
+                showMessage(postFormMessage, `Máximo de ${MAX_FOTOS_POST} arquivos por publicação.`, 'info');
             }
 
             atualizarVisibilidadeBotoesPost();
             if (postForm) {
                 postForm.classList.add('is-active');
             }
+            
+            // Limpa o input para permitir selecionar o mesmo arquivo novamente se necessário
+            postMediaInput.value = '';
         });
     }
 
@@ -3488,10 +4023,18 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             const formData = new FormData();
             formData.append('content', content);
-            // Envia apenas a primeira imagem como mídia principal (backend atual aceita um campo 'media')
-            const fotoPrincipal = fotosPostSelecionadas[0] || (postMediaInput.files && postMediaInput.files[0]) || null;
-            if (fotoPrincipal) {
-                formData.append('media', fotoPrincipal);
+            
+            // Adiciona todas as fotos selecionadas ao FormData
+            fotosPostSelecionadas.forEach((file) => {
+                formData.append('media', file);
+            });
+
+            // Fallback: se não houver fotos selecionadas no array (drag&drop ou seleção múltipla),
+            // mas houver no input (caso raro se não usarmos o array), tenta pegar do input
+            if (fotosPostSelecionadas.length === 0 && postMediaInput && postMediaInput.files && postMediaInput.files.length > 0) {
+                 Array.from(postMediaInput.files).forEach(file => {
+                     formData.append('media', file);
+                 });
             }
             
             showMessage(postFormMessage, 'Publicando...', 'info');
@@ -9831,4 +10374,3 @@ document.addEventListener('DOMContentLoaded', () => {
     
     })();
 });
-
