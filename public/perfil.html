@@ -139,7 +139,7 @@
                     <div id="modalFotoOpcoes" class="modal-foto-opcoes oculto">
                         <div class="modal-foto-content">
                             <button id="btnVerFoto" class="btn-foto-opcao">
-                                Ver Foto
+                                Status
                             </button>
                             <button id="btnAlterarFoto" class="btn-foto-opcao">
                                 <i class="fas fa-camera"></i> Alterar
@@ -159,6 +159,39 @@
                             <i class="fas fa-times"></i>
                         </button>
                         <img id="fotoExpandida" src="" alt="Foto de perfil expandida">
+                    </div>
+                </div>
+
+                <!-- Overlay de Status (reutilizado do Explorar) -->
+                <div id="explorar-video-overlay" class="explorar-video-overlay hidden" aria-hidden="true">
+                    <div id="explorar-story-progress" class="explorar-story-progress" aria-hidden="true">
+                        <div id="explorar-story-progress-bar" class="explorar-story-progress-bar"></div>
+                    </div>
+                    <button id="explorar-video-back" class="explorar-video-back" aria-label="Voltar">
+                        <i class="fas fa-arrow-left"></i>
+                    </button>
+                    <button id="explorar-story-prev" class="explorar-story-nav explorar-story-prev" type="button" aria-label="Anterior">‹</button>
+                    <button id="explorar-story-next" class="explorar-story-nav explorar-story-next" type="button" aria-label="Próximo">›</button>
+                    <video id="explorar-video-full" class="explorar-video-full" playsinline loop muted controls></video>
+                    <img id="explorar-image-full" class="explorar-image-full" alt="">
+                    <button id="explorar-video-delete" class="explorar-video-delete" type="button" aria-label="Apagar status" hidden>
+                        <i class="fas fa-trash"></i>
+                    </button>
+                    <div id="explorar-video-info" class="explorar-video-info">
+                        <a id="explorar-video-perfil" class="explorar-video-perfil" href="#">
+                            <img id="explorar-video-avatar" class="explorar-video-avatar" src="imagens/default-user.png" alt="">
+                            <span id="explorar-video-nome" class="explorar-video-nome"></span>
+                        </a>
+                        <p id="explorar-video-desc" class="explorar-video-desc"></p>
+                        <span id="explorar-video-cidade" class="explorar-video-cidade"></span>
+                    </div>
+                </div>
+
+                <!-- Modal de curtidas (reutilizado no Perfil) -->
+                <div id="likes-modal-overlay" class="modal-overlay hidden" aria-hidden="true">
+                    <div id="likes-modal-content" class="modal-content likes-modal">
+                        <button id="likes-modal-close" type="button" class="btn-close-modal" aria-label="Fechar">&times;</button>
+                        <div id="likes-modal-list" class="likes-modal-list"></div>
                     </div>
                 </div>
 
@@ -561,4 +594,3 @@
     <script src="/perfil.js"></script>
 </body>
 </html>
-

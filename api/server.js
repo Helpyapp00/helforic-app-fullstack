@@ -1677,24 +1677,56 @@ app.post('/api/posts/:id/like', authMiddleware, async (req, res) => {
             post.likes = [];
         }
 
-        // Verifica se já curtiu (converte para string para garantir comparação correta)
         const index = post.likes.findIndex((id) => String(id) === String(userId));
         
         if (index === -1) {
             post.likes.push(userIdNormalized);
             
-            // Notificação para o dono do post (se não for o próprio usuário)
             if (String(post.userId) !== String(userId)) {
                 try {
                     const usuarioQueCurtiu = await User.findById(userId).select('nome');
                     const nomeUsuario = usuarioQueCurtiu?.nome || 'Alguém';
+
+                    const agora = new Date();
+                    const isExplorar = !!post.expiresAt;
+                    let tituloNotificacao;
+                    let mensagemNotificacao;
+                    if (isExplorar) {
+                        tituloNotificacao = 'Você teve uma curtida no seu vídeo ou imagem do Explorar';
+                        mensagemNotificacao = `${nomeUsuario} curtiu seu vídeo/imagem do Explorar`;
+                    } else {
+                        tituloNotificacao = 'Você teve uma curtida no seu post do feed';
+                        mensagemNotificacao = `${nomeUsuario} curtiu seu post do feed`;
+                    }
+
+                    let mediaUrl = '';
+                    let mediaType = '';
+                    if (Array.isArray(post.media) && post.media.length > 0) {
+                        mediaUrl = post.media[0]?.url || '';
+                        mediaType = post.media[0]?.type || '';
+                    } else {
+                        mediaUrl = post.mediaUrl || '';
+                        mediaType = post.mediaType || '';
+                    }
+                    const isVideoMidia = String(mediaType || '').includes('video');
                     
                     await criarNotificacao(
                         post.userId,
                         'post_curtido',
-                        'Seu post recebeu uma curtida',
-                        `${nomeUsuario} curtiu seu post`,
-                        { postId: post._id, usuarioId: userId },
+                        isExplorar
+                            ? (isVideoMidia ? 'Você teve uma curtida no seu vídeo do Explorar' : 'Você teve uma curtida na sua imagem do Explorar')
+                            : 'Você teve uma curtida no seu post do feed',
+                        isExplorar
+                            ? (isVideoMidia ? `${nomeUsuario} curtiu seu vídeo do Explorar` : `${nomeUsuario} curtiu sua imagem do Explorar`)
+                            : `${nomeUsuario} curtiu seu post do feed`,
+                        {
+                            postId: post._id,
+                            usuarioId: userId,
+                            mediaUrl,
+                            mediaType,
+                            isExplorar,
+                            createdAtPost: post.createdAt || agora
+                        },
                         null
                     );
                 } catch (notifError) {
@@ -1714,6 +1746,21 @@ app.post('/api/posts/:id/like', authMiddleware, async (req, res) => {
     }
 });
 
+// Obter dados mínimos de um post (suporta checagem de expiração e tipo de mídia)
+app.get('/api/posts/:id', authMiddleware, async (req, res) => {
+    try {
+        const post = await Postagem.findById(req.params.id)
+            .select('_id userId content mediaUrl mediaType expiresAt createdAt')
+            .lean();
+        if (!post) {
+            return res.status(404).json({ success: false, message: 'Post não encontrado' });
+        }
+        res.json({ success: true, post });
+    } catch (error) {
+        console.error('Erro ao obter post:', error);
+        res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
+    }
+});
 app.get('/api/posts/:id/likes', authMiddleware, async (req, res) => {
     try {
         const post = await Postagem.findById(req.params.id).exec();
@@ -2102,7 +2149,9 @@ app.post('/api/posts/:postId/comments/:commentId/like', authMiddleware, async (r
                         `${nomeUsuario} curtiu seu comentário`,
                         {
                             postId: postId,
-                            commentId: commentId
+                            commentId: commentId,
+                            mediaUrl: (Array.isArray(post.media) && post.media.length > 0) ? (post.media[0]?.url || '') : (post.mediaUrl || ''),
+                            mediaType: (Array.isArray(post.media) && post.media.length > 0) ? (post.media[0]?.type || '') : (post.mediaType || '')
                         },
                         null
                     );
@@ -2181,7 +2230,9 @@ app.post('/api/posts/:postId/comments/:commentId/replies/:replyId/like', authMid
                         {
                             postId: postId,
                             commentId: commentId,
-                            replyId: replyId
+                            replyId: replyId,
+                            mediaUrl: (Array.isArray(post.media) && post.media.length > 0) ? (post.media[0]?.url || '') : (post.mediaUrl || ''),
+                            mediaType: (Array.isArray(post.media) && post.media.length > 0) ? (post.media[0]?.type || '') : (post.mediaType || '')
                         },
                         null
                     );
@@ -5063,7 +5114,7 @@ app.get('/api/notificacoes', authMiddleware, async (req, res) => {
             query.lida = lida === 'true';
         }
         
-        const notificacoes = await Notificacao.find(query)
+        let notificacoes = await Notificacao.find(query)
             .sort({ createdAt: -1 })
             .limit(parseInt(limit))
             .exec();
@@ -5090,6 +5141,38 @@ app.get('/api/notificacoes', authMiddleware, async (req, res) => {
                     n.dataLeitura = agora;
                 }
             }
+        }
+
+        // Remove notificações ligadas a posts com expiração vencida (vídeos/status 24h)
+        try {
+            const agora = new Date();
+            const TIPOS_POST = new Set([
+                'post_curtido',
+                'post_comentado',
+                'comentario_respondido',
+                'comentario_curtido',
+                'resposta_curtida'
+            ]);
+            const filtradas = [];
+            for (const n of notificacoes) {
+                const postId = n?.dadosAdicionais?.postId;
+                const tipo = n?.tipo;
+                if (postId && TIPOS_POST.has(tipo)) {
+                    const post = await Postagem.findById(postId).select('expiresAt').lean();
+                    if (post?.expiresAt && new Date(post.expiresAt) < agora) {
+                        try {
+                            await Notificacao.deleteOne({ _id: n._id });
+                        } catch (delErr) {
+                            console.error('Erro ao deletar notificação expirada:', delErr);
+                        }
+                        continue; // não inclui na resposta
+                    }
+                }
+                filtradas.push(n);
+            }
+            notificacoes = filtradas;
+        } catch (expErr) {
+            console.error('Erro ao filtrar notificações expiradas:', expErr);
         }
 
         const naoLidas = await Notificacao.countDocuments({ userId, lida: false });

@@ -1380,8 +1380,10 @@ document.addEventListener('DOMContentLoaded', () => {
         isOwnProfile = (profileId === loggedInUserId);
         console.log('✅ É próprio perfil?', isOwnProfile);
         atualizarChavesAvaliacao();
-
+        
         inicializarPagina();
+        reposicionarBotaoAlterarFoto();
+        atualizarIndicadorStatusPerfil();
     })();
 
     // A partir daqui, funções normais da página (usadas após resolver profileId)
@@ -1771,35 +1773,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Configurar event listener da foto após isOwnProfile ser definido
         configurarEventListenerFoto();
-    }
-
-    // Função para configurar event listeners da foto (chamada após isOwnProfile ser definido)
-    function configurarEventListenerFoto() {
-        const fotoAtual = document.getElementById('fotoPerfil');
-        if (fotoAtual) {
-            // Remover listener anterior se existir criando um clone
-            const novaFoto = fotoAtual.cloneNode(true);
-            fotoAtual.parentNode.replaceChild(novaFoto, fotoAtual);
-            
-            novaFoto.addEventListener('click', (e) => {
-                e.stopPropagation();
-                console.log('Foto clicada! isOwnProfile:', isOwnProfile);
-                
-                // Se for o dono do perfil, mostra o modal de opções
-                if (isOwnProfile) {
-                    console.log('Abrindo modal de opções');
-                    if (modalFotoOpcoes) {
-                        modalFotoOpcoes.classList.toggle('oculto');
-                    }
-                } else {
-                    // Se for visitante, apenas expande a foto
-                    console.log('Expandindo foto (visitante)');
-                    expandirFoto();
-                }
-            });
-        } else {
-            console.error('fotoPerfil não encontrado!');
-        }
+        atualizarIndicadorStatusPerfil();
     }
 
     // Função para expandir a foto
@@ -1812,6 +1786,732 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.body.style.overflow = 'hidden';
             }
         }
+    }
+
+    function reposicionarBotaoAlterarFoto() {
+        if (!isOwnProfile || !btnAlterarFoto || !modalFotoExpandida) return;
+        const viewer = modalFotoExpandida.querySelector('.modal-foto-viewer');
+        if (!viewer) return;
+        btnAlterarFoto.id = 'btnAlterarFotoExpandida';
+        btnAlterarFoto.classList.add('btn-alterar-foto-expandida');
+        viewer.appendChild(btnAlterarFoto);
+    }
+
+    function abrirStatusPerfil() {
+        if (!profileId) {
+            expandirFoto();
+            return;
+        }
+        abrirStatusDiretoNoPerfil(profileId);
+    }
+
+    // Função para configurar event listeners da foto (chamada após isOwnProfile ser definido)
+    function configurarEventListenerFoto() {
+        const fotoAtual = document.getElementById('fotoPerfil');
+        if (!fotoAtual) {
+            console.error('fotoPerfil não encontrado!');
+            return;
+        }
+        const novaFoto = fotoAtual.cloneNode(true);
+        fotoAtual.parentNode.replaceChild(novaFoto, fotoAtual);
+
+        const LONG_PRESS_MS = 500;
+        let pressTimer = null;
+        let longPressDisparado = false;
+
+        const limparTimer = () => {
+            if (pressTimer) {
+                clearTimeout(pressTimer);
+                pressTimer = null;
+            }
+        };
+
+        const onPointerDown = (event) => {
+            if (event.button !== undefined && event.button !== 0) return;
+            longPressDisparado = false;
+            limparTimer();
+            pressTimer = setTimeout(() => {
+                longPressDisparado = true;
+                expandirFoto();
+            }, LONG_PRESS_MS);
+        };
+
+        const onPointerUp = (event) => {
+            if (!pressTimer && !longPressDisparado) return;
+            event.stopPropagation();
+            limparTimer();
+            if (!longPressDisparado) {
+                abrirStatusPerfil();
+            }
+        };
+
+        const onPointerCancel = () => {
+            limparTimer();
+        };
+
+        novaFoto.addEventListener('pointerdown', onPointerDown);
+        novaFoto.addEventListener('pointerup', onPointerUp);
+        novaFoto.addEventListener('pointerleave', onPointerCancel);
+        novaFoto.addEventListener('pointercancel', onPointerCancel);
+    }
+
+    const explorarVideoOverlay = document.getElementById('explorar-video-overlay');
+    const explorarVideoFull = document.getElementById('explorar-video-full');
+    const explorarImageFull = document.getElementById('explorar-image-full');
+    const explorarVideoBack = document.getElementById('explorar-video-back');
+    const explorarVideoDelete = document.getElementById('explorar-video-delete');
+    const explorarStoryPrev = document.getElementById('explorar-story-prev');
+    const explorarStoryNext = document.getElementById('explorar-story-next');
+    const explorarVideoPerfil = document.getElementById('explorar-video-perfil');
+    const explorarVideoAvatar = document.getElementById('explorar-video-avatar');
+    const explorarVideoNome = document.getElementById('explorar-video-nome');
+    const explorarVideoDesc = document.getElementById('explorar-video-desc');
+    const explorarVideoCidade = document.getElementById('explorar-video-cidade');
+    const explorarVideoInfo = document.getElementById('explorar-video-info');
+    const explorarStoryProgress = document.getElementById('explorar-story-progress');
+    let progressTimer = null;
+    function clearProgress() {
+        if (progressTimer) {
+            try { clearTimeout(progressTimer); } catch {}
+            progressTimer = null;
+        }
+        if (explorarStoryProgress) {
+            explorarStoryProgress.innerHTML = '';
+            explorarStoryProgress.setAttribute('aria-hidden', 'true');
+        }
+    }
+    function buildProgressSegments(total, currentIndex) {
+        if (!explorarStoryProgress) return;
+        explorarStoryProgress.innerHTML = '';
+        explorarStoryProgress.setAttribute('aria-hidden', 'false');
+        for (let i = 0; i < total; i += 1) {
+            const seg = document.createElement('div');
+            seg.className = 'explorar-story-progress-segment';
+            const fill = document.createElement('div');
+            fill.className = 'explorar-story-progress-fill';
+            if (i < currentIndex) {
+                fill.style.transform = 'scaleX(1)';
+            } else {
+                fill.style.transform = 'scaleX(0)';
+            }
+            seg.appendChild(fill);
+            explorarStoryProgress.appendChild(seg);
+        }
+    }
+    function startCurrentSegmentProgress(durationMs, currentIndex) {
+        if (!explorarStoryProgress) return;
+        const seg = explorarStoryProgress.children[currentIndex];
+        if (!seg) return;
+        const fill = seg.querySelector('.explorar-story-progress-fill');
+        if (!fill) return;
+        // reset then animate
+        fill.style.transition = 'none';
+        fill.style.transform = 'scaleX(0)';
+        requestAnimationFrame(() => {
+            fill.style.transition = `transform ${Math.max(100, durationMs)}ms linear`;
+            fill.style.transform = 'scaleX(1)';
+        });
+    }
+
+    let perfilStoryQueue = [];
+    let perfilStoryIndex = 0;
+
+    const getPerfilStoryKey = (storyId) => {
+        const uid = localStorage.getItem('userId') || 'anon';
+        return `explorar_story_viewed_${uid}_${storyId}`;
+    };
+    const markPerfilStoryViewed = (storyId) => {
+        if (!storyId) return;
+        try { localStorage.setItem(getPerfilStoryKey(storyId), '1'); } catch {}
+    };
+    const isPerfilStoryViewed = (storyId) => {
+        if (!storyId) return false;
+        try { return localStorage.getItem(getPerfilStoryKey(storyId)) === '1'; } catch { return false; }
+    };
+
+    async function carregarStoriesDoPerfil(ownerId) {
+        try {
+            const resp = await fetch(`/api/explorar-feed?t=${Date.now()}`, {
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('jwtToken')}` }
+            });
+            const data = await resp.json();
+            if (!resp.ok || data?.success === false) return [];
+            const items = Array.isArray(data?.items) ? data.items : (Array.isArray(data) ? data : []);
+            const stories = items.filter((it) => {
+                const rawOwner = it?.userId?._id || it?.userId || it?.ownerId || it?.autorId;
+                const ownerVal = rawOwner?._id || rawOwner;
+                const isStatus = it?.tipo === 'post' && !!it.mediaUrl;
+                return ownerVal && String(ownerVal) === String(ownerId) && isStatus;
+            }).map((story) => ({
+                id: String(story._id || ''),
+                ownerId: story?.userId?._id || story?.userId || story?.ownerId || story?.autorId,
+                mediaUrl: story.mediaUrl,
+                isVideo: String(story.mediaType || '').includes('video'),
+                nome: story?.titulo || 'Status',
+                desc: story?.descricao || '',
+                cidade: [story?.cidade, story?.estado].filter(Boolean).join(' - '),
+                avatar: story?.avatarUrl || story?.foto || '/imagens/default-user.png',
+                perfilUrl: story?.perfilUrl || '#',
+                postId: String(story._id || '')
+            }));
+            return stories;
+        } catch {
+            return [];
+        }
+    }
+
+    async function setupOverlayInfoWithLikes(story) {
+        if (!explorarVideoInfo) return;
+        explorarVideoInfo.style.display = 'flex';
+        const existingAvatars = explorarVideoInfo.querySelector('.explorar-like-avatars');
+        if (existingAvatars) existingAvatars.remove();
+        const existingLikeBtn = explorarVideoInfo.querySelector('.explorar-video-like-btn');
+        if (existingLikeBtn) existingLikeBtn.remove();
+        const postId = story.postId;
+        if (!postId) return;
+        const likeBtn = document.createElement('button');
+        likeBtn.type = 'button';
+        likeBtn.className = 'explorar-video-like-btn btn-like';
+        likeBtn.dataset.postId = String(postId);
+        likeBtn.innerHTML = `
+            <i class="fas fa-heart"></i>
+            <span class="like-count">0</span>
+        `;
+        likeBtn.addEventListener('click', async (ev) => {
+            ev.stopPropagation();
+            try {
+                const resp = await fetch(`/api/posts/${postId}/like`, {
+                    method: 'POST',
+                    headers: { Authorization: `Bearer ${localStorage.getItem('jwtToken')}` }
+                });
+                const data = await resp.json();
+                if (!resp.ok || data?.success === false) return;
+                const count = Array.isArray(data.likes) ? data.likes.length : 0;
+                likeBtn.querySelector('.like-count').textContent = count;
+                likeBtn.classList.toggle('liked');
+            } catch {}
+        });
+        explorarVideoInfo.appendChild(likeBtn);
+        try {
+            const resp = await fetch(`/api/posts/${postId}/likes`, {
+                headers: { Authorization: `Bearer ${localStorage.getItem('jwtToken')}` }
+            });
+            const data = await resp.json();
+            if (!resp.ok || data?.success === false) return;
+            const count = Number.isFinite(data.likesCount) ? data.likesCount : 0;
+            likeBtn.querySelector('.like-count').textContent = count;
+            if (data.isLikedByMe) likeBtn.classList.add('liked');
+            const preview = Array.isArray(data.likesPreview) ? data.likesPreview : [];
+            const fullLikes = Array.isArray(data.likes) ? data.likes : null;
+            if (preview.length > 0) {
+                const avatarsBtn = document.createElement('button');
+                avatarsBtn.type = 'button';
+                avatarsBtn.className = 'explorar-like-avatars';
+                preview.forEach((u) => {
+                    if (!u || !u.foto) return;
+                    const img = document.createElement('img');
+                    img.src = u.foto;
+                    img.alt = u.nome || '';
+                    img.className = 'explorar-like-avatar';
+                    img.referrerPolicy = 'no-referrer';
+                    avatarsBtn.appendChild(img);
+                });
+                if (avatarsBtn.childElementCount > 0) {
+                    avatarsBtn.addEventListener('click', (ev) => {
+                        ev.stopPropagation();
+                        openLikesModal(postId, fullLikes, avatarsBtn);
+                    });
+                    explorarVideoInfo.appendChild(avatarsBtn);
+                }
+            }
+        } catch {}
+    }
+
+    function abrirStoryIndex(idx) {
+        perfilStoryIndex = Math.max(0, Math.min(idx, perfilStoryQueue.length - 1));
+        const story = perfilStoryQueue[perfilStoryIndex];
+        if (!story || !explorarVideoOverlay) return;
+        explorarVideoOverlay.classList.remove('is-dragging');
+        explorarVideoOverlay.style.transform = '';
+        window.explorarOverlayMode = 'profile';
+        clearProgress();
+        explorarVideoOverlay.classList.remove('hidden');
+        explorarVideoOverlay.setAttribute('aria-hidden', 'false');
+        document.body.style.overflow = 'hidden';
+        document.body.classList.add('explorar-video-open');
+        if (explorarVideoPerfil) explorarVideoPerfil.href = story.perfilUrl || '#';
+        if (explorarVideoAvatar) explorarVideoAvatar.src = story.avatar || '/imagens/default-user.png';
+        if (explorarVideoNome) explorarVideoNome.textContent = story.nome || 'Status';
+        if (explorarVideoDesc) explorarVideoDesc.textContent = story.desc || '';
+        if (explorarVideoCidade) explorarVideoCidade.textContent = story.cidade || '';
+        if (story.isVideo) {
+            if (explorarImageFull) {
+                explorarImageFull.removeAttribute('src');
+                explorarImageFull.classList.add('hidden');
+            }
+            if (explorarVideoFull) {
+                explorarVideoFull.classList.remove('hidden');
+                explorarVideoFull.src = story.mediaUrl;
+                explorarVideoFull.controls = false;
+                try { explorarVideoFull.removeAttribute('controls'); } catch {}
+                explorarVideoFull.muted = false;
+                explorarVideoFull.playsInline = true;
+                try { explorarVideoFull.preload = 'auto'; } catch {}
+                try { explorarVideoFull.autoplay = true; } catch {}
+                try { explorarVideoFull.setAttribute('controlsList', 'nofullscreen noplaybackrate nodownload'); } catch {}
+                try { explorarVideoFull.style.pointerEvents = 'none'; } catch {}
+                explorarVideoFull.currentTime = 0;
+                explorarVideoFull.load();
+                const tryPlay = () => {
+                    explorarVideoFull.play().catch(() => {});
+                };
+                explorarVideoFull.addEventListener('loadeddata', tryPlay, { once: true });
+                setTimeout(tryPlay, 200);
+                const onLoadedMeta = () => {
+                    const dur = (explorarVideoFull.duration && isFinite(explorarVideoFull.duration))
+                        ? explorarVideoFull.duration * 1000
+                        : 7000;
+                    startCurrentSegmentProgress(dur, perfilStoryIndex);
+                    explorarVideoFull.addEventListener('ended', () => {
+                        if (perfilStoryQueue.length) abrirStoryIndex(perfilStoryIndex + 1);
+                    }, { once: true });
+                };
+                if (explorarVideoFull.readyState >= 1) {
+                    onLoadedMeta();
+                } else {
+                    explorarVideoFull.addEventListener('loadedmetadata', onLoadedMeta, { once: true });
+                }
+            }
+        } else {
+            if (explorarVideoFull) {
+                try { explorarVideoFull.pause(); } catch {}
+                explorarVideoFull.removeAttribute('src');
+                try { explorarVideoFull.style.pointerEvents = ''; } catch {}
+                explorarVideoFull.classList.add('hidden');
+            }
+            if (explorarImageFull) {
+                explorarImageFull.src = story.mediaUrl;
+                explorarImageFull.classList.remove('hidden');
+            }
+            startCurrentSegmentProgress(5000, perfilStoryIndex);
+            if (progressTimer) { try { clearTimeout(progressTimer); } catch {} }
+            progressTimer = setTimeout(() => {
+                if (perfilStoryQueue.length) abrirStoryIndex(perfilStoryIndex + 1);
+            }, 5000);
+        }
+        markPerfilStoryViewed(story.id);
+        atualizarIndicadorStatusPerfil();
+        setupOverlayInfoWithLikes(story);
+        if (explorarVideoDelete) {
+            const isOwner = story.ownerId && loggedInUserId && String(story.ownerId) === String(loggedInUserId);
+            const shouldShow = !!(isOwner && story.postId);
+            explorarVideoDelete.hidden = !shouldShow;
+            explorarVideoDelete.style.display = shouldShow ? 'grid' : 'none';
+            explorarVideoDelete.dataset.postId = String(story.postId || '');
+        }
+        if (story.ownerId) {
+            statusCache.delete(String(story.ownerId));
+            const selectorList = [
+                `.comment-avatar[data-user-id="${String(story.ownerId)}"]`,
+                `.reply-avatar[data-user-id="${String(story.ownerId)}"]`,
+                '#fotoPerfil'
+            ];
+            selectorList.forEach((sel) => {
+                document.querySelectorAll(sel).forEach((imgEl) => {
+                    applyStatusRingToAvatar(imgEl, story.ownerId);
+                });
+            });
+        }
+        // Atualiza barra de progresso (segmentos)
+        buildProgressSegments(perfilStoryQueue.length, perfilStoryIndex);
+    }
+
+    async function abrirStatusDiretoNoPerfil(ownerId) {
+        perfilStoryQueue = await carregarStoriesDoPerfil(ownerId);
+        if (!perfilStoryQueue.length) {
+            expandirFoto();
+            return;
+        }
+        abrirStoryIndex(0);
+    }
+
+    function fecharOverlayPerfil() {
+        if (!explorarVideoOverlay) return;
+        window.explorarOverlayMode = null;
+        explorarVideoOverlay.classList.remove('is-dragging');
+        explorarVideoOverlay.style.transform = '';
+        explorarVideoOverlay.classList.add('hidden');
+        explorarVideoOverlay.setAttribute('aria-hidden', 'true');
+        document.body.style.overflow = '';
+        document.body.classList.remove('explorar-video-open');
+        if (explorarVideoFull) {
+            try { explorarVideoFull.pause(); } catch {}
+            explorarVideoFull.removeAttribute('src');
+            try { explorarVideoFull.style.pointerEvents = ''; } catch {}
+            explorarVideoFull.classList.add('hidden');
+        }
+        if (explorarImageFull) {
+            explorarImageFull.removeAttribute('src');
+            explorarImageFull.classList.add('hidden');
+        }
+        clearProgress();
+    }
+
+    if (explorarVideoBack) {
+        explorarVideoBack.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            fecharOverlayPerfil();
+        });
+    }
+    if (explorarVideoDelete) {
+        explorarVideoDelete.addEventListener('click', (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            const story = perfilStoryQueue[perfilStoryIndex];
+            const postId = story?.postId;
+            if (!postId) return;
+            if (typeof showDeleteConfirmPopup === 'function') {
+                showDeleteConfirmPopup(explorarVideoDelete, async () => {
+                    try {
+                        const response = await fetch(`/api/posts/${postId}`, {
+                            method: 'DELETE',
+                            headers: { 'Authorization': `Bearer ${localStorage.getItem('jwtToken')}` }
+                        });
+                        const data = await response.json();
+                        if (!response.ok || data?.success === false) {
+                            throw new Error(data?.message || 'Erro ao apagar status.');
+                        }
+                        perfilStoryQueue = perfilStoryQueue.filter((item) => String(item.postId) !== String(postId));
+                        if (!perfilStoryQueue.length) {
+                            fecharOverlayPerfil();
+                        } else {
+                            const nextIndex = Math.min(perfilStoryIndex, perfilStoryQueue.length - 1);
+                            abrirStoryIndex(nextIndex);
+                        }
+                        statusCache.delete(String(loggedInUserId));
+                        atualizarIndicadorStatusPerfil();
+                    } catch (error) {
+                        console.error('Erro ao apagar status:', error);
+                        alert(error.message);
+                    }
+                }, event);
+            }
+        });
+        ['touchstart','pointerdown'].forEach((type) => {
+            explorarVideoDelete.addEventListener(type, (ev) => {
+                ev.stopPropagation();
+            });
+        });
+    }
+    if (explorarVideoOverlay) {
+        let touchStartX = null;
+        let touchStartY = null;
+        let dragging = false;
+        let lockingDirection = null;
+        const closeVerticalThreshold = 100;
+
+        explorarVideoOverlay.addEventListener('click', (event) => {
+            const target = event.target;
+            if (
+                target.closest('.explorar-video-info') ||
+                target.closest('#explorar-video-delete') ||
+                target.closest('#explorar-video-back') ||
+                target.closest('.explorar-story-nav') ||
+                target.closest('.explorar-video-controls') ||
+                target.closest('.explorar-video-whatsapp')
+            ) return;
+            event.stopPropagation();
+            if (dragging) return;
+            const rect = explorarVideoOverlay.getBoundingClientRect();
+            const x = event.clientX;
+            const y = event.clientY;
+            const leftZone = rect.left + rect.width * 0.2;
+            const rightZone = rect.right - rect.width * 0.2;
+            const safeTop = rect.top + 80;
+            const safeBottom = rect.bottom - 80;
+            if (perfilStoryQueue.length) {
+                if (y >= safeTop && y <= safeBottom && x <= leftZone) {
+                    abrirStoryIndex(perfilStoryIndex - 1);
+                } else if (y >= safeTop && y <= safeBottom && x >= rightZone) {
+                    abrirStoryIndex(perfilStoryIndex + 1);
+                }
+            }
+        });
+
+        explorarVideoOverlay.addEventListener('touchstart', (event) => {
+            const target = event.target;
+            if (
+                target.closest('.explorar-video-info') ||
+                target.closest('#explorar-video-delete') ||
+                target.closest('#explorar-video-back') ||
+                target.closest('.explorar-story-nav') ||
+                target.closest('.explorar-video-controls') ||
+                target.closest('.explorar-video-whatsapp')
+            ) {
+                return;
+            }
+            touchStartX = event.touches[0]?.clientX ?? null;
+            touchStartY = event.touches[0]?.clientY ?? null;
+            dragging = false;
+            lockingDirection = null;
+        }, { passive: false });
+
+        explorarVideoOverlay.addEventListener('touchmove', (event) => {
+            if (touchStartY === null || touchStartX === null) return;
+            const currentX = event.touches[0]?.clientX ?? touchStartX;
+            const currentY = event.touches[0]?.clientY ?? touchStartY;
+            const deltaX = currentX - touchStartX;
+            const deltaY = currentY - touchStartY;
+            if (!lockingDirection) {
+                lockingDirection = Math.abs(deltaX) > Math.abs(deltaY) ? 'horizontal' : 'vertical';
+            }
+            event.preventDefault();
+            if (!dragging && (Math.abs(deltaX) > 18 || Math.abs(deltaY) > 18)) {
+                dragging = true;
+                explorarVideoOverlay.classList.add('is-dragging');
+            }
+            if (!dragging) return;
+            if (lockingDirection === 'vertical') {
+                const scale = 0.9;
+                explorarVideoOverlay.style.transform = `translate(${deltaX}px, ${deltaY}px) scale(${scale})`;
+            }
+        }, { passive: false });
+
+        explorarVideoOverlay.addEventListener('touchend', (event) => {
+            const target = event.target;
+            if (
+                target.closest('.explorar-video-info') ||
+                target.closest('#explorar-video-delete') ||
+                target.closest('#explorar-video-back') ||
+                target.closest('.explorar-story-nav') ||
+                target.closest('.explorar-video-controls') ||
+                target.closest('.explorar-video-whatsapp')
+            ) {
+                touchStartX = null;
+                touchStartY = null;
+                dragging = false;
+                explorarVideoOverlay.classList.remove('is-dragging');
+                return;
+            }
+            const touch = event.changedTouches && event.changedTouches[0];
+            const endX = touch?.clientX ?? 0;
+            const endY = touch?.clientY ?? 0;
+            const deltaX = endX - (touchStartX ?? endX);
+            const deltaY = endY - (touchStartY ?? endY);
+            if (dragging && Math.abs(deltaY) > closeVerticalThreshold) {
+                fecharOverlayPerfil();
+            } else {
+                if (!explorarVideoOverlay.classList.contains('hidden')) {
+                    try { explorarVideoFull?.play?.(); } catch {}
+                    explorarVideoOverlay.style.transform = '';
+                    if (!dragging && perfilStoryQueue.length) {
+                        const rect = explorarVideoOverlay.getBoundingClientRect();
+                        const leftZone = rect.left + rect.width * 0.2;
+                        const rightZone = rect.right - rect.width * 0.2;
+                        const safeTop = rect.top + 80;
+                        const safeBottom = rect.bottom - 80;
+                        if (endY >= safeTop && endY <= safeBottom && endX <= leftZone) {
+                            abrirStoryIndex(perfilStoryIndex - 1);
+                        } else if (endY >= safeTop && endY <= safeBottom && endX >= rightZone) {
+                            abrirStoryIndex(perfilStoryIndex + 1);
+                        }
+                    }
+                }
+            }
+            explorarVideoOverlay.classList.remove('is-dragging');
+            touchStartX = null;
+            touchStartY = null;
+            dragging = false;
+        });
+
+        let perfilHoldTimer = null;
+        let perfilHoldActive = false;
+        const perfilHoldDelayMs = 500;
+        const startHold = () => {
+            clearTimeout(perfilHoldTimer);
+            perfilHoldActive = false;
+            perfilHoldTimer = setTimeout(() => {
+                perfilHoldActive = true;
+                try {
+                    explorarVideoFull?.pause?.();
+                } catch {}
+            }, perfilHoldDelayMs);
+        };
+        const endHold = () => {
+            clearTimeout(perfilHoldTimer);
+            if (perfilHoldActive) {
+                perfilHoldActive = false;
+                try { explorarVideoFull?.play?.(); } catch {}
+            } else {
+                perfilHoldActive = false;
+            }
+        };
+        explorarVideoOverlay.addEventListener('pointerdown', startHold);
+        explorarVideoOverlay.addEventListener('pointerup', endHold);
+        explorarVideoOverlay.addEventListener('pointercancel', endHold);
+        explorarVideoOverlay.addEventListener('touchstart', startHold, { passive: true });
+        explorarVideoOverlay.addEventListener('touchend', endHold);
+        explorarVideoOverlay.addEventListener('touchcancel', endHold);
+    }
+
+    // Modal de curtidas (Perfil)
+    const likesModalOverlay = document.getElementById('likes-modal-overlay');
+    const likesModalList = document.getElementById('likes-modal-list');
+    const likesModalClose = document.getElementById('likes-modal-close');
+    function closeLikesModal() {
+        if (!likesModalOverlay) return;
+        likesModalOverlay.classList.add('hidden');
+        likesModalOverlay.setAttribute('aria-hidden', 'true');
+        likesModalOverlay.style.display = 'none';
+        document.documentElement.classList.remove('modal-open');
+        document.body.classList.remove('modal-open');
+    }
+    async function openLikesModal(postId, likesFromCaller, anchorEl = null) {
+        if (!likesModalOverlay || !likesModalList || !postId) return;
+        likesModalOverlay.classList.remove('hidden');
+        likesModalOverlay.setAttribute('aria-hidden', 'false');
+        likesModalOverlay.style.display = 'flex';
+        likesModalOverlay.style.pointerEvents = 'auto';
+        let likes = null;
+        try {
+            const resp = await fetch(`/api/posts/${postId}/likes`, {
+                headers: { Authorization: `Bearer ${localStorage.getItem('jwtToken')}` }
+            });
+            const data = await resp.json();
+            if (!resp.ok || data?.success === false) return;
+            if (Array.isArray(data.likes) && data.likes.length) {
+                likes = data.likes;
+            }
+        } catch {
+            if (Array.isArray(likesFromCaller) && likesFromCaller.length) {
+                likes = likesFromCaller;
+            } else {
+                return;
+            }
+        }
+        likesModalList.innerHTML = '';
+        likes.forEach((u) => {
+            if (!u || (!u.nome && !u.foto)) return;
+            const item = document.createElement('button');
+            item.type = 'button';
+            item.className = 'likes-modal-item';
+            const avatar = document.createElement('img');
+            avatar.className = 'likes-modal-avatar';
+            avatar.src = u.foto || 'imagens/default-user.png';
+            avatar.alt = u.nome || '';
+            avatar.referrerPolicy = 'no-referrer';
+            const infoWrap = document.createElement('div');
+            infoWrap.className = 'likes-modal-info';
+            const name = document.createElement('span');
+            name.className = 'likes-modal-name';
+            name.textContent = u.nome || '';
+            infoWrap.appendChild(name);
+            const numeroRaw = String(u.whatsapp || '').trim();
+            const numeroDigits = numeroRaw.replace(/\D+/g, '');
+            if (numeroDigits && numeroDigits.length >= 8) {
+                const waLink = document.createElement('a');
+                waLink.href = `https://wa.me/${encodeURIComponent(numeroDigits)}`;
+                waLink.target = '_blank';
+                waLink.rel = 'noopener noreferrer';
+                waLink.className = 'likes-modal-whatsapp';
+                waLink.innerHTML = '<i class="fab fa-whatsapp"></i>';
+                waLink.addEventListener('click', (ev) => {
+                    ev.stopPropagation();
+                });
+                infoWrap.appendChild(waLink);
+            }
+            item.appendChild(avatar);
+            item.appendChild(infoWrap);
+            if (u.id) {
+                item.addEventListener('click', () => {
+                    window.location.href = `/perfil.html?id=${encodeURIComponent(u.id)}`;
+                });
+            }
+            likesModalList.appendChild(item);
+        });
+        if (!likesModalList.childElementCount) {
+            closeLikesModal();
+            return;
+        }
+        const contentEl = document.getElementById('likes-modal-content');
+        if (contentEl) {
+            contentEl.style.position = 'absolute';
+            let desiredLeft = 20;
+            let desiredTop = 20;
+            if (anchorEl && typeof anchorEl.getBoundingClientRect === 'function') {
+                const rect = anchorEl.getBoundingClientRect();
+                const panelWidth = contentEl.offsetWidth || 340;
+                const panelHeight = contentEl.offsetHeight || 360;
+                const viewportW = window.innerWidth;
+                const viewportH = window.innerHeight;
+                desiredLeft = Math.min(
+                    Math.max(rect.right - panelWidth + 10, 10),
+                    viewportW - panelWidth - 10
+                );
+                desiredTop = Math.min(
+                    Math.max(rect.top - panelHeight - 12, 10),
+                    viewportH - panelHeight - 10
+                );
+            }
+            contentEl.style.left = `${desiredLeft}px`;
+            contentEl.style.top = `${desiredTop}px`;
+        }
+        document.documentElement.classList.add('modal-open');
+        document.body.classList.add('modal-open');
+    }
+    if (likesModalClose) {
+        likesModalClose.addEventListener('click', () => {
+            closeLikesModal();
+        });
+    }
+    if (likesModalOverlay) {
+        likesModalOverlay.addEventListener('click', (event) => {
+            const contentEl = document.getElementById('likes-modal-content');
+            if (!contentEl || !contentEl.contains(event.target)) {
+                closeLikesModal();
+            }
+            event.stopPropagation();
+        });
+    }
+    if (explorarStoryPrev) {
+        explorarStoryPrev.addEventListener('click', () => {
+            if (perfilStoryQueue.length) abrirStoryIndex(perfilStoryIndex - 1);
+        });
+    }
+    if (explorarStoryNext) {
+        explorarStoryNext.addEventListener('click', () => {
+            if (perfilStoryQueue.length) abrirStoryIndex(perfilStoryIndex + 1);
+        });
+    }
+
+    async function atualizarIndicadorStatusPerfil() {
+        const fotoEl = document.getElementById('fotoPerfil');
+        if (!fotoEl || !profileId) return;
+        const stories = await carregarStoriesDoPerfil(profileId);
+        const hasStory = stories.length > 0;
+        const hasUnviewed = stories.some((s) => !isPerfilStoryViewed(s.id));
+        fotoEl.classList.toggle('has-story', hasStory);
+        fotoEl.classList.toggle('is-viewed', hasStory && !hasUnviewed);
+    }
+
+    const statusCache = new Map();
+    async function getUserStatusInfo(ownerId) {
+        const key = String(ownerId);
+        if (statusCache.has(key)) return statusCache.get(key);
+        const stories = await carregarStoriesDoPerfil(ownerId);
+        const hasStory = stories.length > 0;
+        const hasUnviewed = stories.some((s) => !isPerfilStoryViewed(s.id));
+        const info = { stories, hasStory, hasUnviewed };
+        statusCache.set(key, info);
+        return info;
+    }
+
+    async function applyStatusRingToAvatar(imgEl, ownerId) {
+        if (!imgEl || !ownerId) return;
+        const info = await getUserStatusInfo(ownerId);
+        imgEl.classList.toggle('has-story', info.hasStory);
+        imgEl.classList.toggle('is-viewed', info.hasStory && !info.hasUnviewed);
     }
 
     // Criar postagem diretamente no perfil (sem ir pro feed)
@@ -3340,6 +4040,20 @@ document.addEventListener('DOMContentLoaded', () => {
             
             minhasPostagensContainer.appendChild(thumbnail);
         }); 
+        
+        // Se veio de notificação com postId na URL, abre automaticamente o modal da postagem alvo
+        try {
+            const params = new URLSearchParams(window.location.search);
+            const targetPostId = params.get('postId');
+            if (targetPostId) {
+                const alvo = posts.find(p => String(p?._id) === String(targetPostId));
+                if (alvo) {
+                    setTimeout(() => abrirModalPostagem(alvo), 0);
+                }
+            }
+        } catch (e) {
+            console.error('Erro ao tentar abrir post automático:', e);
+        }
     }
     
     // Função para abrir modal com postagem completa
@@ -3660,10 +4374,10 @@ document.addEventListener('DOMContentLoaded', () => {
             
             const commentHTML = `
                 <div class="comment" data-comment-id="${comment._id}">
-                    <img src="${commentPhoto.includes('pixabay') ? 'imagens/default-user.png' : commentPhoto}" alt="Avatar" class="comment-avatar">
+                    <img src="${commentPhoto.includes('pixabay') ? 'imagens/default-user.png' : commentPhoto}" alt="Avatar" class="comment-avatar" data-user-id="${comment.userId._id}">
                     <div class="comment-body-container">
                         <div class="comment-body">
-                            <strong>${comment.userId.nome}</strong>
+                            <strong class="comment-user-name" data-user-id="${comment.userId._id}">${comment.userId.nome}</strong>
                             <p>${comment.content}</p>
                             ${(canEditComment || canDeleteComment) ? `
                                 <button class="btn-comment-options" data-comment-id="${comment._id}" title="Opções">⋯</button>
@@ -3721,10 +4435,10 @@ document.addEventListener('DOMContentLoaded', () => {
         
         return `
             <div class="reply" data-reply-id="${reply._id}">
-                <img src="${replyPhoto.includes('pixabay') ? 'imagens/default-user.png' : replyPhoto}" alt="Avatar" class="reply-avatar">
+                <img src="${replyPhoto.includes('pixabay') ? 'imagens/default-user.png' : replyPhoto}" alt="Avatar" class="reply-avatar" data-user-id="${reply.userId._id}">
                 <div class="reply-body-container">
                     <div class="reply-body">
-                        <strong>${reply.userId.nome}</strong>
+                        <strong class="reply-user-name" data-user-id="${reply.userId._id}">${reply.userId.nome}</strong>
                         <p>${reply.content}</p>
                         ${(canEditReply || canDeleteReply) ? `
                             <button class="btn-reply-options" data-comment-id="${commentId}" data-reply-id="${reply._id}" title="Opções">⋯</button>
@@ -4112,6 +4826,27 @@ document.addEventListener('DOMContentLoaded', () => {
         const commentId = commentElement.dataset.commentId;
         if (!commentId) return;
         
+        const avatarImg = commentElement.querySelector('.comment-avatar');
+        const nameEl = commentElement.querySelector('.comment-user-name');
+        const ownerId = avatarImg?.dataset.userId || nameEl?.dataset.userId || null;
+        if (ownerId) {
+            applyStatusRingToAvatar(avatarImg, ownerId);
+            if (avatarImg) {
+                avatarImg.style.cursor = 'pointer';
+                avatarImg.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    abrirStatusDiretoNoPerfil(ownerId);
+                });
+            }
+            if (nameEl) {
+                nameEl.style.cursor = 'pointer';
+                nameEl.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    window.location.href = `/perfil.html?id=${ownerId}`;
+                });
+            }
+        }
+
         // Verifica se o comentário é longo após configurar listeners
         setTimeout(() => {
             if (commentElement.offsetParent !== null) {
@@ -4319,6 +5054,27 @@ document.addEventListener('DOMContentLoaded', () => {
         const replyId = replyElement.dataset.replyId;
         if (!replyId) return;
         
+        const avatarImg = replyElement.querySelector('.reply-avatar');
+        const nameEl = replyElement.querySelector('.reply-user-name');
+        const ownerId = avatarImg?.dataset.userId || nameEl?.dataset.userId || null;
+        if (ownerId) {
+            applyStatusRingToAvatar(avatarImg, ownerId);
+            if (avatarImg) {
+                avatarImg.style.cursor = 'pointer';
+                avatarImg.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    abrirStatusDiretoNoPerfil(ownerId);
+                });
+            }
+            if (nameEl) {
+                nameEl.style.cursor = 'pointer';
+                nameEl.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    window.location.href = `/perfil.html?id=${ownerId}`;
+                });
+            }
+        }
+
         // Curtir resposta
         const btnLikeReply = replyElement.querySelector('.btn-like-reply');
         if (btnLikeReply) {
@@ -5156,15 +5912,15 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Botão Ver Foto
+    // Botão Status (antigo "Ver Foto")
     if (btnVerFoto) {
         btnVerFoto.addEventListener('click', () => {
             if (modalFotoOpcoes) modalFotoOpcoes.classList.add('oculto');
-            expandirFoto();
+            abrirStatusPerfil();
         });
     }
 
-    // Botão Alterar Foto
+    // Botão Alterar Foto (será reposicionado para a foto em tela cheia)
     if (btnAlterarFoto) {
         btnAlterarFoto.addEventListener('click', () => {
             if (modalFotoOpcoes) modalFotoOpcoes.classList.add('oculto');
@@ -7057,7 +7813,7 @@ document.addEventListener('DOMContentLoaded', () => {
             mostrarSecao(secaoPostagens);
         }
     }
-    if (fotoPerfil) { fotoPerfil.style.cursor = 'pointer'; fotoPerfil.addEventListener('click', () => { if (fotoPerfil.src && imageModal && modalImage) { modalImage.src = fotoPerfil.src; imageModal.classList.add('visible'); } }); }
+    if (fotoPerfil) { fotoPerfil.style.cursor = 'pointer'; }
     if (closeImageModalBtn) { closeImageModalBtn.addEventListener('click', () => { imageModal.classList.remove('visible'); }); }
     if (imageModal) { imageModal.addEventListener('click', (e) => { if (e.target.id === 'image-modal' || e.target.classList.contains('image-modal-overlay')) { imageModal.classList.remove('visible'); } }); }
     if (feedButton) { 

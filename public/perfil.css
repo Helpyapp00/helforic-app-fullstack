@@ -340,6 +340,24 @@ body {
     cursor: pointer;
 }
 
+.perfil-img.has-story {
+    box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.95), 0 2px 8px var(--shadow-color);
+}
+
+.perfil-img.has-story.is-viewed {
+    box-shadow: 0 0 0 3px rgba(148, 163, 184, 0.9), 0 2px 8px var(--shadow-color);
+}
+
+/* Anel de status em avatares de comentários e respostas no perfil */
+.comment-avatar.has-story,
+.reply-avatar.has-story {
+    box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.95);
+}
+.comment-avatar.has-story.is-viewed,
+.reply-avatar.has-story.is-viewed {
+    box-shadow: 0 0 0 2px rgba(148, 163, 184, 0.9);
+}
+
 .perfil-avatar-wrap {
     position: relative;
     display: inline-block;
@@ -508,8 +526,8 @@ body {
 .modal-foto-viewer {
     position: relative;
     z-index: 2;
-    max-width: 900px;
-    max-height: 85vh;
+    max-width: 1000px;
+    max-height: 90vh;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -518,8 +536,8 @@ body {
 .modal-foto-viewer img {
     width: 100%;
     height: auto;
-    max-width: 100%;
-    max-height: 85vh;
+    max-width: min(100vw, 1000px);
+    max-height: 90vh;
     border-radius: 8px;
     object-fit: contain;
     box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
@@ -545,10 +563,32 @@ body {
     z-index: 10;
 }
 
+.btn-alterar-foto-expandida {
+    position: absolute;
+    bottom: 20px;
+    right: 20px;
+    background: #2563eb;
+    color: #fff;
+    border: none;
+    border-radius: 9999px;
+    padding: 10px 16px;
+    font-size: 14px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+    z-index: 10;
+}
+
+.btn-alterar-foto-expandida i {
+    font-size: 16px;
+}
+
 @media (max-width: 768px) {
     .modal-foto-viewer {
-        max-width: 90vw;
-        max-height: 85vh;
+        max-width: 95vw;
+        max-height: 90vh;
     }
     
     .btn-fechar-modal {
@@ -3129,4 +3169,3 @@ body.dark-mode .numero-nivel {
     .gamificacao-container { padding: 10px; }
     .nivel-badge { font-size: 1em; }
 }
-

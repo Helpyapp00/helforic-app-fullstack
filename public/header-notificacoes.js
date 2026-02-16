@@ -935,18 +935,53 @@
                                 notif.tipo === 'candidatura_recusada_time' ||
                                 isPropostaRecusada;
                             const estiloRecusada = isRecusada ? 'style="color: #dc3545; border-left: 3px solid #dc3545; padding-left: 12px;"' : '';
-                            const icone = isPropostaRecusada ? '🚫' : (iconMap[notif.tipo] || '🔔');
+                            const iconeBase = isPropostaRecusada ? '🚫' : (iconMap[notif.tipo] || '🔔');
+
+                            const isPostCurtido = notif.tipo === 'post_curtido';
+                            const isComentarioCurtido = notif.tipo === 'comentario_curtido';
+                            const isRespostaCurtida = notif.tipo === 'resposta_curtida';
+                            const mediaUrl = notif.dadosAdicionais?.mediaUrl || '';
+                            const mediaType = notif.dadosAdicionais?.mediaType || '';
+                            const hasThumb = (isPostCurtido || isComentarioCurtido || isRespostaCurtida) && !!mediaUrl;
+                            const isVideoThumb = hasThumb && String(mediaType).includes('video');
+
+                            let thumbHtml = '';
+                            if (hasThumb) {
+                                const sizeStyle = 'width: 42px; height: 42px; border-radius: 6px; overflow: hidden; flex-shrink: 0;';
+                                if (isVideoThumb) {
+                                    thumbHtml = `
+                                        <div style="${sizeStyle} position: relative; background: #000;">
+                                            <video src="${mediaUrl}" muted playsinline style="width: 100%; height: 100%; object-fit: cover;"></video>
+                                        </div>
+                                    `;
+                                } else {
+                                    thumbHtml = `
+                                        <div style="${sizeStyle}">
+                                            <img src="${mediaUrl}" alt="" style="width: 100%; height: 100%; object-fit: cover;">
+                                        </div>
+                                    `;
+                                }
+                            }
+
+                            const iconeFinalHtml = hasThumb
+                                ? `<div style="font-size: 18px; line-height: 1; margin-left: 8px;">${iconeBase}</div>`
+                                : `<div style="font-size: 18px; line-height: 1;">${iconeBase}</div>`;
                             
+                            const unreadDot = !notif.lida
+                                ? '<span style="background: #007bff; width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-top: 5px;"></span>'
+                                : '';
+
                             return `
                                 <div class="notificacao-card ${notif.lida ? '' : 'nao-lida'} ${modoSelecaoClass} ${selecionadaClass} ${isRecusada ? 'notificacao-recusada' : ''}" data-notif-id="${notif._id}" ${estiloRecusada}>
                                     <div style="display: flex; gap: 10px; align-items: flex-start; padding-left: ${paddingLeft};">
-                                        <div style="font-size: 18px; line-height: 1;">${icone}</div>
+                                        ${hasThumb ? thumbHtml : iconeFinalHtml}
                                         <div style="flex: 1;">
                                             <strong ${isRecusada ? 'style="color: #dc3545;"' : ''}>${notif.titulo || 'Notificação'}</strong>
                                             <p style="margin: 3px 0; color: var(--text-secondary);">${notif.mensagem || ''}</p>
                                             <small style="color: var(--text-secondary);">${dataFmt}</small>
                                         </div>
-                                        ${!notif.lida ? '<span style="background: #007bff; width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-top: 5px;"></span>' : ''}
+                                        ${hasThumb ? iconeFinalHtml : ''}
+                                        ${unreadDot}
                                     </div>
                                 </div>
                             `;
@@ -1286,44 +1321,73 @@
                                 }
                                 
                                 // Trata notificações de posts (curtidas, comentários, respostas) ANTES do check de podeGerarErro
-                                // Função auxiliar para navegar até um post e comentário/resposta específico
+                                // Função auxiliar para navegar até um post e comentário/resposta específico — abre no perfil dono do post
                                 const navegarParaPost = async (postId, commentId = null, replyId = null) => {
-                                    dlog('[header-notificacoes] Navegando para post (debug)', { postId, commentId, replyId });
-                                    
-                                    // Se não estiver no feed, redireciona para o feed
-                                    const currentPath = window.location.pathname;
-                                    dlog('Caminho atual (debug):', currentPath);
-                                    if (currentPath !== '/' && currentPath !== '/index.html') {
-                                        dlog('Redirecionando para feed com parâmetros (debug)');
-                                        const params = new URLSearchParams();
-                                        if (postId) params.set('postId', postId);
-                                        if (commentId) params.set('commentId', commentId);
-                                        if (replyId) params.set('replyId', replyId);
-                                        window.location.href = `/?${params.toString()}`;
-                                        return;
+                                    dlog('[header-notificacoes] Navegando para perfil do dono do post (debug)', { postId, commentId, replyId });
+                                    let ownerProfileId = null;
+                                    try {
+                                        if (postId) {
+                                            const resp = await fetch(`/api/posts/${postId}`, {
+                                                headers: { 'Authorization': `Bearer ${token}` }
+                                            });
+                                            const data = await resp.json();
+                                            if (resp.ok && data?.success !== false && data?.post) {
+                                                const rawOwner = data.post.userId;
+                                                ownerProfileId = rawOwner && typeof rawOwner === 'object' && rawOwner._id
+                                                    ? String(rawOwner._id)
+                                                    : String(rawOwner || '');
+                                            }
+                                        }
+                                    } catch (e) {
+                                        console.warn('Erro ao buscar dono do post para navegação:', e);
                                     }
-                                    
-                                    // Se já estiver no feed, usa a função global se disponível
-                                    dlog('Verificando window.navegarParaPost (debug):', typeof window.navegarParaPost);
-                                    if (typeof window.navegarParaPost === 'function') {
-                                        dlog('window.navegarParaPost encontrada, chamando (debug)');
-                                        await window.navegarParaPost(postId, commentId, replyId);
-                                    } else {
-                                        dwarn('window.navegarParaPost não encontrada, recarregando página com parâmetros');
-                                        // Fallback: recarrega a página com parâmetros
-                                        const params = new URLSearchParams();
-                                        if (postId) params.set('postId', postId);
-                                        if (commentId) params.set('commentId', commentId);
-                                        if (replyId) params.set('replyId', replyId);
-                                        window.location.href = `/?${params.toString()}`;
-                                    }
+                                    const params = new URLSearchParams();
+                                    const loggedInUserIdSafe = localStorage.getItem('userId') || '';
+                                    const targetUserId = ownerProfileId || loggedInUserIdSafe;
+                                    if (targetUserId) params.set('id', targetUserId);
+                                    if (postId) params.set('postId', postId);
+                                    if (commentId) params.set('commentId', commentId);
+                                    if (replyId) params.set('replyId', replyId);
+                                    window.location.href = `/perfil?${params.toString()}#secao-posts`;
                                 };
                                 
+                                // Helper: se o post for vídeo com expiração (status), abre no explorar/status
+                                const navegarParaStatusSeVideo = async (postId) => {
+                                    try {
+                                        const resp = await fetch(`/api/posts/${postId}`, {
+                                            headers: { 'Authorization': `Bearer ${token}` }
+                                        });
+                                        const data = await resp.json();
+                                        if (!resp.ok || data?.success === false) {
+                                            return false;
+                                        }
+                                        const post = data.post || {};
+                                        const isVideo = String(post.mediaType || '').includes('video');
+                                        const hasExpiry = !!post.expiresAt;
+                                        const notExpired = hasExpiry ? (new Date(post.expiresAt) > new Date()) : false;
+                                        if (isVideo && hasExpiry && notExpired) {
+                                            const params = new URLSearchParams({ statusPostId: postId });
+                                            window.location.href = `/index.html?${params.toString()}#explorar`;
+                                            return true;
+                                        }
+                                        return false;
+                                    } catch {
+                                        return false;
+                                    }
+                                };
+
                                 // Trata notificações de posts (curtidas, comentários, respostas)
                                 if (notif?.tipo === 'post_curtido' && notif.dadosAdicionais?.postId) {
                                     algoFoiAberto = true;
                                     fecharModalNotificacoes();
-                                    await navegarParaPost(notif.dadosAdicionais.postId);
+                                    const postId = notif.dadosAdicionais.postId;
+                                    const isExplorar = !!notif.dadosAdicionais?.isExplorar;
+                                    if (isExplorar) {
+                                        const params = new URLSearchParams({ statusPostId: postId });
+                                        window.location.href = `/index.html?${params.toString()}#explorar`;
+                                    } else {
+                                        await navegarParaPost(postId);
+                                    }
                                     return;
                                 }
                                 
@@ -2072,4 +2136,3 @@
         }, 5000); // Verifica a cada 5 segundos
     }
 })();
-

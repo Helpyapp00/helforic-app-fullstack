@@ -10,6 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let pendingProfileReturn = null;
     let pendingProfileReturnTries = 0;
     let pendingProfileReturnUIApplied = false;
+    window.explorarOverlayMode = window.explorarOverlayMode || 'feed';
 
     // Tratamento especial para /login: garantir que mostre sempre a página de login real
     if (path === '/login' || path === '/login/') {
@@ -398,10 +399,41 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function updateExplorarStoryIndicator() {
-        if (!explorarUserAvatar) return;
-        const hasStory = !!explorarUserStory?.mediaUrl;
-        explorarUserAvatar.classList.toggle('has-story', hasStory);
-        explorarUserAvatar.classList.toggle('is-viewed', hasStory && isExplorarStoryViewed(explorarUserStory?.id));
+        if (explorarUserAvatar) {
+            const hasStory = !!explorarUserStory?.mediaUrl;
+            explorarUserAvatar.classList.toggle('has-story', hasStory);
+            explorarUserAvatar.classList.toggle('is-viewed', hasStory && isExplorarStoryViewed(explorarUserStory?.id));
+        }
+        updateExplorarCardsStoryIndicators();
+    }
+
+    function updateExplorarCardsStoryIndicators() {
+        const cards = document.querySelectorAll('.explorar-card[data-explorar-owner-id]');
+        if (!cards.length) return;
+        const ownerMap = {};
+        cards.forEach((card) => {
+            const ownerId = card.dataset.explorarOwnerId;
+            const isStatus = card.dataset.explorarIsStatus === '1';
+            const storyId = card.dataset.explorarId;
+            if (!ownerId || !isStatus || !storyId) return;
+            const key = String(ownerId);
+            const info = ownerMap[key] || { total: 0, unviewed: 0 };
+            info.total += 1;
+            if (!isExplorarStoryViewed(storyId)) {
+                info.unviewed += 1;
+            }
+            ownerMap[key] = info;
+        });
+        cards.forEach((card) => {
+            const ownerId = card.dataset.explorarOwnerId;
+            const avatar = card.querySelector('.explorar-card-avatar');
+            if (!avatar || !ownerId) return;
+            const info = ownerMap[String(ownerId)];
+            const hasStatus = !!info && info.total > 0;
+            const hasUnviewed = !!info && info.unviewed > 0;
+            avatar.classList.toggle('has-story', hasStatus);
+            avatar.classList.toggle('is-viewed', hasStatus && !hasUnviewed);
+        });
     }
 
     function updateExplorarStoryNav() {
@@ -556,6 +588,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function openExplorarVideo(src, info = {}) {
+        window.explorarOverlayMode = 'feed';
         if (!explorarVideoOverlay || !explorarVideoFull || !src) return;
         explorarVideoOverlay.classList.remove('is-dragging');
         explorarVideoOverlay.style.transform = '';
@@ -771,6 +804,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function openExplorarImage(src, info = {}) {
+        window.explorarOverlayMode = 'feed';
         if (!explorarVideoOverlay || !explorarImageFull || !src) return;
         explorarVideoOverlay.classList.remove('is-dragging');
         explorarVideoOverlay.style.transform = '';
@@ -880,6 +914,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function closeExplorarVideo() {
+        if (window.explorarOverlayMode === 'profile') return;
         if (!explorarVideoOverlay || !explorarVideoFull) return;
         explorarVideoOverlay.classList.add('hidden');
         explorarVideoOverlay.setAttribute('aria-hidden', 'true');
@@ -934,6 +969,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const explorarHoldDelayMs = 500;
     if (explorarVideoOverlay) {
         const startHold = () => {
+            if (window.explorarOverlayMode === 'profile') return;
             clearTimeout(explorarHoldTimer);
             explorarHoldActive = false;
             explorarHoldTimer = setTimeout(() => {
@@ -947,6 +983,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }, explorarHoldDelayMs);
         };
         const endHold = () => {
+            if (window.explorarOverlayMode === 'profile') return;
             clearTimeout(explorarHoldTimer);
             if (explorarStoryMode && explorarHoldActive) {
                 explorarHoldActive = false;
@@ -1247,8 +1284,9 @@ document.addEventListener('DOMContentLoaded', () => {
         let lockingDirection = null;
 
         explorarVideoOverlay.addEventListener('click', (event) => {
+            if (window.explorarOverlayMode === 'profile') return;
             const target = event.target;
-            if (target.closest('.explorar-video-info') || target.closest('.explorar-video-controls') || target.closest('.explorar-video-whatsapp')) {
+            if (target.closest('.explorar-video-info') || target.closest('.explorar-video-controls') || target.closest('.explorar-video-whatsapp') || target.closest('#explorar-video-delete') || target.closest('#explorar-video-back') || target.closest('.explorar-story-nav')) {
                 return;
             }
             event.stopPropagation();
@@ -1262,8 +1300,9 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
         explorarVideoOverlay.addEventListener('touchstart', (event) => {
+            if (window.explorarOverlayMode === 'profile') return;
             const target = event.target;
-            if (target.closest('.explorar-video-info') || target.closest('.explorar-video-controls') || target.closest('.explorar-video-whatsapp')) {
+            if (target.closest('.explorar-video-info') || target.closest('.explorar-video-controls') || target.closest('.explorar-video-whatsapp') || target.closest('#explorar-video-delete') || target.closest('#explorar-video-back') || target.closest('.explorar-story-nav')) {
                 return;
             }
             touchStartX = event.touches[0]?.clientX ?? null;
@@ -1274,6 +1313,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }, { passive: false });
 
         explorarVideoOverlay.addEventListener('touchmove', (event) => {
+            if (window.explorarOverlayMode === 'profile') return;
             if (touchStartY === null || touchStartX === null) return;
             const currentX = event.touches[0]?.clientX ?? touchStartX;
             const currentY = event.touches[0]?.clientY ?? touchStartY;
@@ -1297,8 +1337,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }, { passive: false });
 
         explorarVideoOverlay.addEventListener('touchend', (event) => {
+            if (window.explorarOverlayMode === 'profile') return;
             const target = event.target;
-            if (target.closest('.explorar-video-info') || target.closest('.explorar-video-controls') || target.closest('.explorar-video-whatsapp')) {
+            if (target.closest('.explorar-video-info') || target.closest('.explorar-video-controls') || target.closest('.explorar-video-whatsapp') || target.closest('#explorar-video-delete') || target.closest('#explorar-video-back') || target.closest('.explorar-story-nav')) {
                 touchStartX = null;
                 touchStartY = null;
                 dragging = false;
@@ -2742,6 +2783,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             const mediaUrl = item.mediaUrl || item.imagemUrl || '';
             const isVideo = String(item.mediaType || '').includes('video');
+            const isStatus = item?.tipo === 'post' && !!mediaUrl;
             const badge = item.tipo === 'anuncio' ? 'Anuncio' : '';
             const title = item.titulo || item.nome || 'Oferta local';
             const desc = item.descricao || item.content || '';
@@ -2801,6 +2843,65 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                 </div>
             `;
+            if (ownerId) {
+                card.dataset.explorarOwnerId = String(ownerId);
+            }
+            if (isStatus) {
+                card.dataset.explorarIsStatus = '1';
+            }
+
+            const perfilAnchor = card.querySelector('.explorar-card-perfil');
+            const avatarEl = card.querySelector('.explorar-card-avatar');
+            const nomeEl = card.querySelector('.explorar-card-empresa');
+
+            if (avatarEl) {
+                avatarEl.addEventListener('click', (event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+
+                    if (isStatus || (ownerId && items.some((it) => {
+                        const rawOwner = it?.userId?._id || it?.userId || it?.dono?._id || it?.dono?.id || it?.ownerId || it?.autorId;
+                        const ownerIt = rawOwner?._id || rawOwner;
+                        const itIsStatus = it?.tipo === 'post' && !!it.mediaUrl;
+                        return ownerIt && String(ownerIt) === String(ownerId) && itIsStatus;
+                    }))) {
+                        const ownerStories = items.filter((it) => {
+                            const rawOwner = it?.userId?._id || it?.userId || it?.dono?._id || it?.dono?.id || it?.ownerId || it?.autorId;
+                            const ownerIt = rawOwner?._id || rawOwner;
+                            const isStatus = it?.tipo === 'post' && !!it.mediaUrl;
+                            return ownerIt && String(ownerIt) === String(ownerId) && isStatus;
+                        });
+
+                        if (ownerStories.length > 0) {
+                            explorarStoryQueue = ownerStories.map((story) => ({
+                                id: String(story._id || ''),
+                                ownerId: story?.userId?._id || story?.userId || story?.ownerId || story?.autorId,
+                                mediaUrl: story.mediaUrl,
+                                isVideo: String(story.mediaType || '').includes('video'),
+                                nome: story?.titulo || story?.nome || 'Status',
+                                desc: story?.descricao || story?.content || '',
+                                cidade: [story?.cidade, story?.estado].filter(Boolean).join(' - ')
+                            }));
+                            explorarUserStory = explorarStoryQueue[0] || null;
+                            setExplorarStorySegments(explorarStoryQueue.length);
+                            goToExplorarStory(0);
+                            return;
+                        }
+                    }
+
+                    if (perfilUrl && perfilUrl !== '#') {
+                        window.location.href = perfilUrl;
+                    }
+                });
+            }
+
+            if (nomeEl && perfilAnchor && perfilUrl && perfilUrl !== '#') {
+                nomeEl.style.cursor = 'pointer';
+                nomeEl.addEventListener('click', (event) => {
+                    event.stopPropagation();
+                    window.location.href = perfilUrl;
+                });
+            }
 
             const videoEl = card.querySelector('video.explorar-video');
             if (videoEl) {
@@ -3953,6 +4054,82 @@ document.addEventListener('DOMContentLoaded', () => {
         document.querySelectorAll('.post').forEach((post) => autoCloseCommentsObserver.observe(post));
     }
 
+    // ---- Status ring e click em avatares de comentários/respostas ----
+    const statusCacheFeed = new Map();
+    async function getOwnerStories(ownerId) {
+        try {
+            const resp = await fetch(`/api/explorar-feed?t=${Date.now()}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const data = await resp.json();
+            if (!resp.ok || data?.success === false) return [];
+            const items = Array.isArray(data?.items) ? data.items : (Array.isArray(data) ? data : []);
+            const stories = items.filter((it) => {
+                const rawOwner = it?.userId?._id || it?.userId || it?.dono?._id || it?.dono?.id || it?.ownerId || it?.autorId;
+                const ownerVal = rawOwner?._id || rawOwner;
+                const isStatus = it?.tipo === 'post' && !!it.mediaUrl;
+                return ownerVal && String(ownerVal) === String(ownerId) && isStatus;
+            });
+            return stories;
+        } catch {
+            return [];
+        }
+    }
+    async function getUserStatusInfoFeed(ownerId) {
+        const key = String(ownerId);
+        if (statusCacheFeed.has(key)) return statusCacheFeed.get(key);
+        const stories = await getOwnerStories(ownerId);
+        const hasStory = stories.length > 0;
+        const hasUnviewed = stories.some((s) => !isExplorarStoryViewed(String(s._id || s.id)));
+        const info = { stories, hasStory, hasUnviewed };
+        statusCacheFeed.set(key, info);
+        return info;
+    }
+    async function applyStatusRingToAvatarFeed(imgEl, ownerId) {
+        if (!imgEl || !ownerId) return;
+        const info = await getUserStatusInfoFeed(ownerId);
+        imgEl.classList.toggle('has-story', info.hasStory);
+        imgEl.classList.toggle('is-viewed', info.hasStory && !info.hasUnviewed);
+    }
+    function setupCommentAvatarStatus() {
+        const avatars = document.querySelectorAll('.comment-avatar, .reply-avatar');
+        avatars.forEach((avatar) => {
+            let ownerId = avatar.dataset.userid || avatar.getAttribute('data-user-id');
+            if (!ownerId) {
+                const a = avatar.closest('a[href*=\"/perfil.html?id=\"]');
+                const href = a ? a.getAttribute('href') : '';
+                const match = href && href.match(/id=([^&]+)/);
+                ownerId = match ? match[1] : null;
+            }
+            if (!ownerId) return;
+            applyStatusRingToAvatarFeed(avatar, ownerId);
+            if (!avatar.dataset.statusBound) {
+                avatar.dataset.statusBound = '1';
+                avatar.addEventListener('click', async (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const stories = await getOwnerStories(ownerId);
+                    if (stories.length) {
+                        explorarStoryQueue = stories.map((story) => ({
+                            id: String(story._id || ''),
+                            ownerId: story?.userId?._id || story?.userId || story?.ownerId || story?.autorId,
+                            mediaUrl: story.mediaUrl,
+                            isVideo: String(story.mediaType || '').includes('video'),
+                            nome: story?.titulo || story?.nome || 'Status',
+                            desc: story?.descricao || story?.content || '',
+                            cidade: [story?.cidade, story?.estado].filter(Boolean).join(' - ')
+                        }));
+                        setExplorarStorySegments(explorarStoryQueue.length);
+                        goToExplorarStory(0);
+                    } else {
+                        const perfilUrl = `/perfil.html?id=${encodeURIComponent(ownerId)}`;
+                        window.location.href = perfilUrl;
+                    }
+                });
+            }
+        });
+    }
+
     // 🛑 NOVO: Função para renderizar uma Resposta (Reply)
     function renderReply(reply, commentId, canEditReply, canDeleteReply, replyUser) {
         if (!reply || !reply.userId) return '';
@@ -4009,15 +4186,48 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function setupPostListeners() {
-        document.querySelectorAll('.post-avatar, .user-name').forEach(el => {
+        const nameEls = document.querySelectorAll('.user-name');
+        nameEls.forEach(el => {
             el.style.cursor = 'pointer';
             el.addEventListener('click', (e) => {
                 const targetUserId = e.currentTarget.dataset.userid;
-                if (targetUserId) {
-                    navigateToProfile(targetUserId);
-                }
+                if (targetUserId) navigateToProfile(targetUserId);
             });
         });
+        const avatarEls = document.querySelectorAll('.post-avatar');
+        avatarEls.forEach((el) => {
+            const ownerId = el.dataset.userid || el.getAttribute('data-userid');
+            if (!ownerId) return;
+            el.style.cursor = 'pointer';
+            applyStatusRingToAvatarFeed(el, ownerId);
+            if (!el.dataset.statusBound) {
+                el.dataset.statusBound = '1';
+                el.addEventListener('click', async (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const stories = await getOwnerStories(ownerId);
+                    if (stories.length) {
+                        explorarStoryQueue = stories.map((story) => ({
+                            id: String(story._id || ''),
+                            ownerId: story?.userId?._id || story?.userId || story?.ownerId || story?.autorId,
+                            mediaUrl: story.mediaUrl,
+                            isVideo: String(story.mediaType || '').includes('video'),
+                            nome: story?.titulo || story?.nome || 'Status',
+                            desc: story?.descricao || story?.content || '',
+                            cidade: [story?.cidade, story?.estado].filter(Boolean).join(' - ')
+                        }));
+                        setExplorarStorySegments(explorarStoryQueue.length);
+                        goToExplorarStory(0);
+                    } else {
+                        navigateToProfile(ownerId);
+                    }
+                });
+            }
+        });
+        // Aplica anel no avatar do header (usuário logado)
+        if (userAvatarHeader && userId) {
+            applyStatusRingToAvatarFeed(userAvatarHeader, userId);
+        }
         
         // Ações do Post
         document.querySelectorAll('.btn-like').forEach(btn => btn.addEventListener('click', handleLikePost));
@@ -4163,6 +4373,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         const editBtn = commentElement.querySelector('.btn-edit-comment');
                         if (optionsBtn) optionsBtn.addEventListener('click', handleCommentOptions);
                         if (editBtn) editBtn.addEventListener('click', handleEditComment);
+                        // Aplica anel e click de status nos avatares recém-exibidos
+                        setupCommentAvatarStatus();
                     });
 
                     // garante ícones corretos no tema atual
@@ -4224,6 +4436,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     const editBtn = commentElement.querySelector('.btn-edit-comment');
                     if (optionsBtn) optionsBtn.addEventListener('click', handleCommentOptions);
                     if (editBtn) editBtn.addEventListener('click', handleEditComment);
+                    // Aplica anel e click de status nos avatares recém-exibidos
+                    setupCommentAvatarStatus();
                 });
                 
                 // Verifica comentários longos após um delay maior para garantir renderização completa
@@ -5592,6 +5806,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         checkLongComment(comment);
                     }
                 });
+                setupCommentAvatarStatus();
             }, 300);
         }
     }
@@ -5733,6 +5948,9 @@ document.addEventListener('DOMContentLoaded', () => {
             replyList.classList.toggle('oculto');
             const replyCount = replyList.children.length;
             btn.textContent = replyList.classList.contains('oculto') ? `Ver ${replyCount} Respostas` : "Ocultar Respostas";
+            if (!replyList.classList.contains('oculto')) {
+                setupCommentAvatarStatus();
+            }
         }
     }
 
@@ -5815,6 +6033,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 updateSendCommentIcons();
                 input.value = '';
                 replyForm.classList.add('oculto'); // Esconde o form
+                setupCommentAvatarStatus();
             } else {
                 throw new Error(data.message || 'Erro ao enviar resposta.');
             }
@@ -10827,6 +11046,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const postIdNav = urlParamsNav.get('postId');
         const commentIdNav = urlParamsNav.get('commentId');
         const replyIdNav = urlParamsNav.get('replyId');
+        const statusPostIdNav = urlParamsNav.get('statusPostId');
+        const statusOwnerIdNav = urlParamsNav.get('statusOwnerId');
         
         if (postIdNav) {
             console.log('📍 Parâmetros de navegação encontrados:', { postIdNav, commentIdNav, replyIdNav });
@@ -10835,6 +11056,95 @@ document.addEventListener('DOMContentLoaded', () => {
                     window.navegarParaPost(postIdNav, commentIdNav, replyIdNav);
                 }
             }, 1500); // Aguarda posts carregarem
+        }
+        
+        // Abrir automaticamente o status/vídeo do Explorar se vier por notificação
+        if (statusPostIdNav) {
+            console.log('🎬 Navegação para status/vídeo (Explorar) detectada:', statusPostIdNav);
+            // Garante painel Explorar aberto
+            openExplorarPanel(true);
+            // Aguarda feed carregar e tenta abrir o card
+            let tentativas = 0;
+            const maxTentativas = 6;
+            const tryOpenStatus = async () => {
+                const card = document.querySelector(`.explorar-card[data-explorar-id="${statusPostIdNav}"]`);
+                if (card) {
+                    const videoEl = card.querySelector('video.explorar-video');
+                    const imgEl = card.querySelector('img.explorar-image');
+                    if (videoEl) {
+                        const src = videoEl.getAttribute('src') || videoEl.getAttribute('data-src');
+                        if (src && !videoEl.getAttribute('src')) {
+                            videoEl.setAttribute('src', src);
+                            videoEl.removeAttribute('data-src');
+                        }
+                        openExplorarVideo(src, {
+                            nome: card.querySelector('.explorar-card-empresa')?.textContent || 'Perfil',
+                            desc: card.querySelector('.explorar-card-desc')?.textContent || '',
+                            cidade: card.querySelector('.explorar-card-cidade')?.textContent || '',
+                            avatar: card.querySelector('.explorar-card-avatar')?.getAttribute('src') || 'imagens/default-user.png',
+                            perfilUrl: card.querySelector('.explorar-card-perfil')?.getAttribute('href') || '#',
+                            postId: statusPostIdNav,
+                            ownerId: card.querySelector('.explorar-card-delete')?.dataset?.id ? userId : null,
+                            isStory: false
+                        });
+                        return;
+                    } else if (imgEl) {
+                        const src = imgEl.getAttribute('src') || imgEl.getAttribute('data-src');
+                        if (src && !imgEl.getAttribute('src')) {
+                            imgEl.setAttribute('src', src);
+                            imgEl.removeAttribute('data-src');
+                        }
+                        openExplorarImage(src, {
+                            nome: card.querySelector('.explorar-card-empresa')?.textContent || 'Perfil',
+                            desc: card.querySelector('.explorar-card-desc')?.textContent || '',
+                            cidade: card.querySelector('.explorar-card-cidade')?.textContent || '',
+                            avatar: card.querySelector('.explorar-card-avatar')?.getAttribute('src') || 'imagens/default-user.png',
+                            perfilUrl: card.querySelector('.explorar-card-perfil')?.getAttribute('href') || '#',
+                            postId: statusPostIdNav,
+                            ownerId: null,
+                            isStory: false
+                        });
+                        return;
+                    }
+                }
+                if (tentativas < maxTentativas) {
+                    tentativas++;
+                    setTimeout(tryOpenStatus, 600);
+                } else {
+                    console.warn('⚠️ Não foi possível abrir o status do explorar:', statusPostIdNav);
+                }
+            };
+            setTimeout(tryOpenStatus, 1200);
+        }
+
+        // Abrir automaticamente os status de um dono específico (vindo do perfil)
+        if (statusOwnerIdNav) {
+            console.log('🎬 Navegação para status do dono detectada:', statusOwnerIdNav);
+            openExplorarPanel(true);
+            let tentativasOwner = 0;
+            const maxTentativasOwner = 6;
+            const tryOpenOwnerStatus = () => {
+                const cards = Array.from(document.querySelectorAll('.explorar-card[data-explorar-owner-id]'));
+                const card = cards.find((c) => {
+                    const ownerId = c.dataset.explorarOwnerId;
+                    const isStatus = c.dataset.explorarIsStatus === '1';
+                    return ownerId && ownerId === statusOwnerIdNav && isStatus;
+                });
+                if (card) {
+                    const avatar = card.querySelector('.explorar-card-avatar');
+                    if (avatar) {
+                        avatar.click();
+                        return;
+                    }
+                }
+                if (tentativasOwner < maxTentativasOwner) {
+                    tentativasOwner += 1;
+                    setTimeout(tryOpenOwnerStatus, 600);
+                } else {
+                    console.warn('⚠️ Não foi possível abrir os status do dono:', statusOwnerIdNav);
+                }
+            };
+            setTimeout(tryOpenOwnerStatus, 1200);
         }
     
     // Função global para navegar até um post e comentário/resposta específico (usada por notificações)

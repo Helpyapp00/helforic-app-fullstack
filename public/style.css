@@ -99,6 +99,27 @@
     box-shadow: 0 0 0 2px rgba(148, 163, 184, 0.9), 0 8px 18px rgba(15, 23, 42, 0.15);
 }
 
+/* Anel de status no feed e header */
+.post-avatar.has-story {
+    box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.95);
+}
+.post-avatar.has-story.is-viewed {
+    box-shadow: 0 0 0 2px rgba(148, 163, 184, 0.9);
+}
+#user-avatar-header.has-story {
+    box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.95);
+}
+#user-avatar-header.has-story.is-viewed {
+    box-shadow: 0 0 0 2px rgba(148, 163, 184, 0.9);
+}
+.comment-avatar.has-story,
+.reply-avatar.has-story {
+    box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.95);
+}
+.comment-avatar.has-story.is-viewed,
+.reply-avatar.has-story.is-viewed {
+    box-shadow: 0 0 0 2px rgba(148, 163, 184, 0.9);
+}
 .explorar-city-edit {
     border: none;
     background: transparent;
@@ -2908,8 +2929,8 @@ textarea#post-content-input::placeholder { color: var(--text-placeholder); }
         background-color: rgba(155, 155, 155, 0.7);
     }
 }
-.post-header { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
-.post-header .post-avatar { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; flex-shrink: 0; cursor: pointer; }
+.post-header { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+.post-header .post-avatar { width: 52px; height: 52px; border-radius: 50%; object-fit: cover; flex-shrink: 0; cursor: pointer; margin: 2px; }
 .post-header .post-meta { display: flex; flex-direction: column; flex-grow: 1; }
 .post-header .user-name { font-weight: bold; color: var(--text-primary); font-size: 1.1em; cursor: pointer; } 
 .post-header .user-name:hover { text-decoration: underline; }
@@ -4225,12 +4246,13 @@ textarea#post-content-input::placeholder { color: var(--text-placeholder); }
     box-sizing: border-box;
 }
 .comment-avatar {
-    width: 32px;
-    height: 32px;
+    width: 36px;
+    height: 36px;
     border-radius: 50%;
     object-fit: cover;
     flex-shrink: 0;
     transition: opacity 0.2s;
+    margin: 2px;
 }
 
 .comment-avatar:hover {
@@ -4640,12 +4662,13 @@ textarea#post-content-input::placeholder { color: var(--text-placeholder); }
     position: relative;
 }
 .reply-avatar {
-    width: 24px;
-    height: 24px;
+    width: 28px;
+    height: 28px;
     border-radius: 50%;
     object-fit: cover;
     flex-shrink: 0;
     transition: opacity 0.2s;
+    margin: 2px;
 }
 
 .reply-avatar:hover {
@@ -12453,6 +12476,14 @@ body.explorar-open header.search-open .header-actions {
     object-fit: cover;
     border: 1px solid rgba(255, 255, 255, 0.45);
     flex-shrink: 0;
+}
+
+.explorar-card-avatar.has-story {
+    box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.95);
+}
+
+.explorar-card-avatar.has-story.is-viewed {
+    box-shadow: 0 0 0 2px rgba(148, 163, 184, 0.9);
 }
 
 .explorar-card-info-overlay .explorar-card-cidade,
