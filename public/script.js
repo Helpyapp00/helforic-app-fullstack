@@ -100,6 +100,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const explorarVideoNome = document.getElementById('explorar-video-nome');
     const explorarVideoDesc = document.getElementById('explorar-video-desc');
     const explorarVideoCidade = document.getElementById('explorar-video-cidade');
+    const likesModalOverlay = document.getElementById('likes-modal-overlay');
+    const likesModalList = document.getElementById('likes-modal-list');
+    const likesModalClose = document.getElementById('likes-modal-close');
 
     const saveProfileReturnState = () => {
         const mainScroll = document.scrollingElement?.scrollTop ?? window.scrollY ?? 0;
@@ -569,13 +572,15 @@ document.addEventListener('DOMContentLoaded', () => {
         if (explorarImageFull) {
             explorarImageFull.classList.add('hidden');
             explorarImageFull.removeAttribute('src');
-        }
+        }        const isStory = !!info?.isStory;
         if (explorarVideoInfo) {
             const nome = info?.nome || '';
             const desc = info?.desc || '';
             const cidade = info?.cidade || '';
             const avatar = info?.avatar || 'imagens/default-user.png';
             const perfilUrl = info?.perfilUrl || '#';
+            const postId = info?.postId || null;
+            const isOwner = info?.ownerId && userId && String(info.ownerId) === String(userId);
             if (explorarVideoPerfil) {
                 explorarVideoPerfil.setAttribute('href', perfilUrl);
             }
@@ -585,6 +590,40 @@ document.addEventListener('DOMContentLoaded', () => {
             if (explorarVideoNome) {
                 explorarVideoNome.textContent = nome;
             }
+            // Adiciona botão de WhatsApp ao lado do nome no fullscreen (apenas se não for dono)
+            const existingVideoWa = explorarVideoInfo.querySelector('.explorar-video-whatsapp');
+            if (existingVideoWa) existingVideoWa.remove();
+            (async () => {
+                try {
+                    const ownerId = info?.ownerId;
+                    const postId = info?.postId;
+                    if (!ownerId || !explorarVideoNome || !postId) return;
+                    if (userId && String(ownerId) === String(userId)) return; // não mostra para o dono
+                    const respUser = await fetch(`/api/usuario/${ownerId}`, {
+                        headers: { Authorization: `Bearer ${token}` }
+                    });
+                    const dataUser = await respUser.json();
+                    if (!respUser.ok || dataUser?.success === false) return;
+                    const u = dataUser.usuario || {};
+                    const numeroRaw = String(u.whatsapp || u.telefone || u.celular || u.phone || '').trim();
+                    const numeroDigits = numeroRaw.replace(/\D+/g, '');
+                    if (!numeroDigits || numeroDigits.length < 8) return;
+                    const previewUrl = `${location.origin}/?postId=${encodeURIComponent(postId)}`;
+                    const msg = `Olá! Vi seu vídeo e tenho uma pergunta: ${previewUrl}`;
+                    const waLink = document.createElement('a');
+                    waLink.href = `https://wa.me/${encodeURIComponent(numeroDigits)}?text=${encodeURIComponent(msg)}`;
+                    waLink.target = '_blank';
+                    waLink.rel = 'noopener noreferrer';
+                    waLink.className = 'explorar-video-whatsapp';
+                    waLink.innerHTML = '<i class="fab fa-whatsapp"></i>';
+                    ['click', 'touchstart', 'touchend', 'pointerdown', 'pointerup'].forEach((type) => {
+                        waLink.addEventListener(type, (ev) => {
+                            ev.stopPropagation();
+                        });
+                    });
+                    explorarVideoNome.insertAdjacentElement('afterend', waLink);
+                } catch {}
+            })();
             if (explorarVideoDesc) {
                 explorarVideoDesc.textContent = desc;
                 explorarVideoDesc.style.display = desc ? 'block' : 'none';
@@ -594,13 +633,135 @@ document.addEventListener('DOMContentLoaded', () => {
                 explorarVideoCidade.style.display = cidade ? 'block' : 'none';
             }
             explorarVideoInfo.style.display = (nome || desc || cidade) ? 'flex' : 'none';
+            const existingAvatars = explorarVideoInfo.querySelector('.explorar-like-avatars');
+            if (existingAvatars) {
+                existingAvatars.remove();
+            }
+            const existingLikeBtn = explorarVideoInfo.querySelector('.explorar-video-like-btn');
+            if (existingLikeBtn) {
+                existingLikeBtn.remove();
+            }
+            const existingLikeList = explorarVideoInfo.querySelector('.explorar-video-like-list');
+            if (existingLikeList) {
+                existingLikeList.remove();
+            }
+            if (postId) {
+                const likeBtn = document.createElement('button');
+                likeBtn.type = 'button';
+                likeBtn.className = 'explorar-video-like-btn btn-like';
+                likeBtn.dataset.postId = String(postId);
+                likeBtn.innerHTML = `
+                    <i class="fas fa-heart"></i>
+                    <span class="like-count">0</span>
+                `;
+                likeBtn.addEventListener('click', handleLikePost);
+                explorarVideoInfo.appendChild(likeBtn);
+                (async () => {
+                    try {
+                        const resp = await fetch(`/api/posts/${postId}/likes`, {
+                            headers: { Authorization: `Bearer ${token}` }
+                        });
+                        const data = await resp.json();
+                        if (!resp.ok || data?.success === false) return;
+                        const count = Number.isFinite(data.likesCount) ? data.likesCount : 0;
+                        likeBtn.querySelector('.like-count').textContent = count;
+                        if (data.isLikedByMe) {
+                            likeBtn.classList.add('liked');
+                        }
+                        const preview = Array.isArray(data.likesPreview) ? data.likesPreview : [];
+                        const isOwnerWithList = isOwner && Array.isArray(data.likes) && data.likes.length > 0;
+                        if (preview.length > 0) {
+                            const avatarsBtn = document.createElement('button');
+                            avatarsBtn.type = 'button';
+                            avatarsBtn.className = 'explorar-like-avatars';
+                            preview.forEach((u) => {
+                                if (!u || !u.foto) return;
+                                const img = document.createElement('img');
+                                img.src = u.foto;
+                                img.alt = u.nome || '';
+                                img.className = 'explorar-like-avatar';
+                                img.referrerPolicy = 'no-referrer';
+                                avatarsBtn.appendChild(img);
+                            });
+                            if (avatarsBtn.childElementCount > 0) {
+                                if (isOwnerWithList) {
+                                    avatarsBtn.addEventListener('click', (ev) => {
+                                        openLikesModal(postId, data.likes, avatarsBtn);
+                                    });
+                                } else {
+                                    avatarsBtn.classList.add('non-owner');
+                                    ['click', 'touchstart', 'touchend', 'pointerdown', 'pointerup'].forEach((type) => {
+                                        avatarsBtn.addEventListener(type, (ev) => {
+                                            ev.stopPropagation();
+                                            ev.preventDefault();
+                                        });
+                                    });
+                                }
+                                explorarVideoInfo.appendChild(avatarsBtn);
+                            }
+                        }
+                    } catch {}
+                })();
+            }
+            const existingControls = explorarVideoInfo.querySelector('.explorar-video-controls');
+            if (existingControls) {
+                existingControls.remove();
+            }
+            if (!isStory) {
+                const controls = document.createElement('div');
+                controls.className = 'explorar-video-controls';
+                const progress = document.createElement('input');
+                progress.type = 'range';
+                progress.min = '0';
+                progress.max = '100';
+                progress.value = '0';
+                progress.className = 'explorar-video-progress';
+                controls.appendChild(progress);
+                explorarVideoInfo.appendChild(controls);
+                explorarVideoProgress = progress;
+                let scrubbing = false;
+                const setFromProgress = () => {
+                    if (!explorarVideoFull || !isFinite(explorarVideoFull.duration) || explorarVideoFull.duration <= 0) return;
+                    const pct = Number(progress.value) / 100;
+                    explorarVideoFull.currentTime = Math.max(0, Math.min(explorarVideoFull.duration * pct, explorarVideoFull.duration));
+                };
+                const beginScrub = () => {
+                    scrubbing = true;
+                    showExplorarVideoControls(0);
+                };
+                const endScrub = () => {
+                    scrubbing = false;
+                    showExplorarVideoControls();
+                };
+                progress.addEventListener('input', () => {
+                    setFromProgress();
+                });
+                progress.addEventListener('mousedown', beginScrub);
+                progress.addEventListener('touchstart', beginScrub);
+                progress.addEventListener('change', endScrub);
+                progress.addEventListener('mouseup', endScrub);
+                progress.addEventListener('touchend', endScrub);
+                const updateProgressFromVideo = () => {
+                    if (!explorarVideoProgress || scrubbing) return;
+                    if (!explorarVideoFull || !isFinite(explorarVideoFull.duration) || explorarVideoFull.duration <= 0) return;
+                    const pct = (explorarVideoFull.currentTime / explorarVideoFull.duration) * 100;
+                    explorarVideoProgress.value = String(Math.max(0, Math.min(pct, 100)));
+                };
+                explorarVideoFull.addEventListener('timeupdate', updateProgressFromVideo);
+                explorarVideoFull.addEventListener('loadedmetadata', updateProgressFromVideo, { once: true });
+                showExplorarVideoControls();
+            } else {
+                explorarVideoProgress = null;
+            }
         }
         explorarVideoFull.classList.remove('hidden');
         explorarVideoFull.src = src;
-        explorarVideoFull.controls = true;
-        explorarVideoFull.muted = true;
+        explorarVideoFull.controls = false;
+        try { explorarVideoFull.removeAttribute('controls'); } catch {}
+        explorarVideoFull.muted = false;
         explorarVideoFull.playsInline = true;
-        try { explorarVideoFull.setAttribute('controlsList', 'nofullscreen'); } catch {}
+        try { explorarVideoFull.setAttribute('controlsList', 'nofullscreen noplaybackrate nodownload'); } catch {}
+        try { explorarVideoFull.style.pointerEvents = 'none'; } catch {}
         explorarVideoFull.currentTime = 0;
         explorarVideoOverlay.classList.remove('hidden');
         explorarVideoOverlay.setAttribute('aria-hidden', 'false');
@@ -630,6 +791,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const desc = info?.desc || '';
             const cidade = info?.cidade || '';
             const avatar = info?.avatar || 'imagens/default-user.png';
+            const postId = info?.postId || null;
+            const isOwner = info?.ownerId && userId && String(info.ownerId) === String(userId);
             if (explorarVideoAvatar) {
                 explorarVideoAvatar.src = avatar;
             }
@@ -645,6 +808,68 @@ document.addEventListener('DOMContentLoaded', () => {
                 explorarVideoCidade.style.display = cidade ? 'block' : 'none';
             }
             explorarVideoInfo.style.display = (nome || desc || cidade) ? 'flex' : 'none';
+            const existingAvatars = explorarVideoInfo.querySelector('.explorar-like-avatars');
+            if (existingAvatars) {
+                existingAvatars.remove();
+            }
+            const existingLikeBtn = explorarVideoInfo.querySelector('.explorar-video-like-btn');
+            if (existingLikeBtn) {
+                existingLikeBtn.remove();
+            }
+            const existingLikeList = explorarVideoInfo.querySelector('.explorar-video-like-list');
+            if (existingLikeList) {
+                existingLikeList.remove();
+            }
+            if (postId) {
+                const likeBtn = document.createElement('button');
+                likeBtn.type = 'button';
+                likeBtn.className = 'explorar-video-like-btn btn-like';
+                likeBtn.dataset.postId = String(postId);
+                likeBtn.innerHTML = `
+                    <i class="fas fa-heart"></i>
+                    <span class="like-count">0</span>
+                `;
+                likeBtn.addEventListener('click', handleLikePost);
+                explorarVideoInfo.appendChild(likeBtn);
+                (async () => {
+                    try {
+                        const resp = await fetch(`/api/posts/${postId}/likes`, {
+                            headers: { Authorization: `Bearer ${token}` }
+                        });
+                        const data = await resp.json();
+                        if (!resp.ok || data?.success === false) return;
+                        const count = Number.isFinite(data.likesCount) ? data.likesCount : 0;
+                        likeBtn.querySelector('.like-count').textContent = count;
+                        if (data.isLikedByMe) {
+                            likeBtn.classList.add('liked');
+                        }
+                        const preview = Array.isArray(data.likesPreview) ? data.likesPreview : [];
+                        const isOwnerWithList = isOwner && Array.isArray(data.likes) && data.likes.length > 0;
+                        if (preview.length > 0) {
+                            const avatarsBtn = document.createElement('button');
+                            avatarsBtn.type = 'button';
+                            avatarsBtn.className = 'explorar-like-avatars';
+                            preview.forEach((u) => {
+                                if (!u || !u.foto) return;
+                                const img = document.createElement('img');
+                                img.src = u.foto;
+                                img.alt = u.nome || '';
+                                img.className = 'explorar-like-avatar';
+                                img.referrerPolicy = 'no-referrer';
+                                avatarsBtn.appendChild(img);
+                            });
+                            if (avatarsBtn.childElementCount > 0) {
+                                if (isOwnerWithList) {
+                                    avatarsBtn.addEventListener('click', (ev) => {
+                                        openLikesModal(postId, data.likes, avatarsBtn);
+                                    });
+                                }
+                                explorarVideoInfo.appendChild(avatarsBtn);
+                            }
+                        }
+                    } catch {}
+                })();
+            }
         }
         explorarImageFull.src = src;
         explorarImageFull.classList.remove('hidden');
@@ -668,6 +893,7 @@ document.addEventListener('DOMContentLoaded', () => {
         explorarVideoFull.pause();
         explorarVideoFull.removeAttribute('src');
         explorarVideoFull.load();
+        try { explorarVideoFull.style.pointerEvents = ''; } catch {}
         explorarVideoOverlay.classList.remove('is-dragging');
         explorarVideoOverlay.style.transform = '';
         document.body.classList.remove('explorar-video-open');
@@ -703,25 +929,39 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    let explorarHoldTimer = null;
+    let explorarHoldActive = false;
+    const explorarHoldDelayMs = 500;
     if (explorarVideoOverlay) {
-        explorarVideoOverlay.addEventListener('pointerdown', () => {
-            if (explorarStoryMode) pauseExplorarStory();
-        });
-        explorarVideoOverlay.addEventListener('pointerup', () => {
-            if (explorarStoryMode) resumeExplorarStory();
-        });
-        explorarVideoOverlay.addEventListener('pointercancel', () => {
-            if (explorarStoryMode) resumeExplorarStory();
-        });
-        explorarVideoOverlay.addEventListener('touchstart', () => {
-            if (explorarStoryMode) pauseExplorarStory();
-        }, { passive: true });
-        explorarVideoOverlay.addEventListener('touchend', () => {
-            if (explorarStoryMode) resumeExplorarStory();
-        });
-        explorarVideoOverlay.addEventListener('touchcancel', () => {
-            if (explorarStoryMode) resumeExplorarStory();
-        });
+        const startHold = () => {
+            clearTimeout(explorarHoldTimer);
+            explorarHoldActive = false;
+            explorarHoldTimer = setTimeout(() => {
+                explorarHoldActive = true;
+                try {
+                    if (typeof pauseExplorarStory === 'function' && explorarStoryMode) {
+                        pauseExplorarStory();
+                    }
+                    explorarVideoFull?.pause?.();
+                } catch {}
+            }, explorarHoldDelayMs);
+        };
+        const endHold = () => {
+            clearTimeout(explorarHoldTimer);
+            if (explorarStoryMode && explorarHoldActive) {
+                explorarHoldActive = false;
+                resumeExplorarStory();
+            } else {
+                explorarHoldActive = false;
+            }
+            try { explorarVideoFull?.play?.(); } catch {}
+        };
+        explorarVideoOverlay.addEventListener('pointerdown', startHold);
+        explorarVideoOverlay.addEventListener('pointerup', endHold);
+        explorarVideoOverlay.addEventListener('pointercancel', endHold);
+        explorarVideoOverlay.addEventListener('touchstart', startHold, { passive: true });
+        explorarVideoOverlay.addEventListener('touchend', endHold);
+        explorarVideoOverlay.addEventListener('touchcancel', endHold);
     }
 
     if (explorarVideoOverlay) {
@@ -739,13 +979,215 @@ document.addEventListener('DOMContentLoaded', () => {
             event.preventDefault();
         });
     }
+
+    let explorarLastTapTime = 0;
+    const explorarDoubleTapDelay = 350;
+    let explorarNavigationBlockUntil = 0;
+    let explorarDoubleTapWindowUntil = 0;
+    let explorarVideoProgress = null;
+    let explorarControlsHideTimer = null;
+
+    function showExplorarVideoControls(autoHideMs = 2000) {
+        if (!explorarVideoOverlay) return;
+        explorarVideoOverlay.classList.add('show-controls');
+        if (explorarControlsHideTimer) clearTimeout(explorarControlsHideTimer);
+        if (autoHideMs > 0) {
+            explorarControlsHideTimer = setTimeout(() => {
+                if (explorarVideoOverlay) {
+                    explorarVideoOverlay.classList.remove('show-controls');
+                }
+            }, autoHideMs);
+        }
+    }
+
+    function handleExplorarMediaDoubleLike(event) {
+        const postId = explorarCurrentPostId;
+        if (!postId) return;
+        if (event && event.type === 'dblclick') {
+            if (event.preventDefault) event.preventDefault();
+            explorarNavigationBlockUntil = Date.now() + 700;
+            explorarDoubleTapWindowUntil = explorarNavigationBlockUntil;
+            const anyBtn = document.querySelector(`.btn-like[data-post-id="${postId}"]`);
+            const alreadyLiked = !!(anyBtn && anyBtn.classList.contains('liked'));
+            if (alreadyLiked) {
+                triggerLikePulse(postId);
+            } else {
+                ensureLikeForPost(postId);
+            }
+            return;
+        }
+        const now = Date.now();
+        if (now - explorarLastTapTime < explorarDoubleTapDelay) {
+            explorarLastTapTime = 0;
+            explorarNavigationBlockUntil = Date.now() + 700;
+            explorarDoubleTapWindowUntil = explorarNavigationBlockUntil;
+            const anyBtn = document.querySelector(`.btn-like[data-post-id="${postId}"]`);
+            const alreadyLiked = !!(anyBtn && anyBtn.classList.contains('liked'));
+            if (alreadyLiked) {
+                triggerLikePulse(postId);
+            } else {
+                ensureLikeForPost(postId);
+            }
+        } else {
+            explorarLastTapTime = now;
+        }
+    }
+
+    async function ensureLikeForPost(postId) {
+        try {
+            const anyBtn = document.querySelector(`.btn-like[data-post-id="${postId}"]`);
+            const alreadyLiked = !!(anyBtn && anyBtn.classList.contains('liked'));
+            if (alreadyLiked) return;
+            await toggleLikeForPost(postId);
+        } catch {}
+    }
+    function triggerLikePulse(postId) {
+        const btns = document.querySelectorAll(`.btn-like[data-post-id="${postId}"]`);
+        btns.forEach((btn) => {
+            btn.classList.add('pulse');
+            const onEnd = () => {
+                btn.classList.remove('pulse');
+                btn.removeEventListener('animationend', onEnd);
+            };
+            btn.addEventListener('animationend', onEnd);
+            setTimeout(onEnd, 600);
+        });
+    }
+
     if (explorarImageFull) {
         explorarImageFull.addEventListener('touchstart', (event) => {
             event.preventDefault();
         }, { passive: false });
+        explorarImageFull.addEventListener('touchend', handleExplorarMediaDoubleLike);
     }
-    if (explorarVideoFull) {
-        explorarVideoFull.addEventListener('touchstart', () => {}, { passive: true });
+
+    function closeLikesModal() {
+        if (!likesModalOverlay) return;
+        likesModalOverlay.classList.add('hidden');
+        likesModalOverlay.setAttribute('aria-hidden', 'true');
+        likesModalOverlay.style.display = 'none';
+        likesModalOverlay.style.pointerEvents = 'none';
+        const contentEl = document.getElementById('likes-modal-content');
+        if (contentEl) {
+            contentEl.style.left = '';
+            contentEl.style.top = '';
+        }
+        if (likesModalList) {
+            likesModalList.innerHTML = '';
+        }
+        document.documentElement.classList.remove('modal-open');
+        document.body.classList.remove('modal-open');
+    }
+
+    async function openLikesModal(postId, likesFromCaller, anchorEl = null) {
+        if (!likesModalOverlay || !likesModalList || !postId) return;
+        likesModalOverlay.classList.remove('hidden');
+        likesModalOverlay.setAttribute('aria-hidden', 'false');
+        likesModalOverlay.style.display = 'flex';
+        likesModalOverlay.style.pointerEvents = 'auto';
+        let likes = null;
+        try {
+            const resp = await fetch(`/api/posts/${postId}/likes`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            const data = await resp.json();
+            if (!resp.ok || data?.success === false) return;
+            if (Array.isArray(data.likes) && data.likes.length) {
+                likes = data.likes;
+            }
+        } catch {
+            if (Array.isArray(likesFromCaller) && likesFromCaller.length) {
+                likes = likesFromCaller;
+            } else {
+                return;
+            }
+        }
+        likesModalList.innerHTML = '';
+        likes.forEach((u) => {
+            if (!u || (!u.nome && !u.foto)) return;
+            const item = document.createElement('button');
+            item.type = 'button';
+            item.className = 'likes-modal-item';
+            const avatar = document.createElement('img');
+            avatar.className = 'likes-modal-avatar';
+            avatar.src = u.foto || 'imagens/default-user.png';
+            avatar.alt = u.nome || '';
+            avatar.referrerPolicy = 'no-referrer';
+            const infoWrap = document.createElement('div');
+            infoWrap.className = 'likes-modal-info';
+            const name = document.createElement('span');
+            name.className = 'likes-modal-name';
+            name.textContent = u.nome || '';
+            infoWrap.appendChild(name);
+            const numeroRaw = String(u.whatsapp || '').trim();
+            const numeroDigits = numeroRaw.replace(/\D+/g, '');
+            if (numeroDigits && numeroDigits.length >= 8) {
+                const waLink = document.createElement('a');
+                waLink.href = `https://wa.me/${encodeURIComponent(numeroDigits)}`;
+                waLink.target = '_blank';
+                waLink.rel = 'noopener noreferrer';
+                waLink.className = 'likes-modal-whatsapp';
+                waLink.innerHTML = '<i class="fab fa-whatsapp"></i>';
+                waLink.addEventListener('click', (ev) => {
+                    ev.stopPropagation();
+                });
+                infoWrap.appendChild(waLink);
+            }
+            item.appendChild(avatar);
+            item.appendChild(infoWrap);
+            if (u.id) {
+                item.addEventListener('click', () => {
+                    window.location.href = `/perfil.html?id=${encodeURIComponent(u.id)}`;
+                });
+            }
+            likesModalList.appendChild(item);
+        });
+        if (!likesModalList.childElementCount) {
+            // Se não houver ninguém para mostrar, fecha de forma segura
+            closeLikesModal();
+            return;
+        }
+        const contentEl = document.getElementById('likes-modal-content');
+        if (contentEl) {
+            contentEl.style.position = 'absolute';
+            let desiredLeft = 20;
+            let desiredTop = 20;
+            if (anchorEl && typeof anchorEl.getBoundingClientRect === 'function') {
+                const rect = anchorEl.getBoundingClientRect();
+                const panelWidth = contentEl.offsetWidth || 340;
+                const panelHeight = contentEl.offsetHeight || 360;
+                const viewportW = window.innerWidth;
+                const viewportH = window.innerHeight;
+                desiredLeft = Math.min(
+                    Math.max(rect.right - panelWidth + 10, 10),
+                    viewportW - panelWidth - 10
+                );
+                desiredTop = Math.min(
+                    Math.max(rect.top - panelHeight - 12, 10),
+                    viewportH - panelHeight - 10
+                );
+            }
+            contentEl.style.left = `${desiredLeft}px`;
+            contentEl.style.top = `${desiredTop}px`;
+        }
+        document.documentElement.classList.add('modal-open');
+        document.body.classList.add('modal-open');
+    }
+
+    if (likesModalClose) {
+        likesModalClose.addEventListener('click', () => {
+            closeLikesModal();
+        });
+    }
+
+    if (likesModalOverlay) {
+        likesModalOverlay.addEventListener('click', (event) => {
+            const contentEl = document.getElementById('likes-modal-content');
+            if (!contentEl || !contentEl.contains(event.target)) {
+                closeLikesModal();
+            }
+            event.stopPropagation();
+        });
     }
 
     function handleExplorarDelete(btn, clickEvent = null) {
@@ -804,69 +1246,31 @@ document.addEventListener('DOMContentLoaded', () => {
         let dragging = false;
         let lockingDirection = null;
 
-        // Clique para avançar/voltar stories (restrito das áreas dos botões)
-        const isInsideRect = (x, y, rect) => {
-            if (!rect) return false;
-            return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
-        };
-        const expandRect = (rect, pad = 12) => {
-            if (!rect) return null;
-            return {
-                left: rect.left - pad,
-                right: rect.right + pad,
-                top: rect.top - pad,
-                bottom: rect.bottom + pad
-            };
-        };
         explorarVideoOverlay.addEventListener('click', (event) => {
-            if (!explorarStoryMode || explorarStoryQueue.length <= 1) return;
-            // Evita navegar quando clicar nos controles do vídeo
             const target = event.target;
-            if (target && (target.closest?.('.explorar-video-delete')
-                || target.closest?.('#explorar-video-back')
-                || target.closest?.('.explorar-video-info')
-                || target.closest?.('.explorar-story-nav'))) {
+            if (target.closest('.explorar-video-info') || target.closest('.explorar-video-controls') || target.closest('.explorar-video-whatsapp')) {
                 return;
             }
-            // Se clicar na barra de controles (parte inferior do vídeo), ignora
-            const overlayRect = explorarVideoOverlay.getBoundingClientRect();
-            const x = event.clientX;
-            const y = event.clientY;
-            const backBtn = document.getElementById('explorar-video-back');
-            const delBtn = document.getElementById('explorar-video-delete');
-            const backRect = expandRect(backBtn ? backBtn.getBoundingClientRect() : null, 16);
-            const delRect = expandRect(delBtn ? delBtn.getBoundingClientRect() : null, 16);
-            if (isInsideRect(x, y, backRect) || isInsideRect(x, y, delRect)) {
-                return;
-            }
-            // Zona inferior (~controles nativos): ignora
-            const bottomSafe = overlayRect.bottom - 90;
-            if (y >= bottomSafe) return;
-
-            const relX = x - overlayRect.left;
-            const width = overlayRect.width;
-            // Largura maior para facilitar o toque: 30% cada lado
-            const leftZone = width * 0.3;
-            const rightZone = width * 0.7;
-            if (relX >= rightZone) {
-                goToExplorarStory(explorarStoryIndex + 1);
-            } else if (relX <= leftZone) {
-                goToExplorarStory(explorarStoryIndex - 1);
+            event.stopPropagation();
+            showExplorarVideoControls();
+            const nowClick = Date.now();
+            if (nowClick - explorarLastTapTime < explorarDoubleTapDelay) {
+                explorarLastTapTime = 0;
+                handleExplorarMediaDoubleLike({ type: 'dblclick' });
+            } else {
+                explorarLastTapTime = nowClick;
             }
         });
         explorarVideoOverlay.addEventListener('touchstart', (event) => {
-            const screenX = event.touches[0]?.clientX ?? 0;
-            const edgeThreshold = 30;
-            if (screenX <= edgeThreshold || screenX >= (window.innerWidth - edgeThreshold)) {
-                event.preventDefault();
+            const target = event.target;
+            if (target.closest('.explorar-video-info') || target.closest('.explorar-video-controls') || target.closest('.explorar-video-whatsapp')) {
+                return;
             }
             touchStartX = event.touches[0]?.clientX ?? null;
             touchStartY = event.touches[0]?.clientY ?? null;
             dragging = false;
             lockingDirection = null;
-            // Pausa story/vídeo enquanto pressiona/arrasta
-            if (typeof pauseExplorarStory === 'function' && explorarStoryMode) pauseExplorarStory();
-            try { explorarVideoFull?.pause?.(); } catch {}
+            showExplorarVideoControls();
         }, { passive: false });
 
         explorarVideoOverlay.addEventListener('touchmove', (event) => {
@@ -893,84 +1297,50 @@ document.addEventListener('DOMContentLoaded', () => {
         }, { passive: false });
 
         explorarVideoOverlay.addEventListener('touchend', (event) => {
+            const target = event.target;
+            if (target.closest('.explorar-video-info') || target.closest('.explorar-video-controls') || target.closest('.explorar-video-whatsapp')) {
+                touchStartX = null;
+                touchStartY = null;
+                dragging = false;
+                return;
+            }
+            // Detecção de double tap para curtida
+            if (!dragging) {
+                const nowTap = Date.now();
+                if (nowTap - explorarLastTapTime < explorarDoubleTapDelay) {
+                    explorarLastTapTime = 0;
+                    handleExplorarMediaDoubleLike(event);
+                    explorarVideoOverlay.classList.remove('is-dragging');
+                    touchStartX = null;
+                    touchStartY = null;
+                    dragging = false;
+                    return;
+                } else {
+                    explorarLastTapTime = nowTap;
+                }
+            }
             const touch = event.changedTouches && event.changedTouches[0];
             const endX = touch?.clientX ?? 0;
             const endY = touch?.clientY ?? 0;
             const overlayRect = explorarVideoOverlay.getBoundingClientRect();
             const deltaX = (endX - (touchStartX ?? endX));
             const deltaY = (endY - (touchStartY ?? endY));
-            const closeVerticalThreshold = 120;
-            if (!dragging) {
-                // Tap: navegar esquerda/direita (mesma lógica do desktop), com zonas reservadas
-                if (explorarStoryMode && explorarStoryQueue.length > 1) {
-                    const backBtn = document.getElementById('explorar-video-back');
-                    const delBtn = document.getElementById('explorar-video-delete');
-                    const prevBtn = document.getElementById('explorar-story-prev');
-                    const nextBtn = document.getElementById('explorar-story-next');
-                    const isInsideRect = (x, y, rect) => rect ? (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) : false;
-                    const backRect = expandRect(backBtn ? backBtn.getBoundingClientRect() : null, 16);
-                    const delRect = expandRect(delBtn ? delBtn.getBoundingClientRect() : null, 16);
-                    const prevRect = expandRect(prevBtn ? prevBtn.getBoundingClientRect() : null, 12);
-                    const nextRect = expandRect(nextBtn ? nextBtn.getBoundingClientRect() : null, 12);
-                    if (isInsideRect(endX, endY, backRect) ||
-                        isInsideRect(endX, endY, delRect) ||
-                        isInsideRect(endX, endY, prevRect) ||
-                        isInsideRect(endX, endY, nextRect)) {
-                        // Toque em botões reservados: não navega
-                    } else {
-                        const bottomSafe = overlayRect.bottom - 90;
-                        if (endY < bottomSafe) {
-                            const relX = endX - overlayRect.left;
-                            // 30% laterais no mobile também
-                            const rightZone = overlayRect.width * 0.7;
-                            const leftZone = overlayRect.width * 0.3;
-                            if (relX >= rightZone) {
-                                goToExplorarStory(explorarStoryIndex + 1);
-                            } else if (relX <= leftZone) {
-                                goToExplorarStory(explorarStoryIndex - 1);
-                            }
-                        }
-                    }
-                }
-                explorarVideoOverlay.classList.remove('is-dragging');
-                explorarVideoOverlay.style.transform = '';
-                touchStartX = null;
-                touchStartY = null;
-                // Retoma reprodução/tempo se não fechar
-                if (typeof resumeExplorarStory === 'function' && explorarStoryMode) resumeExplorarStory();
-                try { explorarVideoFull?.play?.(); } catch {}
-                return;
-            }
-            // Drag: fecha apenas com arraste vertical suficiente, senão tenta navegar
-            if (lockingDirection === 'vertical' && Math.abs(deltaY) > closeVerticalThreshold) {
+            const closeVerticalThreshold = 100;
+            if (dragging && Math.abs(deltaY) > closeVerticalThreshold) {
+                // Arraste forte para cima/baixo: fecha
                 closeExplorarVideo();
             } else {
-                if (explorarStoryMode && explorarStoryQueue.length > 1) {
-                    const bottomSafe = overlayRect.bottom - 90;
-                    if (endY < bottomSafe) {
-                        const relX = endX - overlayRect.left;
-                        const rightZone = overlayRect.width * 0.7;
-                        const leftZone = overlayRect.width * 0.3;
-                        if (relX >= rightZone) {
-                            goToExplorarStory(explorarStoryIndex + 1);
-                        } else if (relX <= leftZone) {
-                            goToExplorarStory(explorarStoryIndex - 1);
-                        }
-                    }
+                // Não fechou: volta para o lugar original
+                if (!explorarVideoOverlay.classList.contains('hidden')) {
+                    if (typeof resumeExplorarStory === 'function' && explorarStoryMode) resumeExplorarStory();
+                    try { explorarVideoFull?.play?.(); } catch {}
+                    explorarVideoOverlay.style.transform = '';
                 }
             }
             explorarVideoOverlay.classList.remove('is-dragging');
             touchStartX = null;
             touchStartY = null;
             dragging = false;
-            // Retoma reprodução/tempo se não foi fechado
-            if (!explorarVideoOverlay.classList.contains('hidden')) {
-                if (typeof resumeExplorarStory === 'function' && explorarStoryMode) resumeExplorarStory();
-                try { explorarVideoFull?.play?.(); } catch {}
-                explorarVideoOverlay.style.transform = '';
-            } else {
-                explorarVideoOverlay.style.transform = '';
-            }
         });
     }
 
@@ -997,13 +1367,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const openExplorarModal = (file) => {
         if (!explorarPostModal || !explorarPostPreview) return;
+        try {
+            if (explorarPostModal.parentElement && explorarPostModal.parentElement !== document.body) {
+                document.body.appendChild(explorarPostModal);
+            }
+        } catch {}
+        try {
+            window.scrollTo({ top: 0, behavior: 'auto' });
+            document.documentElement.scrollTop = 0;
+            document.body.scrollTop = 0;
+        } catch {}
         explorarSelectedFile = file || null;
         explorarPostPreview.innerHTML = '';
         if (file) {
             const isVideo = file.type.startsWith('video/');
             const url = URL.createObjectURL(file);
             explorarPostPreview.innerHTML = isVideo
-                ? `<video src="${url}" muted playsinline controls preload="metadata"></video>`
+                ? `<video src="${url}" playsinline controls preload="metadata"></video>`
                 : `<img src="${url}" alt="Prévia">`;
             if (isVideo) {
                 const previewVideo = explorarPostPreview.querySelector('video');
@@ -1012,12 +1392,14 @@ document.addEventListener('DOMContentLoaded', () => {
                         try {
                             previewVideo.currentTime = Math.min(0.1, previewVideo.duration || 0);
                         } catch (e) {}
-                        previewVideo.pause();
+                        try { previewVideo.muted = false; } catch {}
+                        previewVideo.play().catch(() => {});
                     }, { once: true });
                 }
             }
         }
         explorarPostModal.classList.add('is-open');
+        explorarPostModal.removeAttribute('inert');
         explorarPostModal.setAttribute('aria-hidden', 'false');
         document.body.classList.add('explorar-post-modal-open');
     };
@@ -1025,6 +1407,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const closeExplorarModal = () => {
         if (!explorarPostModal) return;
         explorarPostModal.classList.remove('is-open');
+        try {
+            if (explorarPostModal.contains(document.activeElement)) {
+                /** @type {HTMLElement} */(document.activeElement)?.blur?.();
+            }
+            explorarPostModal.setAttribute('inert', '');
+        } catch {}
         explorarPostModal.setAttribute('aria-hidden', 'true');
         resetExplorarModal();
         document.body.classList.remove('explorar-post-modal-open');
@@ -1064,6 +1452,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // Validação de Vídeo (Duração max 30s)
                 if (file.type.startsWith('video/')) {
+                    openExplorarModal(file);
                     const video = document.createElement('video');
                     video.preload = 'metadata';
                     video.onloadedmetadata = function() {
@@ -1071,14 +1460,15 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (video.duration > 31) { // Margem de erro de 1s
                             showExplorarMsg('Apenas videos de 30 segundos');
                             explorarMediaInput.value = ''; // Limpa o input
+                            closeExplorarModal();
                         } else {
-                            openExplorarModal(file);
+                            // ok, nada a fazer (modal já aberto)
                         }
                     };
                     video.onerror = function() {
                          window.URL.revokeObjectURL(video.src);
                          console.error('Erro ao carregar metadados do vídeo.');
-                         openExplorarModal(file);
+                         // mantém modal aberto, apenas loga erro
                     };
                     video.src = URL.createObjectURL(file);
                 } else {
@@ -1115,17 +1505,57 @@ document.addEventListener('DOMContentLoaded', () => {
                 formData.append('media', explorarSelectedFile);
             }
             try {
-                const resp = await fetch('/api/explorar-posts', {
-                    method: 'POST',
-                    headers: { 'Authorization': `Bearer ${token}` },
-                    body: formData
-                });
-                const data = await resp.json();
-                if (!resp.ok || data?.success === false) {
-                    throw new Error(data?.message || 'Erro ao publicar.');
+                const xhr = new XMLHttpRequest();
+                xhr.open('POST', '/api/explorar-posts', true);
+                xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+                let uploadBar = null;
+                let uploadWrapper = null;
+                if (explorarPostPreview) {
+                    uploadWrapper = explorarPostPreview.querySelector('.explorar-upload-progress');
+                    if (!uploadWrapper) {
+                        uploadWrapper = document.createElement('div');
+                        uploadWrapper.className = 'explorar-upload-progress';
+                        const bar = document.createElement('div');
+                        bar.className = 'explorar-upload-progress-bar';
+                        uploadWrapper.appendChild(bar);
+                        explorarPostPreview.appendChild(uploadWrapper);
+                        uploadBar = bar;
+                    } else {
+                        uploadBar = uploadWrapper.querySelector('.explorar-upload-progress-bar');
+                    }
                 }
-                closeExplorarModal();
-                fetchExplorarFeed();
+                if (uploadWrapper && uploadBar) {
+                    uploadWrapper.style.display = 'block';
+                    uploadBar.style.width = '0%';
+                }
+                xhr.upload.onprogress = (e) => {
+                    if (!uploadBar || !uploadWrapper) return;
+                    if (e.lengthComputable && e.total > 0) {
+                        const raw = (e.loaded / e.total) * 95;
+                        const pct = Math.max(0, Math.min(95, Math.floor(raw)));
+                        uploadBar.style.width = `${pct}%`;
+                    } else {
+                        uploadBar.style.width = '20%';
+                    }
+                };
+                xhr.onreadystatechange = () => {
+                    if (xhr.readyState !== 4) return;
+                    if (uploadWrapper && uploadBar) {
+                        uploadBar.style.width = '100%';
+                        uploadWrapper.style.display = 'block';
+                    }
+                    try {
+                        const data = JSON.parse(xhr.responseText || '{}');
+                        if (xhr.status < 200 || xhr.status >= 300 || data?.success === false) {
+                            throw new Error(data?.message || 'Erro ao publicar.');
+                        }
+                        closeExplorarModal();
+                        fetchExplorarFeed();
+                    } catch (err) {
+                        console.error('Erro ao enviar explorar:', err);
+                    }
+                };
+                xhr.send(formData);
             } catch (err) {
                 console.error('Erro ao enviar explorar:', err);
             }
@@ -2336,6 +2766,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 || item?.anuncianteFoto
                 || '';
             const perfilFoto = rawFoto && !['undefined', 'null'].includes(String(rawFoto)) ? rawFoto : 'imagens/default-user.png';
+            const likesCount = Number.isFinite(item.likesCount) ? item.likesCount : 0;
+            const isLiked = !!item.isLikedByMe;
 
             const mediaHTML = isVideo
                 ? `<video class="explorar-video" loop muted playsinline autoplay preload="metadata" data-src="${mediaUrl}"></video>`
@@ -2361,6 +2793,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         </div>
                         ${(desc || title) ? `<p class="explorar-card-desc">${desc || title}</p>` : ''}
                         ${cityText ? `<span class="explorar-card-cidade">${cityText}</span>` : ''}
+                        ${rawItemId ? `
+                        <button class="explorar-like-btn btn-like ${isLiked ? 'liked' : ''}" type="button" data-post-id="${rawItemId}" aria-label="Curtir status">
+                            <i class="fas fa-heart"></i>
+                            <span class="like-count">${likesCount}</span>
+                        </button>` : ''}
                     </div>
                 </div>
             `;
@@ -2386,6 +2823,37 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                 });
             }
+            // Adiciona botão WhatsApp no card do explorar ao lado do nome (apenas se não for dono)
+            (async () => {
+                try {
+                    const perfilAnchor = card.querySelector('.explorar-card-perfil');
+                    if (!perfilAnchor || !ownerId) return;
+                    if (userId && String(ownerId) === String(userId)) return; // não mostra para o dono
+                    const respUser = await fetch(`/api/usuario/${ownerId}`, {
+                        headers: { Authorization: `Bearer ${token}` }
+                    });
+                    const dataUser = await respUser.json();
+                    if (!respUser.ok || dataUser?.success === false) return;
+                    const u = dataUser.usuario || {};
+                    const numeroRaw = String(u.whatsapp || u.telefone || u.celular || u.phone || '').trim();
+                    const numeroDigits = numeroRaw.replace(/\D+/g, '');
+                    if (!numeroDigits || numeroDigits.length < 8) return;
+                    const previewUrl = `${location.origin}/?postId=${encodeURIComponent(rawItemId)}`;
+                    const msg = `Olá! Vi seu vídeo e tenho uma pergunta: ${previewUrl}`;
+                    const waLink = document.createElement('a');
+                    waLink.href = `https://wa.me/${encodeURIComponent(numeroDigits)}?text=${encodeURIComponent(msg)}`;
+                    waLink.target = '_blank';
+                    waLink.rel = 'noopener noreferrer';
+                    waLink.className = 'explorar-card-whatsapp';
+                    waLink.innerHTML = '<i class="fab fa-whatsapp"></i>';
+                    ['click', 'touchstart', 'touchend', 'pointerdown', 'pointerup'].forEach((type) => {
+                        waLink.addEventListener(type, (ev) => {
+                            ev.stopPropagation();
+                        });
+                    });
+                    perfilAnchor.insertAdjacentElement('afterend', waLink);
+                } catch {}
+            })();
 
             const deleteBtn = card.querySelector('.explorar-card-delete');
             if (deleteBtn) {
@@ -2440,7 +2908,51 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             }
 
+            const likeBtn = card.querySelector('.explorar-like-btn.btn-like');
+            if (likeBtn) {
+                likeBtn.addEventListener('click', handleLikePost);
+            }
+
             explorarFeedList.appendChild(card);
+
+            if (rawItemId) {
+                const overlay = card.querySelector('.explorar-card-info-overlay');
+                if (overlay) {
+                    (async () => {
+                        try {
+                            const resp = await fetch(`/api/posts/${rawItemId}/likes`, {
+                                headers: { Authorization: `Bearer ${token}` }
+                            });
+                            const data = await resp.json();
+                            if (!resp.ok || data?.success === false) return;
+                            const preview = Array.isArray(data.likesPreview) ? data.likesPreview : [];
+                            if (!preview.length) return;
+                            const existing = overlay.querySelector('.explorar-like-avatars');
+                            if (existing) existing.remove();
+                            const avatarsBtn = document.createElement('button');
+                            avatarsBtn.type = 'button';
+                            avatarsBtn.className = 'explorar-like-avatars';
+                            preview.forEach((u) => {
+                                if (!u || !u.foto) return;
+                                const img = document.createElement('img');
+                                img.src = u.foto;
+                                img.alt = u.nome || '';
+                                img.className = 'explorar-like-avatar';
+                                img.referrerPolicy = 'no-referrer';
+                                avatarsBtn.appendChild(img);
+                            });
+                            if (!avatarsBtn.childElementCount) return;
+                            const isOwnerForModal = isOwner && Array.isArray(data.likes) && data.likes.length > 0;
+                            if (isOwnerForModal) {
+                                avatarsBtn.addEventListener('click', () => {
+                                    openLikesModal(rawItemId, data.likes, avatarsBtn);
+                                });
+                            }
+                            overlay.appendChild(avatarsBtn);
+                        } catch {}
+                    })();
+                }
+            }
 
             if ((index + 1) % 4 === 0) {
                 const ad = pickNextAdFeed();
@@ -2593,6 +3105,9 @@ document.addEventListener('DOMContentLoaded', () => {
         let wasBackdropVisible = false;
         let isClosing = false;
         document.addEventListener('touchstart', (event) => {
+            if (explorarVideoOverlay && !explorarVideoOverlay.classList.contains('hidden')) {
+                return;
+            }
             const touch = event.touches[0];
             if (!touch) return;
             const isMobile = window.matchMedia('(max-width: 768px)').matches;
@@ -2618,6 +3133,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }, { passive: false });
 
         document.addEventListener('touchmove', (event) => {
+            if (explorarVideoOverlay && !explorarVideoOverlay.classList.contains('hidden')) {
+                return;
+            }
             if (!explorarTouchStart) return;
             const touch = event.touches[0];
             if (!touch) return;
@@ -2658,6 +3176,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }, { passive: false });
 
         document.addEventListener('touchend', (event) => {
+            if (explorarVideoOverlay && !explorarVideoOverlay.classList.contains('hidden')) {
+                return;
+            }
             if (!explorarTouchStart) return;
             const touch = event.changedTouches[0];
             if (!touch) return;
@@ -4846,9 +5367,104 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    async function handleLikePost(e) {
-        const btn = e.currentTarget;
-        const postId = btn.dataset.postId;
+    async function refreshPostLikesUI(postId) {
+        if (!postId) return;
+        try {
+            const resp = await fetch(`/api/posts/${postId}/likes`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            const data = await resp.json();
+            if (!resp.ok || data?.success === false) return;
+            const count = Number.isFinite(data.likesCount) ? data.likesCount : 0;
+            const preview = Array.isArray(data.likesPreview) ? data.likesPreview : [];
+            const likesFull = Array.isArray(data.likes) ? data.likes : [];
+            const isLikedByMe = !!data.isLikedByMe;
+            const allButtons = document.querySelectorAll(`.btn-like[data-post-id="${postId}"]`);
+            allButtons.forEach((button) => {
+                const countEl = button.querySelector('.like-count');
+                if (countEl) countEl.textContent = count;
+                if (isLikedByMe) {
+                    button.classList.add('liked');
+                } else {
+                    button.classList.remove('liked');
+                }
+            });
+            const feedOverlays = document.querySelectorAll(`.explorar-card[data-explorar-id="${postId}"] .explorar-card-info-overlay`);
+            feedOverlays.forEach((overlay) => {
+                const existing = overlay.querySelector('.explorar-like-avatars');
+                if (existing) existing.remove();
+                if (!preview.length) return;
+                const avatarsBtn = document.createElement('button');
+                avatarsBtn.type = 'button';
+                avatarsBtn.className = 'explorar-like-avatars';
+                preview.forEach((u) => {
+                    if (!u || !u.foto) return;
+                    const img = document.createElement('img');
+                    img.src = u.foto;
+                    img.alt = u.nome || '';
+                    img.className = 'explorar-like-avatar';
+                    img.referrerPolicy = 'no-referrer';
+                    avatarsBtn.appendChild(img);
+                });
+                if (!avatarsBtn.childElementCount) return;
+                const card = overlay.closest('.explorar-card');
+                const isOwnerForModal = !!(card && card.querySelector('.explorar-card-delete') && likesFull.length > 0);
+                if (isOwnerForModal) {
+                    avatarsBtn.addEventListener('click', () => {
+                        openLikesModal(postId, likesFull, avatarsBtn);
+                    });
+                } else {
+                    avatarsBtn.classList.add('non-owner');
+                    ['click', 'touchstart', 'touchend', 'pointerdown', 'pointerup'].forEach((type) => {
+                        avatarsBtn.addEventListener(type, (ev) => {
+                            ev.stopPropagation();
+                            ev.preventDefault();
+                        });
+                    });
+                }
+                overlay.appendChild(avatarsBtn);
+            });
+            if (explorarVideoInfo && explorarCurrentPostId && String(explorarCurrentPostId) === String(postId)) {
+                const existing = explorarVideoInfo.querySelector('.explorar-like-avatars');
+                if (existing) existing.remove();
+                if (preview.length) {
+                    const avatarsBtn = document.createElement('button');
+                    avatarsBtn.type = 'button';
+                    avatarsBtn.className = 'explorar-like-avatars';
+                    preview.forEach((u) => {
+                        if (!u || !u.foto) return;
+                        const img = document.createElement('img');
+                        img.src = u.foto;
+                        img.alt = u.nome || '';
+                        img.className = 'explorar-like-avatar';
+                        img.referrerPolicy = 'no-referrer';
+                        avatarsBtn.appendChild(img);
+                    });
+                    if (avatarsBtn.childElementCount) {
+                        const isOwner = explorarCurrentOwnerId && userId && String(explorarCurrentOwnerId) === String(userId);
+                        const isOwnerWithList = isOwner && likesFull.length > 0;
+                        if (isOwnerWithList) {
+                            avatarsBtn.addEventListener('click', (ev) => {
+                                openLikesModal(postId, likesFull, avatarsBtn);
+                            });
+                        } else {
+                            avatarsBtn.classList.add('non-owner');
+                            ['click', 'touchstart', 'touchend', 'pointerdown', 'pointerup'].forEach((type) => {
+                                avatarsBtn.addEventListener(type, (ev) => {
+                                    ev.stopPropagation();
+                                    ev.preventDefault();
+                                });
+                            });
+                        }
+                        explorarVideoInfo.appendChild(avatarsBtn);
+                    }
+                }
+            }
+        } catch {}
+    }
+
+    async function toggleLikeForPost(postId) {
+        if (!postId) return;
         try {
             const response = await fetch(`/api/posts/${postId}/like`, {
                 method: 'POST',
@@ -4856,12 +5472,17 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             const data = await response.json();
             if (data.success) {
-                btn.classList.toggle('liked');
-                btn.querySelector('.like-count').textContent = data.likes.length;
+                await refreshPostLikesUI(postId);
             }
         } catch (error) {
             console.error('Erro ao curtir:', error);
         }
+    }
+
+    async function handleLikePost(e) {
+        const btn = e.currentTarget;
+        const postId = btn.dataset.postId;
+        toggleLikeForPost(postId);
     }
 
     // Função para verificar se um comentário é longo e precisa de "Carregar comentário"

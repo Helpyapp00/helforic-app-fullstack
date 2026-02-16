@@ -3713,7 +3713,9 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderReply(reply, commentId, canDeleteReply) {
         if (!reply.userId) return '';
         const replyPhoto = reply.userId.foto || reply.userId.avatarUrl || 'imagens/default-user.png';
-        const isReplyLiked = reply.likes && Array.isArray(reply.likes) && reply.likes.includes(loggedInUserId);
+        const isReplyLiked = Array.isArray(reply.likes)
+            ? reply.likes.some((likeId) => String(likeId) === String(loggedInUserId))
+            : false;
         const isReplyOwner = reply.userId && reply.userId._id === loggedInUserId;
         const canEditReply = isReplyOwner;
         
@@ -7453,4 +7455,3 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 });
-

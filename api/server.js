@@ -934,7 +934,9 @@ app.post('/api/explorar-posts', authMiddleware, upload.single('media'), async (r
             mediaType,
             category_tag,
             gender_tag,
-            expiresAt
+            expiresAt,
+            likes: [],
+            comments: []
         });
 
         const savedPost = await newPost.save();
@@ -947,6 +949,11 @@ app.post('/api/explorar-posts', authMiddleware, upload.single('media'), async (r
 
 app.get('/api/explorar-feed', authMiddleware, async (req, res) => {
     try {
+        const agoraCleanup = new Date();
+        await Postagem.deleteMany({
+            expiresAt: { $lte: agoraCleanup }
+        }).catch(() => {});
+
         const cidadesRaw = String(req.query.cidades || '')
             .split(',')
             .map((c) => String(c).trim())
@@ -981,11 +988,18 @@ app.get('/api/explorar-feed', authMiddleware, async (req, res) => {
             })
             : posts;
 
+        const currentUserId = String(req.user.id || '');
+
         const postItems = postsFiltrados.map((post) => {
             const telefone = post?.userId?.telefone ? String(post.userId.telefone) : '';
             const whatsappUrl = telefone
                 ? `https://wa.me/55${telefone.replace(/\D/g, '')}`
                 : '';
+            const likesArray = Array.isArray(post.likes) ? post.likes : [];
+            const likesCount = likesArray.length;
+            const isLikedByMe = currentUserId
+                ? likesArray.some((id) => String(id) === currentUserId)
+                : false;
             return {
                 _id: post._id,
                 userId: post?.userId?._id,
@@ -1000,7 +1014,9 @@ app.get('/api/explorar-feed', authMiddleware, async (req, res) => {
                 foto: post?.userId?.foto || '',
                 avatarUrl: post?.userId?.avatarUrl || '',
                 perfilUrl: post?.userId?._id ? `/perfil.html?id=${post.userId._id}` : '',
-                whatsappUrl
+                whatsappUrl,
+                likesCount,
+                isLikedByMe
             };
         });
 
@@ -1477,14 +1493,23 @@ app.get('/api/posts', authMiddleware, async (req, res) => {
         const userMap = new Map(users.map((user) => [String(user._id), user]));
 
         posts.forEach((post) => {
+            let changed = false;
             const comments = Array.isArray(post.comments) ? post.comments : [];
             const hydratedComments = [];
             comments.forEach((comment) => {
+                if (!comment._id) {
+                    comment._id = new mongoose.Types.ObjectId();
+                    changed = true;
+                }
                 const user = userMap.get(normalizeUserId(comment.userId));
                 if (!user) return;
                 comment.userId = user;
                 const replies = Array.isArray(comment.replies) ? comment.replies : [];
                 comment.replies = replies.filter((reply) => {
+                    if (!reply._id) {
+                        reply._id = new mongoose.Types.ObjectId();
+                        changed = true;
+                    }
                     const replyUser = userMap.get(normalizeUserId(reply.userId));
                     if (!replyUser) return false;
                     reply.userId = replyUser;
@@ -1493,6 +1518,12 @@ app.get('/api/posts', authMiddleware, async (req, res) => {
                 hydratedComments.push(comment);
             });
             post.comments = hydratedComments;
+            if (changed) {
+                try {
+                    post.markModified('comments');
+                    post.save().catch(() => {});
+                } catch {}
+            }
         });
 
         res.json(posts);
@@ -1543,14 +1574,23 @@ app.get('/api/user-posts/:userId', authMiddleware, async (req, res) => {
         const userMap = new Map(users.map((user) => [String(user._id), user]));
 
         posts.forEach((post) => {
+            let changed = false;
             const comments = Array.isArray(post.comments) ? post.comments : [];
             const hydratedComments = [];
             comments.forEach((comment) => {
+                if (!comment._id) {
+                    comment._id = new mongoose.Types.ObjectId();
+                    changed = true;
+                }
                 const user = userMap.get(normalizeUserId(comment.userId));
                 if (!user) return;
                 comment.userId = user;
                 const replies = Array.isArray(comment.replies) ? comment.replies : [];
                 comment.replies = replies.filter((reply) => {
+                    if (!reply._id) {
+                        reply._id = new mongoose.Types.ObjectId();
+                        changed = true;
+                    }
                     const replyUser = userMap.get(normalizeUserId(reply.userId));
                     if (!replyUser) return false;
                     reply.userId = replyUser;
@@ -1559,6 +1599,12 @@ app.get('/api/user-posts/:userId', authMiddleware, async (req, res) => {
                 hydratedComments.push(comment);
             });
             post.comments = hydratedComments;
+            if (changed) {
+                try {
+                    post.markModified('comments');
+                    post.save().catch(() => {});
+                } catch {}
+            }
         });
 
         res.json(posts);
@@ -1622,6 +1668,9 @@ app.post('/api/posts/:id/like', authMiddleware, async (req, res) => {
         }
 
         const userId = req.user.id;
+        const userIdNormalized = mongoose.Types.ObjectId.isValid(userId)
+            ? new mongoose.Types.ObjectId(userId)
+            : userId;
         
         // Garante que likes é um array
         if (!post.likes) {
@@ -1629,10 +1678,10 @@ app.post('/api/posts/:id/like', authMiddleware, async (req, res) => {
         }
 
         // Verifica se já curtiu (converte para string para garantir comparação correta)
-        const index = post.likes.findIndex(id => String(id) === String(userId));
+        const index = post.likes.findIndex((id) => String(id) === String(userId));
         
         if (index === -1) {
-            post.likes.push(userId);
+            post.likes.push(userIdNormalized);
             
             // Notificação para o dono do post (se não for o próprio usuário)
             if (String(post.userId) !== String(userId)) {
@@ -1656,11 +1705,79 @@ app.post('/api/posts/:id/like', authMiddleware, async (req, res) => {
             post.likes.splice(index, 1);
         }
 
-        await post.save();
-        res.json({ success: true, likes: post.likes });
+        post.markModified('likes');
+        const saved = await post.save();
+        res.json({ success: true, likes: saved.likes || [] });
     } catch (error) {
         console.error('Erro ao curtir post:', error);
         res.status(500).json({ message: 'Erro interno do servidor' });
+    }
+});
+
+app.get('/api/posts/:id/likes', authMiddleware, async (req, res) => {
+    try {
+        const post = await Postagem.findById(req.params.id).exec();
+        if (!post) {
+            return res.status(404).json({ success: false, message: 'Post não encontrado' });
+        }
+
+        const userId = String(req.user.id || '');
+        const ownerId = String(post.userId || '');
+        const likesArray = Array.isArray(post.likes) ? post.likes : [];
+        const likesCount = likesArray.length;
+        const isLikedByMe = userId
+            ? likesArray.some((id) => String(id) === userId)
+            : false;
+
+        const usuarios = likesArray.length
+            ? await User.find(
+                { _id: { $in: likesArray } },
+                'nome foto avatarUrl whatsapp telefone celular phone'
+            ).lean()
+            : [];
+
+        const userMap = new Map(usuarios.map((u) => [String(u._id), u]));
+
+        const likesFull = likesArray
+            .map((id) => {
+                const user = userMap.get(String(id));
+                if (!user) return null;
+                const numeroRaw = user.whatsapp
+                    || user.telefone
+                    || user.celular
+                    || user.phone
+                    || '';
+                return {
+                    id: user._id,
+                    nome: user.nome,
+                    foto: user.foto || user.avatarUrl || '',
+                    whatsapp: numeroRaw
+                };
+            })
+            .filter(Boolean);
+
+        const likesPreview = likesFull.slice(-3);
+
+        if (userId !== ownerId) {
+            return res.json({
+                success: true,
+                likesCount,
+                isLikedByMe,
+                likesPreview,
+                likes: []
+            });
+        }
+
+        res.json({
+            success: true,
+            likesCount,
+            isLikedByMe,
+            likesPreview,
+            likes: likesFull
+        });
+    } catch (error) {
+        console.error('Erro ao listar curtidas do post:', error);
+        res.status(500).json({ success: false, message: 'Erro interno do servidor' });
     }
 });
 
@@ -1682,6 +1799,7 @@ app.post('/api/posts/:postId/comments', authMiddleware, async (req, res) => {
         if (!post) return res.status(404).json({ success: false, message: 'Post não encontrado' });
 
         const newComment = {
+            _id: new mongoose.Types.ObjectId(),
             userId: userIdObjectId,
             content: content.trim(),
             likes: [],
@@ -1699,6 +1817,61 @@ app.post('/api/posts/:postId/comments', authMiddleware, async (req, res) => {
         res.status(201).json({ success: true, comment: addedComment });
     } catch (error) {
         console.error('Erro ao criar comentário:', error?.stack || error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// Criar uma Resposta (Reply) para um Comentário
+app.post('/api/posts/:postId/comments/:commentId/reply', authMiddleware, async (req, res) => {
+    try {
+        const { postId, commentId } = req.params;
+        const { content } = req.body;
+        const userId = req.user.id;
+
+        if (!content || !content.trim()) {
+            return res.status(400).json({ success: false, message: 'Resposta vazia.' });
+        }
+
+        const userIdObjectId = mongoose.Types.ObjectId.isValid(userId)
+            ? new mongoose.Types.ObjectId(userId)
+            : userId;
+
+        const post = await Postagem.findById(postId);
+        if (!post) {
+            return res.status(404).json({ success: false, message: 'Post não encontrado' });
+        }
+
+        const commentsList = Array.isArray(post.comments) ? post.comments : [];
+        const comment = post.comments?.id
+            ? post.comments.id(commentId)
+            : commentsList.find((item) => String(item?._id) === String(commentId));
+
+        if (!comment) {
+            return res.status(404).json({ success: false, message: 'Comentário não encontrado' });
+        }
+
+        if (!Array.isArray(comment.replies)) {
+            comment.replies = [];
+        }
+
+        const newReply = {
+            _id: new mongoose.Types.ObjectId(),
+            userId: userIdObjectId,
+            content: content.trim(),
+            likes: [],
+            createdAt: new Date()
+        };
+
+        comment.replies.push(newReply);
+        post.markModified('comments');
+        await post.save();
+
+        const addedReply = comment.replies[comment.replies.length - 1];
+        await User.populate(addedReply, { path: 'userId', select: 'nome foto avatarUrl avatarUrlPerfil' });
+
+        res.status(201).json({ success: true, reply: addedReply });
+    } catch (error) {
+        console.error('Erro ao criar resposta:', error?.stack || error);
         res.status(500).json({ success: false, message: error.message });
     }
 });

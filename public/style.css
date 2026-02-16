@@ -318,6 +318,52 @@ body.explorar-video-open .mobile-bottom-nav {
     transition: transform 0.1s linear;
 }
 
+.explorar-video-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    max-width: 340px;
+    margin-top: 6px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+}
+
+.explorar-video-overlay.show-controls .explorar-video-controls {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.explorar-video-progress {
+    flex: 1;
+    height: 4px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.25);
+    outline: none;
+    cursor: pointer;
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+.explorar-video-progress::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.5);
+}
+
+.explorar-video-progress::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #fff;
+    border: 2px solid rgba(15, 23, 42, 0.5);
+}
+
 .explorar-story-nav {
     position: absolute;
     top: 50%;
@@ -425,7 +471,76 @@ body.explorar-video-open .mobile-bottom-nav {
     color: #fff;
     z-index: 2;
     text-shadow: 0 2px 8px rgba(0, 0, 0, 0.7);
-    pointer-events: none;
+}
+
+.explorar-video-like-btn {
+    position: absolute;
+    right: 0;
+    bottom: 10px;
+    margin-bottom: 0;
+    background: transparent;
+    border: none;
+    color: #fff;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 15px;
+    cursor: pointer;
+    pointer-events: auto;
+    padding: 6px 8px;
+}
+
+.explorar-video-like-btn i {
+    font-size: 20px;
+}
+
+.explorar-video-like-btn .like-count {
+    font-size: 13px;
+}
+
+.explorar-video-like-btn.liked i {
+    color: #f97373;
+}
+
+.explorar-video-like-list {
+    font-size: 12px;
+    opacity: 0.9;
+}
+
+.explorar-like-avatars {
+    position: absolute;
+    right: 6px;
+    bottom: 40px;
+    display: flex;
+    align-items: flex-end;
+    gap: 4px;
+    padding: 0;
+    margin: 0;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    pointer-events: auto;
+}
+
+.explorar-like-avatars .explorar-like-avatar {
+    width: 22px;
+    height: 22px;
+    border-radius: 999px;
+    object-fit: cover;
+    border: 1px solid rgba(255, 255, 255, 0.85);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+}
+
+.explorar-like-avatars .explorar-like-avatar:nth-child(1) {
+    transform: translateY(-2px) rotate(-6deg);
+}
+
+.explorar-like-avatars .explorar-like-avatar:nth-child(2) {
+    transform: translateY(-4px);
+}
+
+.explorar-like-avatars .explorar-like-avatar:nth-child(3) {
+    transform: translateY(-2px) rotate(6deg);
 }
 
 .explorar-video-perfil {
@@ -2817,6 +2932,82 @@ textarea#post-content-input::placeholder { color: var(--text-placeholder); }
     box-sizing: border-box;
 }
 .post-video { max-width: 100% !important; width: 100% !important; height: auto; border-radius: 8px; margin-top: 10px; display: block; background-color: #000; box-sizing: border-box; }
+
+/* Grid de mídia das postagens (feed e perfil) */
+.post-media-grid {
+    display: grid;
+    gap: 4px;
+}
+
+.post-media-grid.grid-1 {
+    grid-template-columns: 1fr;
+}
+
+.post-media-grid.grid-2 {
+    grid-template-columns: repeat(2, 1fr);
+}
+
+.post-media-grid.grid-3,
+.post-media-grid.grid-4 {
+    grid-template-columns: repeat(2, 1fr);
+}
+
+.post-media-wrapper {
+    position: relative;
+    width: 100%;
+    padding-top: 100%;
+    overflow: hidden;
+    border-radius: 8px;
+    cursor: pointer;
+    background: #000;
+}
+
+.post-media-item {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.more-media-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    font-weight: 700;
+    pointer-events: none;
+}
+
+.video-indicator {
+    position: absolute;
+    right: 6px;
+    bottom: 6px;
+    width: 26px;
+    height: 26px;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.6);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+}
+
+/* Esconde imagens embutidas no texto para não duplicar mídia com o grid */
+.post-content > p img,
+.post-content > p video,
+.feed-usuario-card p img,
+.feed-usuario-card p video,
+.feed-empresa-card p img,
+.feed-empresa-card p video {
+    display: none !important;
+}
 .post-actions { display: flex; gap: 10px; padding: 10px 0; border-top: none; margin-top: 10px; } 
 .action-btn { background-color: var(--bg-action); border: none; border-radius: 5px; padding: 8px 12px; cursor: pointer; color: var(--text-secondary); font-weight: bold; display: flex; align-items: center; gap: 5px; transition: background-color 0.2s; font-size: 14px; } 
 .action-btn:hover { background-color: var(--bg-action-hover); } 
@@ -4643,6 +4834,7 @@ textarea#post-content-input::placeholder { color: var(--text-placeholder); }
 .popup-conteudo button:hover { background-color: var(--btn-secondary-hover); } 
 .oculto { display: none !important; }
 .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100dvh; background-color: rgba(0, 0, 0, 0.6); display: flex; justify-content: center; align-items: flex-start; z-index: 5000; padding: 20px; box-sizing: border-box; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+.modal-overlay.hidden { display: none !important; }
 
 /* Cards de plano (criar anúncio) */
 .plan-cards {
@@ -5177,6 +5369,156 @@ textarea#post-content-input::placeholder { color: var(--text-placeholder); }
 }
 .modal-content { background-color: var(--bg-secondary); padding: 30px; border-radius: 10px; text-align: center; box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3); max-width: 400px; width: 90%; max-height: none !important; overflow-y: visible !important; height: auto !important; overflow: visible !important; box-sizing: border-box; }
 .modal-grande { max-width: 500px; text-align: left; }
+
+.modal-overlay#likes-modal-overlay {
+    z-index: 7000;
+    align-items: flex-start;
+}
+
+#likes-modal-content.likes-modal {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    text-align: left;
+    padding: 10px 12px;
+    background: rgba(15, 23, 42, 0.9);
+    border-radius: 12px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.55);
+    width: max-content;
+    max-width: 240px;
+}
+
+#likes-modal-content.likes-modal::after {
+    content: '';
+    position: absolute;
+    width: 0;
+    height: 0;
+    border-left: 10px solid transparent;
+    border-right: 10px solid transparent;
+    border-top: 10px solid rgba(15, 23, 42, 0.9);
+    bottom: -10px;
+    right: 24px;
+}
+
+.likes-modal {
+    max-width: 260px;
+    width: auto;
+    max-height: 420px;
+    display: flex;
+    flex-direction: column;
+    text-align: left;
+}
+
+#likes-modal-close {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+}
+
+.likes-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.likes-modal-header h3 {
+    font-size: 16px;
+    margin: 0;
+}
+
+.likes-modal-list {
+    margin-top: 10px;
+    padding-right: 4px;
+    overflow-y: auto;
+    max-height: 340px;
+}
+
+.likes-modal-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 2px;
+    width: auto;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+}
+
+.likes-modal-item:hover {
+    background: rgba(148, 163, 184, 0.12);
+}
+
+.likes-modal-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 999px;
+    object-fit: cover;
+    flex-shrink: 0;
+}
+
+.likes-modal-name {
+    font-size: 14px;
+    color: #f9fafb;
+    text-align: left;
+}
+
+.likes-modal-info {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    flex: 1;
+}
+
+.likes-modal-whatsapp {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 999px;
+    color: #22c55e;
+    font-size: 14px;
+    text-decoration: none;
+    -webkit-tap-highlight-color: transparent;
+    outline: none;
+}
+
+.likes-modal-whatsapp i {
+    pointer-events: none;
+}
+
+/* WhatsApp em nome do overlay/fullscreen */
+.explorar-video-whatsapp {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: 8px;
+    width: 24px;
+    height: 24px;
+    color: #22c55e;
+    font-size: 18px;
+    text-decoration: none;
+}
+
+/* WhatsApp em nome do card no explorar */
+.explorar-card-whatsapp {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: 8px;
+    width: 24px;
+    height: 24px;
+    color: #22c55e;
+    font-size: 18px;
+    text-decoration: none;
+}
+
+/* Avatares de likes: estilo neutro para não-donos */
+.explorar-like-avatars.non-owner {
+    cursor: default;
+}
 
 /* Reduzir largura do modal de postagem em todas as telas */
 #modal-postagem-completa .modal-content.modal-grande {
@@ -11180,7 +11522,10 @@ html.dark-mode .btn-confirmar-nao:hover {
 /* Explorar: modal de postagem + chips + subfiltros */
 .explorar-post-modal {
     position: fixed;
-    inset: 0;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
     height: 100vh;
     height: 100svh;
     background: rgba(6, 16, 18, 0.55);
@@ -11274,6 +11619,7 @@ body.explorar-post-modal-open #explorar-page {
     display: flex;
     align-items: center;
     justify-content: center;
+    position: relative;
 }
 
 .explorar-post-preview img,
@@ -11283,6 +11629,24 @@ body.explorar-post-modal-open #explorar-page {
     max-height: 780px;
     object-fit: contain;
     background: #000;
+}
+
+.explorar-upload-progress {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: rgba(255, 255, 255, 0.18);
+    pointer-events: none;
+    display: none;
+}
+
+.explorar-upload-progress-bar {
+    width: 0%;
+    height: 100%;
+    background: #10b981;
+    transition: width 0.15s linear;
 }
 
 .explorar-post-desc {
@@ -11401,21 +11765,21 @@ body.explorar-post-modal-open #explorar-page {
 
 @media (max-width: 767px) {
     .explorar-post-modal {
-        align-items: flex-start;
-        padding-top: 40px;
-        padding-bottom: calc(var(--bottom-nav-height, 56px) + 5px + env(safe-area-inset-bottom, 0px));
+        align-items: stretch;
+        justify-content: stretch;
+        padding: 0;
     }
 
     .explorar-post-modal-card {
         width: 100vw;
         margin: 0;
         padding: 0;
-        height: calc(100vh - 40px - var(--bottom-nav-height, 56px) - 5px - env(safe-area-inset-bottom, 0px));
-        height: calc(100svh - 40px - var(--bottom-nav-height, 56px) - 5px - env(safe-area-inset-bottom, 0px));
-        height: calc(100dvh - 40px - var(--bottom-nav-height, 56px) - 5px - env(safe-area-inset-bottom, 0px));
-        max-height: calc(100vh - 40px - var(--bottom-nav-height, 56px) - 5px - env(safe-area-inset-bottom, 0px));
-        max-height: calc(100svh - 40px - var(--bottom-nav-height, 56px) - 5px - env(safe-area-inset-bottom, 0px));
-        max-height: calc(100dvh - 40px - var(--bottom-nav-height, 56px) - 5px - env(safe-area-inset-bottom, 0px));
+        height: 100vh;
+        height: 100svh;
+        height: 100dvh;
+        max-height: 100vh;
+        max-height: 100svh;
+        max-height: 100dvh;
         position: relative;
         overflow: hidden;
     }
@@ -12012,6 +12376,56 @@ body.explorar-open header.search-open .header-actions {
     text-shadow: 0 2px 8px rgba(0, 0, 0, 0.55);
 }
 
+.explorar-like-btn {
+    position: absolute;
+    right: 0;
+    bottom: 4px;
+    transform: translate(-4px, 0);
+    background: transparent;
+    border: none;
+    color: #fff;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 14px;
+    cursor: pointer;
+    padding: 6px 8px;
+}
+
+.explorar-like-btn i {
+    font-size: 18px;
+}
+
+.explorar-like-btn .like-count {
+    font-size: 13px;
+}
+
+.explorar-like-btn.liked i {
+    color: #f97373;
+}
+
+.explorar-like-btn.liked,
+.explorar-like-btn.liked i {
+    color: #f97373 !important;
+}
+
+@keyframes likePulse {
+    0% { transform: scale(1); }
+    40% { transform: scale(1.25); }
+    100% { transform: scale(1); }
+}
+.btn-like.liked.pulse i,
+.explorar-like-btn.liked.pulse i,
+.explorar-video-like-btn.liked.pulse i {
+    animation: likePulse 380ms ease;
+    transform-origin: center;
+    will-change: transform;
+}
+.explorar-video-like-btn.liked,
+.explorar-video-like-btn.liked i {
+    color: #f97373 !important;
+}
+
 .explorar-card-info-overlay .explorar-card-title,
 .explorar-card-info-overlay .explorar-card-desc,
 .explorar-card-info-overlay .explorar-card-empresa,
@@ -12297,6 +12711,71 @@ body.explorar-open header.search-open .header-actions {
 /* FIX: Limitar grid de mídia a 4 itens no feed (caso o JS não corte) */
 .post-media-grid.grid-4 .post-media-wrapper:nth-child(n+5) {
     display: none;
+}
+
+/* Lightbox fullscreen para mídia das postagens */
+.lightbox-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.9);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10010;
+}
+
+.lightbox-content {
+    position: relative;
+    max-width: 90vw;
+    max-height: 90vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.lightbox-media {
+    max-width: 100%;
+    max-height: 90vh;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+    display: block;
+}
+
+.lightbox-close {
+    position: absolute;
+    top: 12px;
+    right: 18px;
+    background: transparent;
+    border: none;
+    color: #fff;
+    font-size: 32px;
+    cursor: pointer;
+    z-index: 10001;
+}
+
+.lightbox-nav {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    background: rgba(0, 0, 0, 0.5);
+    border: none;
+    color: #fff;
+    width: 40px;
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 24px;
+}
+
+.lightbox-prev {
+    left: 0;
+}
+
+.lightbox-next {
+    right: 0;
 }
 
 /* FIX: Redimensionar mídia do explorar em desktop */
