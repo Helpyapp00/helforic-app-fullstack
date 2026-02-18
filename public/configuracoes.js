@@ -186,15 +186,23 @@ document.addEventListener('DOMContentLoaded', () => {
     let adPreviewObjectUrl = null;
 
     function clearAdPreview() {
-        if (adPreviewObjectUrl) {
-            try { URL.revokeObjectURL(adPreviewObjectUrl); } catch (_) {}
-        }
+        const toRevoke = adPreviewObjectUrl || null;
         adPreviewObjectUrl = null;
         if (adPreviewImg) {
-            adPreviewImg.src = '';
-            adPreviewImg.removeAttribute('src');
+            try { adPreviewImg.removeAttribute('src'); } catch (_) {}
+            try { adPreviewImg.src = ''; } catch (_) {}
         }
         if (adImagePicker) adImagePicker.classList.remove('has-image');
+        if (toRevoke) {
+            try {
+                // Aguarda o ciclo de renderização para garantir que o <img> já limpou o src
+                requestAnimationFrame(() => {
+                    try { URL.revokeObjectURL(toRevoke); } catch (_) {}
+                });
+            } catch (_) {
+                try { URL.revokeObjectURL(toRevoke); } catch (_) {}
+            }
+        }
     }
 
     function openAdFilePicker() {
@@ -1082,4 +1090,3 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 });
-

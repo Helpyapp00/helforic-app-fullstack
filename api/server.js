@@ -79,13 +79,10 @@ function authMiddleware(req, res, next) {
     }
 }
 
-// Função helper para carregar sharp apenas quando necessário (lazy loading)
-// Cache para evitar múltiplas tentativas de carregamento
 let sharpCache = null;
 let sharpLoadAttempted = false;
 
 function getSharp() {
-    // Se já tentou carregar antes e falhou, retorna null imediatamente
     if (sharpLoadAttempted) {
         return sharpCache;
     }
@@ -93,18 +90,12 @@ function getSharp() {
     sharpLoadAttempted = true;
     
     try {
-        // Tenta carregar o Sharp
         sharpCache = require('sharp');
-        
-        // Verifica se o Sharp está funcionando
         if (sharpCache && typeof sharpCache === 'function') {
             return sharpCache;
         }
         throw new Error('Sharp carregado mas não funcional');
     } catch (error) {
-        // Não loga como erro crítico, apenas como aviso informativo
-        // O sistema funciona normalmente sem Sharp usando o buffer original
-        // Só loga detalhes em desenvolvimento para não poluir logs de produção
         if (IS_DEV) {
             console.warn('⚠️ Sharp não disponível - usando processamento básico de imagem');
             console.warn('   Detalhes:', error.message);
@@ -114,11 +105,30 @@ function getSharp() {
     }
 }
 
+async function convertImageToWebp(buffer, maxWidth) {
+    const sharp = getSharp();
+    if (!sharp || !buffer) return buffer;
+    try {
+        let instance = sharp(buffer).rotate();
+        if (Number.isFinite(maxWidth) && maxWidth > 0) {
+            instance = instance.resize({ width: maxWidth, withoutEnlargement: true });
+        }
+        return await instance.toFormat('webp', { quality: 80 }).toBuffer();
+    } catch (e) {
+        return buffer;
+    }
+}
+
 const app = express();
 
 app.use(express.json({ limit: '500mb' }));
 app.use(express.urlencoded({ extended: true, limit: '500mb' }));
-app.use(express.static(path.join(__dirname, '../public')));
+
+const publicDir = path.join(__dirname, '../public');
+app.use('/uploads/explorar', express.static(path.join(publicDir, 'uploads/explorar'), { maxAge: 24 * 60 * 60 * 1000 }));
+app.use('/uploads/posts', express.static(path.join(publicDir, 'uploads/posts'), { maxAge: 7 * 24 * 60 * 60 * 1000 }));
+app.use('/uploads/avatars', express.static(path.join(publicDir, 'uploads/avatars'), { maxAge: 7 * 24 * 60 * 60 * 1000 }));
+app.use(express.static(publicDir));
 
 const INTERESSE_KEYWORDS_BASE = [
     'pintura',
@@ -898,7 +908,17 @@ app.post('/api/explorar-posts', authMiddleware, upload.single('media'), async (r
         let mediaType = '';
         if (file) {
             mediaType = file.mimetype || '';
-            const ext = path.extname(file.originalname || '').toLowerCase() || (mediaType.includes('video') ? '.mp4' : '.jpg');
+            let buffer = file.buffer;
+            const isImage = mediaType && mediaType.startsWith('image/');
+            if (isImage && buffer) {
+                buffer = await convertImageToWebp(buffer, 1080);
+                mediaType = 'image/webp';
+            }
+            const originalExt = path.extname(file.originalname || '').toLowerCase();
+            let ext = originalExt || (mediaType.includes('video') ? '.mp4' : (isImage ? '.webp' : '.bin'));
+            if (isImage) {
+                ext = '.webp';
+            }
             const filename = `${Date.now()}_${crypto.randomBytes(8).toString('hex')}${ext}`;
 
             if (s3Client && bucketName && process.env.AWS_REGION) {
@@ -906,7 +926,7 @@ app.post('/api/explorar-posts', authMiddleware, upload.single('media'), async (r
                 const uploadCommand = new PutObjectCommand({
                     Bucket: bucketName,
                     Key: key,
-                    Body: file.buffer,
+                    Body: buffer,
                     ContentType: mediaType || 'application/octet-stream'
                 });
                 await s3Client.send(uploadCommand);
@@ -918,7 +938,7 @@ app.post('/api/explorar-posts', authMiddleware, upload.single('media'), async (r
                 } catch (e) {}
 
                 const filePath = path.join(uploadsDir, filename);
-                fs.writeFileSync(filePath, file.buffer);
+                fs.writeFileSync(filePath, buffer);
                 mediaUrl = `/uploads/explorar/${filename}`;
             }
         }
@@ -1398,11 +1418,20 @@ app.post('/api/posts', authMiddleware, upload.array('media', 10), async (req, re
 
         const mediaList = [];
 
-        // Processa cada arquivo
         for (const file of files) {
             let mediaUrl = '';
-            let mediaType = file.mimetype;
-            const ext = path.extname(file.originalname).toLowerCase() || (mediaType.includes('video') ? '.mp4' : '.jpg');
+            let mediaType = file.mimetype || '';
+            let buffer = file.buffer;
+            const isImage = mediaType && mediaType.startsWith('image/');
+            if (isImage && buffer) {
+                buffer = await convertImageToWebp(buffer, 1280);
+                mediaType = 'image/webp';
+            }
+            const originalExt = path.extname(file.originalname || '').toLowerCase();
+            let ext = originalExt || (mediaType.includes('video') ? '.mp4' : (isImage ? '.webp' : '.bin'));
+            if (isImage) {
+                ext = '.webp';
+            }
             const filename = `${Date.now()}_${crypto.randomBytes(8).toString('hex')}${ext}`;
 
             if (s3Client && bucketName && process.env.AWS_REGION) {
@@ -1410,7 +1439,7 @@ app.post('/api/posts', authMiddleware, upload.array('media', 10), async (req, re
                 const uploadCommand = new PutObjectCommand({
                     Bucket: bucketName,
                     Key: key,
-                    Body: file.buffer,
+                    Body: buffer,
                     ContentType: mediaType || 'application/octet-stream'
                 });
                 await s3Client.send(uploadCommand);
@@ -1422,7 +1451,7 @@ app.post('/api/posts', authMiddleware, upload.array('media', 10), async (req, re
                 } catch (e) {}
 
                 const filePath = path.join(uploadsDir, filename);
-                fs.writeFileSync(filePath, file.buffer);
+                fs.writeFileSync(filePath, buffer);
                 mediaUrl = `/uploads/posts/${filename}`;
             }
             

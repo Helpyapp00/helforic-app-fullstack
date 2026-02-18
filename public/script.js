@@ -800,6 +800,47 @@ document.addEventListener('DOMContentLoaded', () => {
         explorarVideoOverlay.setAttribute('aria-hidden', 'false');
         document.body.classList.add('explorar-video-open');
         updateExplorarStoryNav();
+        // Ao abrir um vídeo do explorar que não está em modo story,
+        // carregue automaticamente a sequência de status do mesmo autor
+        // para permitir continuidade (próximo/anterior) no fullscreen.
+        if (!isStory && info?.ownerId && info?.postId) {
+            (async () => {
+                try {
+                    const ownerId = String(info.ownerId);
+                    const currentPostId = String(info.postId);
+                    const stories = await getOwnerStories(ownerId);
+                    if (Array.isArray(stories) && stories.length) {
+                        const mapped = stories.map((story) => ({
+                            id: String(story._id || story.id || ''),
+                            ownerId: story?.userId?._id || story?.userId || story?.ownerId || story?.autorId || ownerId,
+                            mediaUrl: story.mediaUrl,
+                            isVideo: String(story.mediaType || '').includes('video'),
+                            nome: story?.titulo || story?.nome || info?.nome || 'Status',
+                            desc: story?.descricao || story?.content || info?.desc || '',
+                            cidade: [story?.cidade, story?.estado].filter(Boolean).join(' - ') || (info?.cidade || '')
+                        }));
+                        let index = mapped.findIndex((s) => String(s.id) === currentPostId);
+                        // Se a lista não contém o post atual, insere-o mantendo ordem estável (no início).
+                        if (index === -1) {
+                            mapped.unshift({
+                                id: currentPostId,
+                                ownerId,
+                                mediaUrl: src,
+                                isVideo: true,
+                                nome: info?.nome || 'Status',
+                                desc: info?.desc || '',
+                                cidade: info?.cidade || ''
+                            });
+                            index = 0;
+                        }
+                        explorarStoryQueue = mapped;
+                        setExplorarStorySegments(explorarStoryQueue.length);
+                        goToExplorarStory(index);
+                        return;
+                    }
+                } catch {}
+            })();
+        }
         explorarVideoFull.play().catch(() => {});
     }
 
@@ -1491,6 +1532,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
 
+                // Somente vídeos no explorar
+                if (!file.type.startsWith('video/')) {
+                    showExplorarMsg('Somente vídeos são permitidos no explorar');
+                    explorarMediaInput.value = '';
+                    return;
+                }
+
                 // Validação de Vídeo (Duração max 30s)
                 if (file.type.startsWith('video/')) {
                     openExplorarModal(file);
@@ -1512,8 +1560,6 @@ document.addEventListener('DOMContentLoaded', () => {
                          // mantém modal aberto, apenas loga erro
                     };
                     video.src = URL.createObjectURL(file);
-                } else {
-                    openExplorarModal(file);
                 }
             }
         });
@@ -1534,8 +1580,12 @@ document.addEventListener('DOMContentLoaded', () => {
     if (explorarPostSend) {
         explorarPostSend.addEventListener('click', async () => {
             if (!token) return;
+            // Evita duplicidade por cliques repetidos
+            if (explorarPostSend.dataset.sending === '1' || explorarPostSend.disabled) return;
             const content = explorarPostDesc?.value || '';
             if (!content.trim() && !explorarSelectedFile) return;
+            explorarPostSend.dataset.sending = '1';
+            explorarPostSend.disabled = true;
             const formData = new FormData();
             formData.append('content', content);
             const categoriaAtual = explorarCategoriaCurrent?.textContent?.trim();
@@ -1594,11 +1644,16 @@ document.addEventListener('DOMContentLoaded', () => {
                         fetchExplorarFeed();
                     } catch (err) {
                         console.error('Erro ao enviar explorar:', err);
+                    } finally {
+                        delete explorarPostSend.dataset.sending;
+                        explorarPostSend.disabled = false;
                     }
                 };
                 xhr.send(formData);
             } catch (err) {
                 console.error('Erro ao enviar explorar:', err);
+                delete explorarPostSend.dataset.sending;
+                explorarPostSend.disabled = false;
             }
         });
     }
@@ -2784,6 +2839,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const mediaUrl = item.mediaUrl || item.imagemUrl || '';
             const isVideo = String(item.mediaType || '').includes('video');
             const isStatus = item?.tipo === 'post' && !!mediaUrl;
+            if (!isVideo) {
+                return;
+            }
             const badge = item.tipo === 'anuncio' ? 'Anuncio' : '';
             const title = item.titulo || item.nome || 'Oferta local';
             const desc = item.descricao || item.content || '';
@@ -2987,27 +3045,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             }
 
-            const imgEl = card.querySelector('img.explorar-image');
-            if (imgEl) {
-                imgEl.addEventListener('click', (event) => {
-                    event.preventDefault();
-                    const src = imgEl.getAttribute('src') || imgEl.getAttribute('data-src');
-                    if (src && !imgEl.getAttribute('src')) {
-                        imgEl.setAttribute('src', src);
-                        imgEl.removeAttribute('data-src');
-                    }
-                    openExplorarImage(src, {
-                        nome: empresaNome,
-                        desc: desc || title,
-                        cidade: cityText,
-                        avatar: perfilFoto,
-                        perfilUrl,
-                        postId: rawItemId,
-                        ownerId,
-                        isStory: false
-                    });
-                });
-            }
+            // Nenhum handler para imagens (explorar apenas vídeos)
 
             const likeBtn = card.querySelector('.explorar-like-btn.btn-like');
             if (likeBtn) {
@@ -3055,7 +3093,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
 
-            if ((index + 1) % 4 === 0) {
+            if (false && (index + 1) % 4 === 0) {
                 const ad = pickNextAdFeed();
                 if (ad) {
                     const adEl = buildAdElementFeed(ad);
@@ -3094,10 +3132,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 throw new Error(data?.message || 'Falha ao carregar explore.');
             }
             const items = Array.isArray(data?.items) ? data.items : [];
-            renderExplorarFeed(items);
+            const onlyVideos = items.filter((it) => {
+                const isPost = it?.tipo === 'post';
+                const hasMedia = !!it?.mediaUrl;
+                const isVideo = String(it?.mediaType || '').includes('video');
+                return isPost && hasMedia && isVideo;
+            });
+            renderExplorarFeed(onlyVideos);
             applyProfileReturnScroll();
             if (userId) {
-                const userStories = items.filter((item) => {
+                const userStories = onlyVideos.filter((item) => {
                     const itemUserId = item?.userId?._id || item?.userId || item?.autorId || item?.ownerId;
                     return item?.tipo === 'post' && itemUserId && String(itemUserId) === String(userId) && item?.mediaUrl;
                 });
@@ -4068,7 +4112,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 const rawOwner = it?.userId?._id || it?.userId || it?.dono?._id || it?.dono?.id || it?.ownerId || it?.autorId;
                 const ownerVal = rawOwner?._id || rawOwner;
                 const isStatus = it?.tipo === 'post' && !!it.mediaUrl;
-                return ownerVal && String(ownerVal) === String(ownerId) && isStatus;
+                const isVideo = String(it?.mediaType || '').includes('video');
+                return ownerVal && String(ownerVal) === String(ownerId) && isStatus && isVideo;
             });
             return stories;
         } catch {
