@@ -124,6 +124,26 @@ const app = express();
 app.use(express.json({ limit: '500mb' }));
 app.use(express.urlencoded({ extended: true, limit: '500mb' }));
 
+app.use((req, res, next) => {
+    const allowed = new Set([
+        'https://helpyapp.net',
+        'https://www.helpyapp.net'
+    ]);
+    const origin = req.headers.origin;
+    if (origin && allowed.has(origin)) {
+        res.setHeader('Access-Control-Allow-Origin', origin);
+        res.setHeader('Vary', 'Origin');
+    }
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    if (req.method === 'OPTIONS') {
+        res.status(204).end();
+        return;
+    }
+    next();
+});
+
 const publicDir = path.join(__dirname, '../public');
 app.use('/uploads/explorar', express.static(path.join(publicDir, 'uploads/explorar'), { maxAge: 24 * 60 * 60 * 1000 }));
 app.use('/uploads/posts', express.static(path.join(publicDir, 'uploads/posts'), { maxAge: 7 * 24 * 60 * 60 * 1000 }));
