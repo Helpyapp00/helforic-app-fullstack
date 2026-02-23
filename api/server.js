@@ -650,7 +650,8 @@ const userSchema = new mongoose.Schema({
     tema: { type: String },
     userTheme: { type: String },
     consentimentoLGPDAt: { type: Date },
-    role: { type: String, default: 'user' }
+    role: { type: String, default: 'user' },
+    cpf: { type: String, trim: true }
 }, { timestamps: true, strict: false });
 
 const User = mongoose.models.User || mongoose.model('User', userSchema);
@@ -990,6 +991,9 @@ app.get('/api/anuncios', authMiddleware, async (req, res) => {
 });
 
 app.post('/api/pagamentos/mercadopago/preference', authMiddleware, paymentController.criarPreferenciaPagamento);
+app.post('/api/pagamentos/mercadopago/pix', authMiddleware, paymentController.criarPagamentoPix);
+app.get('/api/pagamentos/mercadopago/pix/status', authMiddleware, paymentController.consultarPagamentoPix);
+app.post('/api/pagamentos/mercadopago/pix/confirm', authMiddleware, paymentController.confirmarPagamentoPix);
 app.post('/webhooks/mercadopago', express.json({ type: '*/*' }), paymentController.webhookMercadoPago);
 
 app.get('/api/anuncios-feed', authMiddleware, async (req, res) => {

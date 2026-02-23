@@ -4910,7 +4910,7 @@ textarea#post-content-input::placeholder { color: var(--text-placeholder); }
 .popup-conteudo button { background-color: var(--btn-secondary-bg); color: white; border: none; padding: 12px 25px; border-radius: 5px; cursor: pointer; font-size: 1.1em; margin: 5px; transition: background-color 0.2s; } 
 .popup-conteudo button:hover { background-color: var(--btn-secondary-hover); } 
 .oculto { display: none !important; }
-.modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100dvh; background-color: rgba(0, 0, 0, 0.6); display: flex; justify-content: center; align-items: flex-start; z-index: 5000; padding: 20px; box-sizing: border-box; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+.modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100dvh; background-color: rgba(0, 0, 0, 0.6); display: flex; justify-content: center; align-items: flex-start; z-index: 1800; padding: 20px; box-sizing: border-box; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
 .modal-overlay.hidden { display: none !important; }
 
 /* Cards de plano (criar anúncio) */

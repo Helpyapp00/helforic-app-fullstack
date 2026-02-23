@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const fs = require('fs');
 const path = require('path');
 const AnuncioPago = mongoose.models.AnuncioPago || mongoose.model('AnuncioPago');
+const User = mongoose.models.User || mongoose.model('User');
 
 function getMpAccessToken() {
     const direct =
@@ -133,6 +134,7 @@ async function criarPreferenciaPagamento(req, res) {
 
         let externalReference = '';
         let itemDescription = planoInfo.title;
+        let unitPrice = Number(planoInfo.price);
 
         if (anuncioId && mongoose.Types.ObjectId.isValid(anuncioId)) {
             const anuncio = await AnuncioPago.findById(anuncioId).lean();
@@ -141,6 +143,10 @@ async function criarPreferenciaPagamento(req, res) {
             }
             externalReference = String(anuncioId);
             itemDescription = anuncio.titulo || planoInfo.title;
+            if (planoKey === 'premium' && String(anuncio.plano) === 'basico') {
+                const diff = Math.max(Number(PLANOS.premium.price) - Number(PLANOS.basico.price), 0);
+                unitPrice = diff;
+            }
         } else {
             const userId = req.user && req.user.id ? String(req.user.id) : null;
             if (!userId) {
@@ -172,18 +178,18 @@ async function criarPreferenciaPagamento(req, res) {
         const preference = {
             items: [
                 {
-                    title: planoInfo.title,
+                    title: (anuncioId && planoKey === 'premium') ? 'Upgrade para Premium - Anúncio Helpy' : planoInfo.title,
                     description: itemDescription,
-                    unit_price: Number(planoInfo.price),
+                    unit_price: unitPrice,
                     quantity: 1,
                     currency_id: 'BRL'
                 }
             ],
             external_reference: externalReference,
             back_urls: {
-                success: `${backBase}/configuracoes-conta.html?pagamento=sucesso`,
-                failure: `${backBase}/configuracoes-conta.html?pagamento=erro`,
-                pending: `${backBase}/configuracoes-conta.html?pagamento=pendente`
+                success: `${backBase}/configuracoes-conta.html?pagamento=sucesso&section=sec-anuncios`,
+                failure: `${backBase}/configuracoes-conta.html?pagamento=erro&section=sec-anuncios`,
+                pending: `${backBase}/configuracoes-conta.html?pagamento=pendente&section=sec-anuncios`
             },
             auto_return: isLocalBack ? undefined : 'approved',
             payment_methods: {
@@ -206,6 +212,213 @@ async function criarPreferenciaPagamento(req, res) {
     }
 }
 
+async function criarPagamentoPix(req, res) {
+    try {
+        const {
+            plano,
+            anuncioId,
+            titulo,
+            descricao,
+            imagemUrl,
+            linkUrl,
+            endereco,
+            numero,
+            cidade,
+            estado,
+            email,
+            cpf
+        } = req.body || {};
+
+        const planoKey = String(plano || 'basico').toLowerCase() === 'premium' ? 'premium' : 'basico';
+        const planoInfo = PLANOS[planoKey];
+
+        if (!email || !cpf) {
+            return res.status(400).json({ success: false, message: 'E-mail e CPF são obrigatórios para pagamento via Pix.' });
+        }
+
+        const paymentClient = createPaymentClient();
+        if (!paymentClient) {
+            return res.status(500).json({ success: false, message: 'Pagamento indisponível no momento.' });
+        }
+
+        const userId = req.user && req.user.id ? String(req.user.id) : null;
+
+        let externalReference = '';
+        let itemDescription = planoInfo.title;
+        let unitPrice = Number(planoInfo.price);
+
+        if (anuncioId && mongoose.Types.ObjectId.isValid(anuncioId)) {
+            const anuncio = await AnuncioPago.findById(anuncioId).lean();
+            if (!anuncio) {
+                return res.status(404).json({ success: false, message: 'Anúncio não encontrado.' });
+            }
+            externalReference = String(anuncioId);
+            itemDescription = anuncio.titulo || planoInfo.title;
+            if (planoKey === 'premium' && String(anuncio.plano) === 'basico') {
+                const diff = Math.max(Number(PLANOS.premium.price) - Number(PLANOS.basico.price), 0);
+                unitPrice = diff;
+            }
+        } else {
+            if (!userId) {
+                return res.status(401).json({ success: false, message: 'Usuário não autenticado.' });
+            }
+            if (!titulo || !imagemUrl) {
+                return res.status(400).json({ success: false, message: 'Título e imagem são obrigatórios para criar o anúncio.' });
+            }
+            const tituloFinal = String(titulo || '').trim();
+            const anuncioNovo = new AnuncioPago({
+                ownerId: userId,
+                titulo: tituloFinal,
+                descricao: descricao ? String(descricao).trim() : '',
+                imagemUrl: String(imagemUrl || '').trim(),
+                linkUrl: linkUrl ? String(linkUrl).trim() : '',
+                endereco: endereco ? String(endereco).trim() : '',
+                numero: numero ? String(numero).trim() : '',
+                cidade: cidade ? String(cidade).trim() : '',
+                estado: estado ? String(estado).trim() : '',
+                plano: planoKey,
+                ativo: false,
+                prioridade: planoKey === 'premium' ? 10 : 0
+            });
+            const salvo = await anuncioNovo.save();
+            externalReference = String(salvo._id);
+            itemDescription = tituloFinal || planoInfo.title;
+        }
+
+        const cleanCpf = String(cpf).replace(/\D/g, '');
+
+        const body = {
+            transaction_amount: unitPrice,
+            description: itemDescription,
+            payment_method_id: 'pix',
+            external_reference: externalReference,
+            payer: {
+                email: String(email).trim(),
+                identification: {
+                    type: 'CPF',
+                    number: cleanCpf
+                }
+            }
+        };
+
+        try {
+            console.log('[PIX] Criando pagamento', {
+                anuncioId: anuncioId || null,
+                plano: planoKey,
+                unitPrice,
+                external_reference: externalReference
+            });
+        } catch (e) {}
+
+        const payment = await paymentClient.create({ body });
+        if (userId && cleanCpf && cleanCpf.length === 11) {
+            try {
+                const existingUser = await User.findById(userId).select('cpf').exec();
+                if (existingUser && !existingUser.cpf) {
+                    existingUser.cpf = cleanCpf;
+                    await existingUser.save();
+                }
+            } catch (e) {
+                console.error('Erro ao atualizar CPF do usuário:', e);
+            }
+        }
+        const transactionData = payment && payment.point_of_interaction && payment.point_of_interaction.transaction_data
+            ? payment.point_of_interaction.transaction_data
+            : {};
+
+        return res.json({
+            success: true,
+            id: payment && payment.id ? payment.id : null,
+            status: payment && payment.status ? payment.status : null,
+            status_detail: payment && payment.status_detail ? payment.status_detail : null,
+            qr_code: transactionData.qr_code || null,
+            qr_code_base64: transactionData.qr_code_base64 || null,
+            ticket_url: transactionData.ticket_url || null,
+            copy_and_paste: transactionData.qr_code || null
+        });
+    } catch (error) {
+        console.error('Erro ao criar pagamento Pix Mercado Pago:', error);
+        return res.status(500).json({ success: false, message: 'Erro ao iniciar pagamento via Pix.' });
+    }
+}
+
+async function consultarPagamentoPix(req, res) {
+    try {
+        const id = req.query.id || req.query.paymentId;
+        if (!id) {
+            return res.status(400).json({ success: false, message: 'ID do pagamento é obrigatório.' });
+        }
+        const paymentClient = createPaymentClient();
+        if (!paymentClient) {
+            return res.status(500).json({ success: false, message: 'Pagamento indisponível no momento.' });
+        }
+        const payment = await paymentClient.get({ id });
+        return res.json({
+            success: true,
+            status: payment && payment.status ? payment.status : null,
+            status_detail: payment && payment.status_detail ? payment.status_detail : null
+        });
+    } catch (error) {
+        console.error('Erro ao consultar pagamento Pix Mercado Pago:', error);
+        return res.status(500).json({ success: false, message: 'Erro ao consultar status do pagamento Pix.' });
+    }
+}
+
+async function confirmarPagamentoPix(req, res) {
+    try {
+        const id = req.body?.id || req.body?.paymentId;
+        if (!id) {
+            return res.status(400).json({ success: false, message: 'ID do pagamento é obrigatório.' });
+        }
+        const paymentClient = createPaymentClient();
+        if (!paymentClient) {
+            return res.status(500).json({ success: false, message: 'Pagamento indisponível no momento.' });
+        }
+        const payment = await paymentClient.get({ id });
+        const status = payment && payment.status;
+        const externalRef = payment && payment.external_reference;
+        if (status === 'approved' && externalRef && mongoose.Types.ObjectId.isValid(externalRef)) {
+            try {
+                const anuncioExistente = await AnuncioPago.findById(externalRef);
+                if (anuncioExistente) {
+                    const planoAtual = anuncioExistente.plano === 'premium' ? 'premium' : 'basico';
+                    const amount = Number(payment && payment.transaction_amount ? payment.transaction_amount : 0);
+                    const diff = Math.max(Number(PLANOS.premium.price) - Number(PLANOS.basico.price), 0);
+                    const isUpgrade = (planoAtual === 'basico') && Math.abs(amount - diff) < 0.1;
+                    const inicioFinal = new Date();
+                    const fimFinal = new Date(inicioFinal.getTime() + 30 * 24 * 60 * 60 * 1000);
+                    const update = { ativo: true };
+                    if (isUpgrade) {
+                        update.inicioEm = inicioFinal;
+                        update.fimEm = fimFinal;
+                        update.prioridade = 10;
+                        update.plano = 'premium';
+                    } else if (!anuncioExistente.inicioEm) {
+                        update.inicioEm = inicioFinal;
+                        update.fimEm = fimFinal;
+                        update.prioridade = planoAtual === 'premium' ? 10 : 0;
+                    }
+                    console.log('[PIX][CONFIRM] approved', {
+                        paymentId: id,
+                        externalRef,
+                        amount,
+                        planoAtual,
+                        isUpgrade,
+                        set: update
+                    });
+                    const result = await AnuncioPago.findByIdAndUpdate(externalRef, { $set: update });
+                    console.log('[PIX][CONFIRM] update result', { _id: externalRef, ok: !!result });
+                }
+            } catch (e) {
+                console.error('Erro ao confirmar pagamento de anúncio:', e);
+            }
+        }
+        return res.json({ success: true, status: status || null });
+    } catch (error) {
+        console.error('Erro ao confirmar pagamento Pix:', error);
+        return res.status(500).json({ success: false, message: 'Erro ao confirmar pagamento Pix.' });
+    }
+}
 async function webhookMercadoPago(req, res) {
     try {
         const type = req.query.type || req.query.topic;
@@ -224,10 +437,52 @@ async function webhookMercadoPago(req, res) {
                 const externalRef = payment && payment.external_reference;
 
                 if (status === 'approved' && externalRef) {
-                    if (mongoose.Types.ObjectId.isValid(externalRef)) {
-                        await AnuncioPago.findByIdAndUpdate(externalRef, {
-                            $set: { ativo: true }
+                    try {
+                        console.log('[WEBHOOK] Pagamento aprovado', {
+                            paymentId: dataId,
+                            externalRef,
+                            amount: payment?.transaction_amount || null
                         });
+                    } catch (e) {}
+                    if (mongoose.Types.ObjectId.isValid(externalRef)) {
+                        try {
+                            const anuncioExistente = await AnuncioPago.findById(externalRef);
+                            if (anuncioExistente) {
+                                const inicioAtual = anuncioExistente.inicioEm;
+                                const planoAtual = anuncioExistente.plano === 'premium' ? 'premium' : 'basico';
+                                const prioridadeAtual = planoAtual === 'premium' ? 10 : 0;
+                                const amount = Number(payment && payment.transaction_amount ? payment.transaction_amount : 0);
+                                const diff = Math.max(Number(PLANOS.premium.price) - Number(PLANOS.basico.price), 0);
+                                const isUpgrade = (planoAtual === 'basico') && Math.abs(amount - diff) < 0.1;
+
+                                const update = { ativo: true };
+                                if (isUpgrade) {
+                                    const inicioFinal = new Date();
+                                    const fimFinal = new Date(inicioFinal.getTime() + 30 * 24 * 60 * 60 * 1000);
+                                    update.inicioEm = inicioFinal;
+                                    update.fimEm = fimFinal;
+                                    update.prioridade = 10;
+                                    update.plano = 'premium';
+                                } else if (!inicioAtual) {
+                                    const inicioFinal = new Date();
+                                    const fimFinal = new Date(inicioFinal.getTime() + 30 * 24 * 60 * 60 * 1000);
+                                    update.inicioEm = inicioFinal;
+                                    update.fimEm = fimFinal;
+                                    update.prioridade = prioridadeAtual;
+                                }
+                                console.log('[WEBHOOK] Atualizando anúncio existente', {
+                                    _id: externalRef,
+                                    planoAtual,
+                                    amount,
+                                    isUpgrade,
+                                    set: update
+                                });
+                                const result = await AnuncioPago.findByIdAndUpdate(externalRef, { $set: update });
+                                console.log('[WEBHOOK] Update result', { _id: externalRef, ok: !!result });
+                            }
+                        } catch (e) {
+                            console.error('Erro ao atualizar anúncio existente a partir do webhook:', e);
+                        }
                     } else {
                         try {
                             const json = Buffer.from(String(externalRef), 'base64').toString('utf8');
@@ -255,6 +510,11 @@ async function webhookMercadoPago(req, res) {
                                     prioridade: prioridadeFinal
                                 });
                                 await anuncio.save();
+                                console.log('[WEBHOOK] Criado novo anúncio a partir do pagamento', {
+                                    ownerId: payload.userId,
+                                    plano: planoFinal,
+                                    _id: anuncio._id
+                                });
                             }
                         } catch (parseErr) {
                             console.error('Falha ao interpretar external_reference do pagamento:', parseErr);
@@ -275,5 +535,8 @@ async function webhookMercadoPago(req, res) {
 
 module.exports = {
     criarPreferenciaPagamento,
-    webhookMercadoPago
+    criarPagamentoPix,
+    webhookMercadoPago,
+    consultarPagamentoPix,
+    confirmarPagamentoPix
 };

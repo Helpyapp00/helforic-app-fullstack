@@ -78,6 +78,9 @@ document.addEventListener('DOMContentLoaded', () => {
         return { 'Authorization': `Bearer ${t}` };
     }
 
+    let loggedUserEmail = null;
+    let loggedUserCpf = null;
+
     async function carregarMeusAnuncios() {
         const container = document.getElementById('lista-meus-anuncios');
         if (!container) return;
@@ -97,15 +100,42 @@ document.addEventListener('DOMContentLoaded', () => {
 
             container.innerHTML = anuncios.map((a) => {
                 const titulo = a?.titulo ? String(a.titulo) : 'Anúncio';
-                const cidadeEstado = [a?.cidade, a?.estado].filter(Boolean).join(' - ');
-                const status = a?.ativo ? 'Ativo' : 'Inativo';
+                const descricao = a?.descricao ? String(a.descricao) : '';
                 const plano = a?.plano ? String(a.plano) : 'basico';
-                const preco = plano === 'premium' ? 'R$ 39,90/mês' : 'R$ 19,90';
+                const ativo = !!a?.ativo;
+                const imagemUrl = a?.imagemUrl ? String(a.imagemUrl) : '';
+                const preco = plano === 'premium' ? 'R$ 39,90' : 'R$ 19,90';
+                const planoBadge = plano === 'premium' ? 'PREMIUM' : 'BÁSICO';
+                const fim = a?.fimEm ? new Date(a.fimEm) : null;
+                const expiraTxt = fim ? `Expira em: ${('0'+fim.getDate()).slice(-2)}/${('0'+(fim.getMonth()+1)).slice(-2)}/${fim.getFullYear()}` : null;
+                const isUpgradeBasico = plano === 'basico';
+                const btnLabel = isUpgradeBasico ? 'Impulsionar' : 'Renovar';
+                const payPlano = 'premium';
+                const bgStyle = imagemUrl
+                    ? `background-image: url('${imagemUrl.replace(/'/g, '%27')}'); background-size: cover; background-position: center;`
+                    : `background: linear-gradient(135deg, #111 0%, #1f2937 100%);`;
+                const safeTitle = titulo.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+                const safeDesc = descricao.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+                const leftPill = ativo && expiraTxt
+                    ? `<span style="background: rgba(0,0,0,0.6); color: #fff; font-size: 11px; padding: 3px 8px; border-radius: 999px;">${expiraTxt}</span>`
+                    : `<span style="background: rgba(107,114,128,0.95); color: #fff; font-size: 11px; padding: 3px 8px; border-radius: 999px;">INATIVO</span>`;
+
                 return `
-                    <div style="padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.08);">
-                        <div style="font-weight: 700;">${titulo}</div>
-                        <div style="opacity: 0.85;">${cidadeEstado || 'Geral'} • ${status} • Plano: ${plano} (${preco})</div>
-                        <button class="salvar-btn btn-ghost" data-pay-anuncio="${a?._id}" data-pay-plano="${plano}" style="margin-top: 8px; padding: 8px 12px;">Pagar / Impulsionar</button>
+                    <div style="padding: 12px 0; border-bottom: 1px solid rgba(148,163,184,0.18);">
+                        <div class="anuncio-card-preview" style="position: relative; height: 150px; border-radius: 12px; overflow: hidden; ${bgStyle}">
+                            <div style="position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,0) 35%, rgba(0,0,0,0.75) 100%);"></div>
+                            <div style="position: absolute; top: 8px; left: 8px; display: flex; gap: 6px;">
+                                ${leftPill}
+                            </div>
+                            <div style="position: absolute; top: 8px; right: 8px;">
+                                <span style="background: ${plano === 'premium' ? 'rgba(245,158,11,0.95)' : 'rgba(100,116,139,0.95)'}; color: #fff; font-size: 11px; padding: 3px 8px; border-radius: 999px;">${planoBadge}</span>
+                            </div>
+                            <div style="position: absolute; left: 12px; right: 12px; bottom: 10px; color: #fff;">
+                                <div style="font-weight: 700; font-size: 16px; line-height: 1.2; text-shadow: 0 1px 2px rgba(0,0,0,0.5);">${safeTitle}</div>
+                                <div style="opacity: 0.9; font-size: 13px; margin-top: 2px; text-shadow: 0 1px 2px rgba(0,0,0,0.5);">${plano === 'premium' ? 'Premium' : 'Básico'} • ${preco}</div>
+                            </div>
+                            <button class="salvar-btn btn-ghost" data-pay-anuncio="${a?._id}" data-pay-plano="${payPlano}" data-title="${safeTitle}" data-imagem="${encodeURIComponent(imagemUrl)}" data-descricao="${safeDesc}" style="position: absolute; right: 14px; bottom: 8px; padding: 5px 12px; font-size: 12px; line-height: 1.1; min-width: auto; width: auto; border-width: 1px;">${btnLabel}</button>
+                        </div>
                     </div>
                 `;
             }).join('');
@@ -131,7 +161,18 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const resp = await fetch('/api/user/me', { headers: getAuthHeaders() });
             const data = await resp.json();
-            const user = data?.user || data;
+            const user = data?.usuario || data?.user || data;
+
+            if (user) {
+                loggedUserEmail = user.email || null;
+                loggedUserCpf = user.cpf || null;
+                if (loggedUserEmail) {
+                    localStorage.setItem('userEmail', loggedUserEmail);
+                }
+                if (loggedUserCpf) {
+                    localStorage.setItem('userCpf', String(loggedUserCpf));
+                }
+            }
 
             const userType = localStorage.getItem('userType');
             const isProfissional =
@@ -299,6 +340,178 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    let pendingAnuncioPagamento = null;
+    let pixPollingInterval = null;
+    let pixCurrentPaymentId = null;
+    let pixIsGenerating = false;
+    const pixModal = document.getElementById('modal-pix-anuncio');
+    const pixEmailInput = document.getElementById('pix-email');
+    const pixCpfInput = document.getElementById('pix-cpf');
+    const pixEmailGroup = document.getElementById('pix-email-group');
+    const pixCpfGroup = document.getElementById('pix-cpf-group');
+    const pixQrWrapper = document.getElementById('pix-qrcode-wrapper');
+    const pixQrImg = document.getElementById('pix-qrcode-img');
+    const pixCopiaCola = document.getElementById('pix-copia-cola');
+    const pixCopyBtn = document.getElementById('pix-copy-btn');
+    const pixAnuncioPreview = document.getElementById('pix-anuncio-preview');
+    const pixAnuncioPreviewImgWrapper = document.getElementById('pix-anuncio-preview-img-wrapper');
+    const pixAnuncioPreviewImg = document.getElementById('pix-anuncio-preview-img');
+    const pixAnuncioPreviewImgFallback = document.getElementById('pix-anuncio-preview-img-fallback');
+    const pixAnuncioPreviewTitulo = document.getElementById('pix-anuncio-preview-titulo');
+    const pixAnuncioPreviewDescricao = document.getElementById('pix-anuncio-preview-descricao');
+    const pixMsg = document.getElementById('pix-msg');
+    const pixGerarBtn = document.getElementById('pix-gerar-btn');
+    const pixCartaoBtn = document.getElementById('pix-cartao-btn');
+    const pixFecharBtn = document.getElementById('pix-fechar-btn');
+    const pixModalEtapaTexto = document.getElementById('pix-modal-etapa-texto');
+    const pixAlterarDadosBtn = document.getElementById('pix-alterar-dados-btn');
+
+    function limparEstadoPix() {
+        pixCurrentPaymentId = null;
+        pixIsGenerating = false;
+        if (pixPollingInterval) {
+            clearInterval(pixPollingInterval);
+            pixPollingInterval = null;
+        }
+    }
+
+    function renderPixAnuncioPreview(payload) {
+        if (!pixAnuncioPreview || !pixAnuncioPreviewTitulo || !pixAnuncioPreviewDescricao) return;
+        if (!payload) {
+            pixAnuncioPreview.classList.add('hidden');
+            pixAnuncioPreviewTitulo.textContent = '';
+            pixAnuncioPreviewDescricao.textContent = '';
+            if (pixAnuncioPreviewImg) pixAnuncioPreviewImg.style.display = 'none';
+            if (pixAnuncioPreviewImgFallback) pixAnuncioPreviewImgFallback.style.display = '';
+            return;
+        }
+        const titulo = payload.titulo || 'Seu anúncio';
+        const descricao = payload.descricao || '';
+        const imagemUrl = payload.imagemUrl || '';
+        pixAnuncioPreviewTitulo.textContent = titulo;
+        pixAnuncioPreviewDescricao.textContent = descricao;
+        if (imagemUrl && pixAnuncioPreviewImg) {
+            pixAnuncioPreviewImg.src = imagemUrl;
+            pixAnuncioPreviewImg.style.display = 'block';
+            if (pixAnuncioPreviewImgFallback) pixAnuncioPreviewImgFallback.style.display = 'none';
+        } else {
+            if (pixAnuncioPreviewImg) pixAnuncioPreviewImg.style.display = 'none';
+            if (pixAnuncioPreviewImgFallback) pixAnuncioPreviewImgFallback.style.display = '';
+        }
+        pixAnuncioPreview.classList.remove('hidden');
+    }
+
+    async function verificarStatusPix() {
+        if (!pixCurrentPaymentId) return;
+        try {
+            const resp = await fetch(`/api/pagamentos/mercadopago/pix/status?id=${encodeURIComponent(pixCurrentPaymentId)}`, {
+                headers: getAuthHeaders()
+            });
+            const data = await resp.json().catch(() => ({}));
+            const status = data?.status;
+            if (status === 'approved') {
+                limparEstadoPix();
+                try {
+                    if (pixCurrentPaymentId) {
+                        await fetch('/api/pagamentos/mercadopago/pix/confirm', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                ...getAuthHeaders()
+                            },
+                            body: JSON.stringify({ id: pixCurrentPaymentId })
+                        });
+                    }
+                } catch (e) {}
+                if (pixMsg) pixMsg.textContent = 'Pagamento aprovado! Redirecionando...';
+                window.location.href = 'configuracoes-conta.html?pagamento=sucesso&section=sec-anuncios';
+            } else if (status === 'rejected' || status === 'cancelled') {
+                limparEstadoPix();
+                if (pixMsg) pixMsg.textContent = 'Pagamento não foi aprovado. Tente gerar um novo Pix.';
+            }
+        } catch (e) {
+            console.error('Erro ao consultar status do Pix:', e);
+        }
+    }
+
+    function abrirModalPix(payload) {
+        pendingAnuncioPagamento = payload;
+        limparEstadoPix();
+        if (pixModal) {
+            pixModal.classList.remove('hidden');
+        }
+        if (pixQrWrapper) pixQrWrapper.classList.add('hidden');
+        if (pixQrImg) pixQrImg.src = '';
+        if (pixCopiaCola) pixCopiaCola.value = '';
+        if (pixMsg) pixMsg.textContent = '';
+        renderPixAnuncioPreview(payload);
+        const storedEmail = loggedUserEmail || localStorage.getItem('userEmail') || localStorage.getItem('email') || '';
+        const storedCpf = loggedUserCpf || localStorage.getItem('userCpf') || '';
+        const hasSaved = !!storedEmail && !!storedCpf;
+        if (pixEmailInput) {
+            pixEmailInput.value = storedEmail || '';
+        }
+        if (pixCpfInput) {
+            pixCpfInput.value = storedCpf || '';
+        }
+        if (pixEmailGroup && pixCpfGroup) {
+            if (hasSaved) {
+                pixEmailGroup.style.display = 'none';
+                pixCpfGroup.style.display = 'none';
+            } else {
+                pixEmailGroup.style.display = '';
+                pixCpfGroup.style.display = '';
+            }
+        }
+        if (pixGerarBtn) {
+            pixGerarBtn.style.display = hasSaved ? 'none' : '';
+        }
+        if (pixCopyBtn) {
+            pixCopyBtn.style.display = 'none';
+        }
+        if (pixAlterarDadosBtn) {
+            pixAlterarDadosBtn.style.display = hasSaved ? 'inline' : 'none';
+        }
+        if (pixModalEtapaTexto) {
+            pixModalEtapaTexto.textContent = hasSaved
+                ? 'Usaremos seu e-mail e CPF já salvos. Gerando Pix...'
+                : 'Informe seus dados para gerar o Pix.';
+        }
+        if (hasSaved) {
+            gerarPix();
+        }
+    }
+
+    function fecharModalPix() {
+        limparEstadoPix();
+        if (pixModal) {
+            pixModal.classList.add('hidden');
+        }
+    }
+
+    if (pixAlterarDadosBtn) {
+        pixAlterarDadosBtn.addEventListener('click', () => {
+            if (pixEmailGroup) pixEmailGroup.style.display = '';
+            if (pixCpfGroup) pixCpfGroup.style.display = '';
+            if (pixAlterarDadosBtn) pixAlterarDadosBtn.style.display = 'none';
+            if (pixModalEtapaTexto) {
+                pixModalEtapaTexto.textContent = 'Informe seus dados para gerar o Pix.';
+            }
+            if (pixQrWrapper) pixQrWrapper.classList.add('hidden');
+            if (pixQrImg) pixQrImg.src = '';
+            if (pixCopiaCola) pixCopiaCola.value = '';
+            if (pixCopyBtn) pixCopyBtn.style.display = 'none';
+            if (pixGerarBtn) pixGerarBtn.style.display = '';
+            if (pixMsg) pixMsg.textContent = '';
+        });
+    }
+
+    if (pixFecharBtn) {
+        pixFecharBtn.addEventListener('click', () => {
+            fecharModalPix();
+        });
+    }
+
     if (formCriarAnuncio) {
         formCriarAnuncio.addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -347,36 +560,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (msgAnuncio) msgAnuncio.textContent = 'Upload concluído, mas não retornou URL da imagem.';
                     return;
                 }
-
-                const resp = await fetch('/api/pagamentos/mercadopago/preference', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        ...getAuthHeaders()
-                    },
-                    body: JSON.stringify({
-                        titulo,
-                        descricao,
-                        imagemUrl,
-                        linkUrl,
-                        endereco,
-                        numero,
-                        cidade,
-                        estado,
-                        plano
-                    })
-                });
-                const data = await resp.json().catch(() => ({}));
-                if (!resp.ok) {
-                    if (msgAnuncio) msgAnuncio.textContent = data?.message || 'Não foi possível iniciar o pagamento do anúncio.';
-                    return;
-                }
-                if (!data?.init_point) {
-                    if (msgAnuncio) msgAnuncio.textContent = 'Pagamento criado, mas não retornou link do checkout.';
-                    return;
-                }
-                if (msgAnuncio) msgAnuncio.textContent = 'Redirecionando para o pagamento do anúncio...';
-                window.location.href = data.init_point;
+                const payload = {
+                    titulo,
+                    descricao,
+                    imagemUrl,
+                    linkUrl,
+                    endereco,
+                    numero,
+                    cidade,
+                    estado,
+                    plano
+                };
+                abrirModalPix(payload);
             } catch (err) {
                 console.error('Erro ao criar anúncio:', err);
                 if (msgAnuncio) msgAnuncio.textContent = 'Erro ao iniciar pagamento do anúncio.';
@@ -407,13 +602,164 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    async function iniciarCheckoutPreferencia(payload) {
+        if (!payload) return;
+        if (msgAnuncio) msgAnuncio.textContent = '';
+        try {
+            const resp = await fetch('/api/pagamentos/mercadopago/preference', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...getAuthHeaders()
+                },
+                body: JSON.stringify(payload)
+            });
+            const data = await resp.json().catch(() => ({}));
+            if (!resp.ok) {
+                if (msgAnuncio) msgAnuncio.textContent = data?.message || 'Não foi possível iniciar o pagamento do anúncio.';
+                return;
+            }
+            if (!data?.init_point) {
+                if (msgAnuncio) msgAnuncio.textContent = 'Pagamento criado, mas não retornou link do checkout.';
+                return;
+            }
+            if (msgAnuncio) msgAnuncio.textContent = 'Redirecionando para o pagamento do anúncio...';
+            window.location.href = data.init_point;
+        } catch (error) {
+            console.error('Erro ao iniciar pagamento do anúncio:', error);
+            if (msgAnuncio) msgAnuncio.textContent = 'Erro ao iniciar pagamento do anúncio.';
+        }
+    }
+
+    if (pixCartaoBtn) {
+        pixCartaoBtn.addEventListener('click', () => {
+            if (!pendingAnuncioPagamento) return;
+            fecharModalPix();
+            iniciarCheckoutPreferencia(pendingAnuncioPagamento);
+        });
+    }
+
+    async function gerarPix() {
+        if (pixIsGenerating) return;
+        if (!pendingAnuncioPagamento) return;
+        const email = pixEmailInput ? pixEmailInput.value.trim() : '';
+        const cpf = pixCpfInput ? pixCpfInput.value.trim() : '';
+        if (!email || !cpf) {
+            if (pixMsg) pixMsg.textContent = 'Preencha e-mail e CPF para gerar o Pix.';
+            return;
+        }
+        pixIsGenerating = true;
+        if (pixMsg) pixMsg.textContent = 'Gerando Pix...';
+        if (pixQrWrapper) pixQrWrapper.classList.add('hidden');
+        if (pixQrImg) pixQrImg.src = '';
+        if (pixCopiaCola) pixCopiaCola.value = '';
+        if (pixCopyBtn) pixCopyBtn.style.display = 'none';
+        if (pixGerarBtn) pixGerarBtn.style.display = 'none';
+        try {
+            const body = Object.assign({}, pendingAnuncioPagamento, { email, cpf });
+            const resp = await fetch('/api/pagamentos/mercadopago/pix', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...getAuthHeaders()
+                },
+                body: JSON.stringify(body)
+            });
+            const data = await resp.json().catch(() => ({}));
+            if (!resp.ok || !data?.success) {
+                if (pixMsg) pixMsg.textContent = data?.message || 'Não foi possível gerar o Pix.';
+                if (pixGerarBtn) pixGerarBtn.style.display = '';
+                return;
+            }
+            if (!data.qr_code && !data.qr_code_base64) {
+                if (pixMsg) pixMsg.textContent = 'Pix criado, mas não retornou QR Code.';
+                if (pixGerarBtn) pixGerarBtn.style.display = '';
+                return;
+            }
+            pixCurrentPaymentId = data.id || data.payment_id || null;
+            if (pixQrWrapper) pixQrWrapper.classList.remove('hidden');
+            if (pixCopiaCola && data.qr_code) {
+                pixCopiaCola.value = data.qr_code;
+            }
+            if (pixQrImg) {
+                if (data.qr_code_base64) {
+                    pixQrImg.src = 'data:image/png;base64,' + data.qr_code_base64;
+                } else if (data.ticket_url) {
+                    pixQrImg.src = '';
+                }
+            }
+            if (pixCopyBtn) pixCopyBtn.style.display = '';
+            if (pixEmailGroup) pixEmailGroup.style.display = 'none';
+            if (pixCpfGroup) pixCpfGroup.style.display = 'none';
+            if (pixAlterarDadosBtn) pixAlterarDadosBtn.style.display = 'inline';
+            if (pixMsg) pixMsg.textContent = 'Use o QR Code para pagar. Aguardando confirmação...';
+            loggedUserEmail = email;
+            loggedUserCpf = cpf;
+            try {
+                if (email) localStorage.setItem('userEmail', email);
+                if (cpf) localStorage.setItem('userCpf', cpf);
+            } catch (e) {}
+            if (pixModalEtapaTexto) pixModalEtapaTexto.textContent = 'Pix gerado. Finalize o pagamento no seu banco.';
+            if (pixCurrentPaymentId) {
+                if (pixPollingInterval) {
+                    clearInterval(pixPollingInterval);
+                    pixPollingInterval = null;
+                }
+                pixPollingInterval = setInterval(verificarStatusPix, 5000);
+            }
+        } catch (error) {
+            console.error('Erro ao gerar Pix:', error);
+            if (pixMsg) pixMsg.textContent = 'Erro ao gerar Pix.';
+        } finally {
+            pixIsGenerating = false;
+        }
+    }
+
+    if (pixGerarBtn) {
+        pixGerarBtn.addEventListener('click', () => {
+            gerarPix();
+        });
+    }
+
+    if (pixCopyBtn) {
+        pixCopyBtn.addEventListener('click', async () => {
+            const code = pixCopiaCola ? pixCopiaCola.value : '';
+            if (!code) return;
+            try {
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    await navigator.clipboard.writeText(code);
+                } else {
+                    const temp = document.createElement('textarea');
+                    temp.value = code;
+                    document.body.appendChild(temp);
+                    temp.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(temp);
+                }
+                if (pixMsg) pixMsg.textContent = 'Código Pix copiado.';
+            } catch (e) {
+                console.error('Erro ao copiar código Pix:', e);
+                if (pixMsg) pixMsg.textContent = 'Não foi possível copiar o código Pix.';
+            }
+        });
+    }
+
     document.addEventListener('click', (e) => {
         const btn = e.target.closest('[data-pay-anuncio]');
         if (!btn) return;
         const id = btn.getAttribute('data-pay-anuncio');
         if (!id) return;
-        const plano = btn.getAttribute('data-pay-plano') || 'basico';
-        iniciarPagamentoAnuncio(id, plano);
+        const plano = btn.getAttribute('data-pay-plano') || 'premium';
+        const titulo = btn.getAttribute('data-title') || '';
+        const imagem = btn.getAttribute('data-imagem') ? decodeURIComponent(btn.getAttribute('data-imagem')) : '';
+        const descricao = btn.getAttribute('data-descricao') || '';
+        abrirModalPix({
+            anuncioId: id,
+            plano,
+            titulo,
+            imagemUrl: imagem,
+            descricao
+        });
     });
 
     carregarMeusAnuncios();
@@ -962,6 +1308,34 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (menuItems.length && sections.length) {
         inicializarAccordion();
+        try {
+            const params = new URLSearchParams(window.location.search || '');
+            const sectionParam = params.get('section');
+            if (sectionParam) {
+                const item = Array.from(menuItems).find(i => i.getAttribute('data-section') === sectionParam);
+                const alvoEl = document.getElementById(sectionParam);
+                if (item && alvoEl) {
+                    menuItems.forEach(i => i.classList.remove('active'));
+                    sections.forEach(sec => sec.classList.remove('active'));
+                    item.classList.add('active');
+                    alvoEl.classList.add('active');
+                    mostrarApenasItemAtivo();
+                    if (window.innerWidth <= 900) {
+                        const headerOffset = 80;
+                        const y = alvoEl.getBoundingClientRect().top + window.scrollY - headerOffset;
+                        window.scrollTo({ top: y, behavior: 'smooth' });
+                    }
+                    const pagamento = params.get('pagamento');
+                    if (pagamento === 'sucesso') {
+                        setTimeout(() => {
+                            try { carregarMeusAnuncios(); } catch (e) {}
+                        }, 700);
+                    }
+                }
+            }
+        } catch (e) {
+            // ignore
+        }
     }
 
     // ============================================
