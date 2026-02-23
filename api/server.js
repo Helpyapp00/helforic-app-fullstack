@@ -46,14 +46,40 @@ const http = require('http');
 const https = require('https');
 let visionClient = null;
 
-if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+function initializeVisionClient() {
     try {
         const vision = require('@google-cloud/vision');
-        visionClient = new vision.ImageAnnotatorClient();
+        const envJson = process.env.GOOGLE_CREDS_JSON;
+
+        if (envJson && envJson.trim()) {
+            try {
+                const parsed = JSON.parse(envJson);
+                if (parsed && typeof parsed === 'object') {
+                    return new vision.ImageAnnotatorClient({ credentials: parsed });
+                }
+            } catch (e) {
+                if (!IS_PROD) {
+                    console.warn('Falha ao parsear GOOGLE_CREDS_JSON:', e.message || e);
+                }
+            }
+        }
+
+        if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+            return new vision.ImageAnnotatorClient();
+        }
+
+        if (!IS_PROD) {
+            console.warn('Vision API não inicializada: defina GOOGLE_CREDS_JSON ou GOOGLE_APPLICATION_CREDENTIALS');
+        }
     } catch (error) {
-        visionClient = null;
+        if (!IS_PROD) {
+            console.warn('Erro ao inicializar Vision API:', error.message || error);
+        }
     }
+    return null;
 }
+
+visionClient = initializeVisionClient();
 
 const upload = multer({
     storage: multer.memoryStorage(),
@@ -76,6 +102,20 @@ function authMiddleware(req, res, next) {
         next();
     } catch (error) {
         return res.status(401).json({ success: false, message: 'Token inválido ou expirado.' });
+    }
+}
+
+async function adminOnly(req, res, next) {
+    try {
+        const userId = req.user?.id;
+        if (!userId) return res.status(403).json({ success: false, message: 'Acesso negado.' });
+        const user = await User.findById(userId).select('email role');
+        const adminEmail = (process.env.ADMIN_EMAIL || '').trim().toLowerCase();
+        const isAdmin = user && (user.role === 'admin' || (adminEmail && String(user.email).toLowerCase() === adminEmail));
+        if (!isAdmin) return res.status(403).json({ success: false, message: 'Acesso negado.' });
+        next();
+    } catch (e) {
+        return res.status(403).json({ success: false, message: 'Acesso negado.' });
     }
 }
 
@@ -274,12 +314,24 @@ app.get('/cadastro', (req, res) => {
     res.sendFile(path.join(__dirname, '../public/cadastro.html'));
 });
 
+app.get('/privacidade', (req, res) => {
+    res.sendFile(path.join(__dirname, '../public/privacidade.html'));
+});
+
+app.get('/termos', (req, res) => {
+    res.sendFile(path.join(__dirname, '../public/termos.html'));
+});
+
 app.get('/perfil/:slug', (req, res) => {
     res.sendFile(path.join(__dirname, '../public/perfil.html'));
 });
 
 app.get('/perfil', (req, res) => {
     res.sendFile(path.join(__dirname, '../public/perfil.html'));
+});
+
+app.get('/admin', (req, res) => {
+    res.sendFile(path.join(__dirname, '../public/admin.html'));
 });
 
 app.post('/api/login', async (req, res) => {
@@ -299,7 +351,14 @@ app.post('/api/login', async (req, res) => {
             return res.status(401).json({ success: false, message: 'Credenciais inválidas.' });
         }
 
-        const payload = { user: { id: usuario._id, email: usuario.email, tipo: usuario.tipo } };
+        const adminEmail = (process.env.ADMIN_EMAIL || '').trim().toLowerCase();
+        if (adminEmail && String(usuario.email).toLowerCase() === adminEmail && usuario.role !== 'admin') {
+            try { 
+                usuario.role = 'admin'; 
+                await usuario.save(); 
+            } catch {}
+        }
+        const payload = { user: { id: usuario._id, email: usuario.email, tipo: usuario.tipo, role: usuario.role || 'user' } };
         const token = jwt.sign(payload, process.env.JWT_SECRET || 'secret', { expiresIn: '7d' });
 
         res.json({
@@ -310,7 +369,8 @@ app.post('/api/login', async (req, res) => {
             userType: usuario.tipo || 'usuario',
             userName: usuario.nome || 'Usuário',
             userPhotoUrl: usuario.foto || usuario.avatarUrl || 'https://placehold.co/50?text=User',
-            userTheme: usuario.tema || usuario.userTheme || undefined
+            userTheme: usuario.tema || usuario.userTheme || undefined,
+            role: usuario.role || 'user'
         });
     } catch (error) {
         console.error('Erro ao fazer login:', error);
@@ -382,14 +442,25 @@ app.post('/api/cadastro', upload.fields([{ name: 'fotoPerfil', maxCount: 1 }]), 
         const nome = String(req.body?.nome || '').trim();
         const email = String(req.body?.email || '').trim().toLowerCase();
         const senha = String(req.body?.senha || '');
+        const aceitoTermos = String(req.body?.aceitoTermos || '').toLowerCase();
         if (!nome || !email || !senha) {
             return res.status(400).json({ success: false, message: 'Nome, email e senha são obrigatórios.' });
+        }
+        if (!aceitoTermos || (aceitoTermos !== 'on' && aceitoTermos !== 'true')) {
+            return res.status(400).json({ success: false, message: 'Você precisa aceitar os Termos de Uso e a Política de Privacidade.' });
         }
         const exists = await User.findOne({ email });
         if (exists) {
             return res.status(409).json({ success: false, message: 'Email já cadastrado.' });
         }
         const hash = await bcrypt.hash(senha, 10);
+        let consentDate = new Date();
+        if (req.body?.consentimentoLGPDAt) {
+            const parsed = new Date(req.body.consentimentoLGPDAt);
+            if (!Number.isNaN(parsed.getTime())) {
+                consentDate = parsed;
+            }
+        }
         const baseUser = {
             nome,
             email,
@@ -402,7 +473,8 @@ app.post('/api/cadastro', upload.fields([{ name: 'fotoPerfil', maxCount: 1 }]), 
             descricao: String(req.body?.descricao || '').trim(),
             atuacao: String(req.body?.atuacao || '').trim(),
             tema: String(req.body?.tema || '').trim(),
-            userTheme: String(req.body?.tema || '').trim()
+            userTheme: String(req.body?.tema || '').trim(),
+            consentimentoLGPDAt: consentDate
         };
         const user = new User(baseUser);
         await user.save();
@@ -576,7 +648,9 @@ const userSchema = new mongoose.Schema({
     foto: { type: String },
     avatarUrl: { type: String },
     tema: { type: String },
-    userTheme: { type: String }
+    userTheme: { type: String },
+    consentimentoLGPDAt: { type: Date },
+    role: { type: String, default: 'user' }
 }, { timestamps: true, strict: false });
 
 const User = mongoose.models.User || mongoose.model('User', userSchema);
@@ -632,7 +706,8 @@ const moderationLogSchema = new mongoose.Schema({
     mediaType: { type: String },
     texto: { type: String },
     origem: { type: String },
-    ip: { type: String }
+    ip: { type: String },
+    arquivada: { type: Boolean, default: false }
 }, { timestamps: true, strict: false });
 
 const ModerationLog = mongoose.models.ModerationLog || mongoose.model('ModerationLog', moderationLogSchema);
@@ -790,6 +865,8 @@ const anuncioPagoSchema = new mongoose.Schema({
 
 const AnuncioPago = mongoose.models.AnuncioPago || mongoose.model('AnuncioPago', anuncioPagoSchema);
 
+const paymentController = require('./paymentController');
+
 const interesseUsuarioSchema = new mongoose.Schema({
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true },
     termo: { type: String, index: true },
@@ -846,6 +923,57 @@ app.post('/api/anuncios', authMiddleware, async (req, res) => {
     }
 });
 
+app.post('/api/anuncios/upload-imagem', authMiddleware, upload.single('imagem'), async (req, res) => {
+    try {
+        const file = req.file;
+        if (!file || !file.buffer) {
+            return res.status(400).json({ success: false, message: 'Arquivo de imagem não enviado.' });
+        }
+
+        let buffer = file.buffer;
+        let mimeType = file.mimetype || '';
+        const isImage = mimeType && mimeType.startsWith('image/');
+
+        if (!isImage) {
+            return res.status(400).json({ success: false, message: 'Somente imagens são permitidas.' });
+        }
+
+        buffer = await convertImageToWebp(buffer, 1280);
+        mimeType = 'image/webp';
+
+        const originalExt = path.extname(file.originalname || '').toLowerCase();
+        const filename = `${Date.now()}_${crypto.randomBytes(8).toString('hex')}.webp`;
+        const userId = req.user?.id || 'anon';
+
+        let imagemUrl = '';
+
+        if (s3Client && bucketName && process.env.AWS_REGION) {
+            const key = `anuncios/${userId}/${filename}`;
+            const uploadCommand = new PutObjectCommand({
+                Bucket: bucketName,
+                Key: key,
+                Body: buffer,
+                ContentType: mimeType || 'image/webp'
+            });
+            await s3Client.send(uploadCommand);
+            imagemUrl = `https://${bucketName}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`;
+        } else {
+            const uploadsDir = path.join(__dirname, '../public/uploads/anuncios');
+            try {
+                fs.mkdirSync(uploadsDir, { recursive: true });
+            } catch (e) {}
+            const filePath = path.join(uploadsDir, filename);
+            fs.writeFileSync(filePath, buffer);
+            imagemUrl = `/uploads/anuncios/${filename}`;
+        }
+
+        res.json({ success: true, imagemUrl });
+    } catch (error) {
+        console.error('Erro ao fazer upload da imagem do anúncio:', error);
+        res.status(500).json({ success: false, message: 'Erro ao subir imagem do anúncio.' });
+    }
+});
+
 app.get('/api/anuncios', authMiddleware, async (req, res) => {
     try {
         const limitRaw = Number(req.query.limit);
@@ -860,6 +988,9 @@ app.get('/api/anuncios', authMiddleware, async (req, res) => {
         res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
     }
 });
+
+app.post('/api/pagamentos/mercadopago/preference', authMiddleware, paymentController.criarPreferenciaPagamento);
+app.post('/webhooks/mercadopago', express.json({ type: '*/*' }), paymentController.webhookMercadoPago);
 
 app.get('/api/anuncios-feed', authMiddleware, async (req, res) => {
     try {
@@ -2462,6 +2593,100 @@ app.get('/api/destaques-servicos', authMiddleware, async (req, res) => {
     } catch (error) {
         console.error('Erro ao buscar destaques de perfis:', error);
         res.status(500).json({ success: false, message: 'Erro ao buscar destaques de perfis.' });
+    }
+});
+
+app.get('/api/admin/denuncias', authMiddleware, adminOnly, async (req, res) => {
+    try {
+        const arquivadas = String(req.query.arquivadas || '').toLowerCase() === 'true';
+        const baseFilter = { tipo: 'denuncia' };
+        const filter = arquivadas
+            ? { ...baseFilter, arquivada: true }
+            : { ...baseFilter, $or: [{ arquivada: false }, { arquivada: { $exists: false } }] };
+        const logs = await ModerationLog.find(filter)
+            .populate('userId', 'nome email')
+            .sort({ createdAt: -1 })
+            .limit(200);
+        res.json({ success: true, logs });
+    } catch (e) {
+        res.status(500).json({ success: false, message: 'Erro ao listar denúncias.' });
+    }
+});
+
+app.delete('/api/admin/denuncias/:id', authMiddleware, adminOnly, async (req, res) => {
+    try {
+        const { id } = req.params;
+        if (!id) return res.status(400).json({ success: false, message: 'ID inválido.' });
+        const updated = await ModerationLog.findByIdAndUpdate(
+            id,
+            { $set: { arquivada: true } },
+            { new: true }
+        );
+        if (!updated) {
+            return res.status(404).json({ success: false, message: 'Denúncia não encontrada.' });
+        }
+        res.json({ success: true });
+    } catch (e) {
+        res.status(500).json({ success: false, message: 'Erro ao arquivar denúncia.' });
+    }
+});
+
+app.delete('/api/admin/posts/:postId', authMiddleware, adminOnly, async (req, res) => {
+    try {
+        const { postId } = req.params;
+        if (!postId) return res.status(400).json({ success: false, message: 'ID inválido.' });
+        await Postagem.findByIdAndDelete(postId);
+        res.json({ success: true });
+    } catch (e) {
+        res.status(500).json({ success: false, message: 'Erro ao excluir post.' });
+    }
+});
+
+// 🆕 Denúncias de conteúdo (UGC)
+app.post('/api/denuncias', authMiddleware, async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const alvoTipo = String(req.body?.alvoTipo || '').trim(); // 'post' | 'explorar' | 'perfil' etc.
+        const alvoId = String(req.body?.alvoId || '').trim();
+        const motivo = String(req.body?.motivo || '').trim() || 'Conteúdo inadequado';
+        const detalhe = String(req.body?.detalhe || '').trim() || '';
+        const origem = String(req.body?.origem || '').trim() || 'app';
+        if (!alvoTipo || !alvoId) {
+            return res.status(400).json({ success: false, message: 'alvoTipo e alvoId são obrigatórios.' });
+        }
+        const log = new ModerationLog({
+            userId,
+            tipo: 'denuncia',
+            motivo,
+            detalhe,
+            mediaType: alvoTipo,
+            texto: alvoId,
+            origem
+        });
+        await log.save();
+        return res.json({ success: true });
+    } catch (error) {
+        console.error('Erro ao registrar denúncia:', error);
+        return res.status(500).json({ success: false, message: 'Erro ao enviar denúncia.' });
+    }
+});
+
+// 🆕 Exclusão de conta e dados
+app.delete('/api/user/me', authMiddleware, async (req, res) => {
+    try {
+        const userId = req.user.id;
+        await Promise.allSettled([
+            Postagem.deleteMany({ userId }),
+            Notificacao.deleteMany({ userId }),
+            AnuncioPago.deleteMany({ ownerId: userId }),
+            ModerationLog.deleteMany({ userId }),
+            (typeof Servico !== 'undefined' ? Servico.deleteMany({ userId }) : Promise.resolve())
+        ]);
+        await User.deleteOne({ _id: userId });
+        return res.json({ success: true });
+    } catch (error) {
+        console.error('Erro ao excluir conta:', error);
+        return res.status(500).json({ success: false, message: 'Erro ao excluir conta.' });
     }
 });
 

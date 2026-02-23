@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Admin • Moderação</title>
+  <link rel="icon" type="image/png" href="/imagens/logohelpy.png">
+  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    .admin-container{max-width:980px;margin:0 auto;padding:20px}
+    .admin-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+    .admin-title{font-size:22px;font-weight:700}
+    .admin-filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+    .admin-filters select{padding:6px 10px;border-radius:999px;border:1px solid var(--border-color,rgba(148,163,184,.6));background:transparent;color:var(--text-primary,#f9fafb);font-size:13px}
+    .admin-list{display:flex;flex-direction:column;gap:12px}
+    .admin-card{background:var(--bg-elevated,#15171c);border:1px solid var(--border-color,rgba(148,163,184,.35));border-radius:10px;padding:14px 12px;display:flex;gap:12px;align-items:flex-start;color:var(--text-primary,#e5e7eb)}
+    .admin-info{flex:1;color:inherit}
+    .admin-info strong{color:inherit;font-weight:700}
+    .admin-info small{color:var(--text-secondary,#94a3b8)}
+    .admin-actions{display:flex;gap:8px;flex-wrap:wrap}
+    .btn-outline{background:transparent;border:1px solid var(--border-color,rgba(148,163,184,.6));color:var(--text-primary,#e5e7eb);border-radius:999px;padding:8px 14px;cursor:pointer;font-weight:600}
+    .btn-danger{background:#ef4444;border:none;color:#fff;border-radius:999px;padding:8px 14px;cursor:pointer}
+    .btn-outline:disabled,.btn-danger:disabled{opacity:.6;cursor:not-allowed}
+    .admin-empty{opacity:.8}
+    .admin-pagination{margin-top:12px;display:flex;align-items:center;justify-content:center;gap:12px}
+    .admin-pagination button{padding:6px 10px;border-radius:999px;border:1px solid var(--border-color,rgba(148,163,184,.6));background:transparent;color:var(--text-secondary,#e5e7eb);cursor:pointer;font-size:13px}
+    .admin-pagination button:disabled{opacity:.5;cursor:not-allowed}
+    .admin-link{text-decoration:none;color:#60a5fa;font-size:13px}
+    html:not(.dark-mode) .admin-card{background:#ffffff;color:#0f172a;border-color:rgba(15,23,42,.2)}
+    html:not(.dark-mode) .admin-card .admin-link{color:#2563eb}
+    html:not(.dark-mode) .admin-info small{color:#475569}
+    html:not(.dark-mode) .admin-actions .btn-outline{color:#0f172a;border-color:rgba(15,23,42,.35);background:#fff}
+    html:not(.dark-mode) .admin-actions .btn-outline:hover{background:rgba(15,23,42,.06)}
+    html.dark-mode .admin-actions .btn-outline{color:#e5e7eb;border-color:rgba(148,163,184,.6)}
+    .admin-archive-toggle{display:inline-flex;align-items:center;justify-content:center;width:38px;height:34px;border-radius:999px;padding:0}
+    .admin-archive-toggle i{font-size:16px}
+    .admin-archive-toggle.is-active{background:rgba(148,163,184,.16);border-color:#60a5fa;color:#60a5fa}
+    .admin-confirm{position:fixed;inset:0;display:none;align-items:center;justify-content:center;z-index:40;background:rgba(15,23,42,.7)}
+    .admin-confirm.visible{display:flex}
+    .admin-confirm-content{background:var(--bg-elevated,#15171c);color:var(--text-primary,#0f172a);border-radius:12px;padding:12px 18px;box-shadow:0 10px 30px rgba(0,0,0,.5);max-width:420px;width:calc(100% - 32px);display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:14px;border:1px solid var(--border-color,rgba(148,163,184,.35))}
+    .admin-confirm-message{flex:1;font-weight:600}
+    .admin-confirm-actions{display:flex;gap:8px;flex-shrink:0}
+    html:not(.dark-mode) .admin-confirm{background:rgba(0,0,0,.35)}
+    html:not(.dark-mode) .admin-confirm-content{background:#ffffff;color:#0f172a;border-color:rgba(15,23,42,.2)}
+    html:not(.dark-mode) .admin-confirm-content .btn-outline{color:#0f172a;border-color:rgba(15,23,42,.35);background:transparent}
+    html:not(.dark-mode) .admin-confirm-content .btn-outline:hover{background:rgba(15,23,42,.06)}
+    html:not(.dark-mode) .admin-confirm-content .btn-danger{background:#ef4444;color:#ffffff;border:none}
+  </style>
+</head>
+<body>
+  <script>
+    (function(){
+      try{
+        const savedTheme = localStorage.getItem('theme');
+        if (savedTheme === 'dark') {
+          document.documentElement.classList.add('dark-mode');
+        } else {
+          document.documentElement.classList.remove('dark-mode');
+        }
+      }catch(_){}
+    })();
+  </script>
+  <div class="admin-container">
+    <div class="admin-header">
+      <div class="admin-title">Moderação • Denúncias</div>
+      <button id="admin-sair" class="btn-outline">Sair</button>
+    </div>
+    <div class="admin-filters">
+      <select id="admin-filter-motivo">
+        <option value="todos">Motivo: todos</option>
+        <option value="spam">Spam</option>
+        <option value="improprio">Conteúdo impróprio</option>
+        <option value="assedio">Assédio</option>
+      </select>
+      <select id="admin-filter-periodo">
+        <option value="todos">Período: todos</option>
+        <option value="24h">Últimas 24h</option>
+        <option value="7d">Últimos 7 dias</option>
+      </select>
+      <button id="admin-toggle-arquivadas" class="btn-outline admin-archive-toggle" type="button" title="Ver arquivadas" aria-label="Ver denúncias arquivadas">
+        <i class="fas fa-archive" aria-hidden="true"></i>
+      </button>
+    </div>
+    <div id="admin-status"></div>
+    <div id="admin-list" class="admin-list"></div>
+    <div id="admin-pagination" class="admin-pagination" style="display:none">
+      <button id="admin-prev">Anterior</button>
+      <span id="admin-page-label"></span>
+      <button id="admin-next">Próxima</button>
+    </div>
+  </div>
+  <div id="admin-confirm" class="admin-confirm" aria-hidden="true">
+    <div class="admin-confirm-content">
+      <span id="admin-confirm-message" class="admin-confirm-message"></span>
+      <div class="admin-confirm-actions">
+        <button id="admin-confirm-no" type="button" class="btn-outline">Não</button>
+        <button id="admin-confirm-yes" type="button" class="btn-danger">Sim</button>
+      </div>
+    </div>
+  </div>
+  <script>
+    (function(){
+      const token = localStorage.getItem('jwtToken');
+      if(!token){ window.location.href='/login.html'; return; }
+      const statusEl = document.getElementById('admin-status');
+      const listEl = document.getElementById('admin-list');
+      const filterMotivo = document.getElementById('admin-filter-motivo');
+      const filterPeriodo = document.getElementById('admin-filter-periodo');
+      const toggleArquivadasBtn = document.getElementById('admin-toggle-arquivadas');
+      const paginationEl = document.getElementById('admin-pagination');
+      const prevBtn = document.getElementById('admin-prev');
+      const nextBtn = document.getElementById('admin-next');
+      const pageLabel = document.getElementById('admin-page-label');
+      const confirmBar = document.getElementById('admin-confirm');
+      const confirmMessage = document.getElementById('admin-confirm-message');
+      const confirmYes = document.getElementById('admin-confirm-yes');
+      const confirmNo = document.getElementById('admin-confirm-no');
+      let allLogs = [];
+      let filteredLogs = [];
+      let currentPage = 1;
+      const perPage = 10;
+      let showingArquivadas = false;
+      let confirmResolver = null;
+
+      function hideConfirm() {
+        if (!confirmBar) return;
+        confirmBar.classList.remove('visible');
+        confirmBar.setAttribute('aria-hidden','true');
+        confirmMessage.textContent = '';
+        confirmResolver = null;
+      }
+
+      function showConfirm(message) {
+        if (!confirmBar || !confirmMessage || !confirmYes || !confirmNo) {
+          const result = window.confirm(message);
+          return Promise.resolve(result);
+        }
+        confirmMessage.textContent = message;
+        confirmBar.classList.add('visible');
+        confirmBar.setAttribute('aria-hidden','false');
+        return new Promise((resolve) => {
+          confirmResolver = resolve;
+        });
+      }
+
+      if (confirmYes && confirmNo && confirmBar) {
+        confirmYes.addEventListener('click', () => {
+          if (confirmResolver) confirmResolver(true);
+          hideConfirm();
+        });
+        confirmNo.addEventListener('click', () => {
+          if (confirmResolver) confirmResolver(false);
+          hideConfirm();
+        });
+        confirmBar.addEventListener('click', (ev) => {
+          if (ev.target === confirmBar) {
+            if (confirmResolver) confirmResolver(false);
+            hideConfirm();
+          }
+        });
+      }
+      function renderLogs(logs){
+        listEl.innerHTML='';
+        if(!Array.isArray(logs) || logs.length===0){
+          const empty=document.createElement('div');
+          empty.className='admin-empty';
+          empty.textContent='Nenhuma denúncia encontrada.';
+          listEl.appendChild(empty);
+          return;
+        }
+        logs.forEach(log=>{
+          const card=document.createElement('div');
+          card.className='admin-card';
+          const info=document.createElement('div');
+          info.className='admin-info';
+          const denunciante = (log.userId && (log.userId.nome||log.userId.email)) ? (log.userId.nome || log.userId.email) : (log.userId?._id || 'Desconhecido');
+          const alvoTipo = String(log.mediaType || '').toLowerCase();
+          const alvoId = log.texto || '';
+          const motivoText = log.motivo || '-';
+          const createdAt = log.createdAt ? new Date(log.createdAt) : null;
+          info.innerHTML = '<div><strong>Motivo:</strong> '+motivoText+'</div>'
+            + '<div><strong>Denunciante:</strong> '+denunciante+'</div>'
+            + '<div><strong>Alvo ('+(alvoTipo||'id')+'): </strong> '+alvoId+'</div>'
+            + '<div><small>'+(createdAt?createdAt.toLocaleString():'')+'</small></div>';
+          const actions=document.createElement('div');
+          actions.className='admin-actions';
+          const btnVer=document.createElement('a');
+          btnVer.className='admin-link';
+          btnVer.textContent='Ver no app';
+          btnVer.href='#';
+          btnVer.target='_blank';
+          btnVer.addEventListener('click',async(e)=>{
+            e.preventDefault();
+            if(!alvoId) return;
+            if(alvoTipo==='post'){
+              try{
+                const resp=await fetch('/api/posts/'+encodeURIComponent(alvoId),{headers:{Authorization:'Bearer '+token}});
+                const data=await resp.json().catch(()=>({}));
+                if(resp.ok && data && data.post){
+                  const rawOwner=data.post.userId;
+                  const ownerId=(rawOwner && typeof rawOwner==='object' && rawOwner._id)
+                    ? String(rawOwner._id)
+                    : (rawOwner ? String(rawOwner) : '');
+                  if(ownerId){
+                    const params=new URLSearchParams();
+                    params.set('id',ownerId);
+                    params.set('postId',alvoId);
+                    const url='/perfil.html?'+params.toString();
+                    window.open(url,'_blank');
+                    return;
+                  }
+                }
+              }catch(_e){}
+              const fallbackUrl='/?postId='+encodeURIComponent(alvoId);
+              window.open(fallbackUrl,'_blank');
+              return;
+            }
+            if(alvoTipo==='perfil'){
+              const url='/perfil.html?id='+encodeURIComponent(alvoId);
+              window.open(url,'_blank');
+              return;
+            }
+            const fallbackUrl='/?postId='+encodeURIComponent(alvoId);
+            window.open(fallbackUrl,'_blank');
+          });
+          actions.appendChild(btnVer);
+          const btnExcluir=document.createElement('button');
+          btnExcluir.className='btn-danger';
+          btnExcluir.textContent='Excluir Post';
+          btnExcluir.addEventListener('click',async()=>{
+            if(!alvoId) return;
+            const ok=await showConfirm('Excluir o post denunciado? Esta ação é permanente.');
+            if(!ok) return;
+            try{
+              const resp=await fetch('/api/admin/posts/'+encodeURIComponent(alvoId),{method:'DELETE',headers:{Authorization:'Bearer '+token}});
+              const data=await resp.json().catch(()=>({}));
+              if(!resp.ok || data?.success===false){ alert(data?.message||'Erro ao excluir'); return; }
+              allLogs = allLogs.filter(l=>l._id!==log._id);
+              aplicarFiltros();
+            }catch(e){ alert('Erro ao excluir'); }
+          });
+          const btnArquivar=document.createElement('button');
+          btnArquivar.className='btn-outline';
+          btnArquivar.textContent='Arquivar denúncia';
+          btnArquivar.addEventListener('click',async()=>{
+            const ok=await showConfirm('Arquivar esta denúncia? Ela será movida para Arquivadas.');
+            if(!ok) return;
+            try{
+              const resp=await fetch('/api/admin/denuncias/'+encodeURIComponent(log._id),{method:'DELETE',headers:{Authorization:'Bearer '+token}});
+              const data=await resp.json().catch(()=>({}));
+              if(!resp.ok || data?.success===false){ alert(data?.message||'Erro ao arquivar'); return; }
+              allLogs = allLogs.filter(l=>l._id!==log._id);
+              aplicarFiltros();
+            }catch(e){ alert('Erro ao arquivar'); }
+          });
+          actions.appendChild(btnArquivar);
+          actions.appendChild(btnExcluir);
+          card.appendChild(info);
+          card.appendChild(actions);
+          listEl.appendChild(card);
+        });
+      }
+      function atualizarPaginacao(){
+        const total = filteredLogs.length;
+        const totalPages = Math.max(1, Math.ceil(total/perPage));
+        if(currentPage>totalPages) currentPage = totalPages;
+        const start = (currentPage-1)*perPage;
+        const end = start + perPage;
+        const slice = filteredLogs.slice(start,end);
+        renderLogs(slice);
+        pageLabel.textContent = currentPage+' / '+totalPages;
+        prevBtn.disabled = currentPage<=1;
+        nextBtn.disabled = currentPage>=totalPages;
+        paginationEl.style.display = total>perPage ? 'flex' : 'none';
+      }
+      function aplicarFiltros(){
+        const motivoVal = filterMotivo.value;
+        const periodoVal = filterPeriodo.value;
+        const agora = Date.now();
+        filteredLogs = (allLogs||[]).filter(log=>{
+          let ok = true;
+          if(motivoVal && motivoVal!=='todos'){
+            const textoMotivo = String(log.motivo||'').toLowerCase();
+            if(!textoMotivo.includes(motivoVal.toLowerCase())) ok = false;
+          }
+          if(!ok) return false;
+          if(periodoVal==='24h'){
+            if(!log.createdAt) return false;
+            const t = new Date(log.createdAt).getTime();
+            if(!(t>=agora-24*60*60*1000)) return false;
+          } else if(periodoVal==='7d'){
+            if(!log.createdAt) return false;
+            const t = new Date(log.createdAt).getTime();
+            if(!(t>=agora-7*24*60*60*1000)) return false;
+          }
+          return true;
+        });
+        currentPage = 1;
+        atualizarPaginacao();
+      }
+      async function carregar(){
+        try{
+          const qs = showingArquivadas ? '?arquivadas=true' : '';
+          const resp = await fetch('/api/admin/denuncias'+qs,{headers:{Authorization:'Bearer '+token}});
+          if(resp.status===401){
+            window.location.href='/login.html';
+            return;
+          }
+          if(resp.status===403){
+            window.location.href='/';
+            return;
+          }
+          const data = await resp.json();
+          if(!resp.ok || data?.success===false){ statusEl.textContent='Erro ao carregar denúncias.'; return; }
+          allLogs = data.logs || [];
+          aplicarFiltros();
+        }catch(e){ statusEl.textContent='Erro ao carregar.'; }
+      }
+      filterMotivo.addEventListener('change',aplicarFiltros);
+      filterPeriodo.addEventListener('change',aplicarFiltros);
+      if (toggleArquivadasBtn) {
+        toggleArquivadasBtn.addEventListener('click', () => {
+          showingArquivadas = !showingArquivadas;
+          if (showingArquivadas) {
+            toggleArquivadasBtn.classList.add('is-active');
+            toggleArquivadasBtn.title = 'Ver ativas';
+            toggleArquivadasBtn.setAttribute('aria-label','Ver denúncias ativas');
+          } else {
+            toggleArquivadasBtn.classList.remove('is-active');
+            toggleArquivadasBtn.title = 'Ver arquivadas';
+            toggleArquivadasBtn.setAttribute('aria-label','Ver denúncias arquivadas');
+          }
+          carregar();
+        });
+      }
+      prevBtn.addEventListener('click',function(){
+        if(currentPage>1){ currentPage-=1; atualizarPaginacao(); }
+      });
+      nextBtn.addEventListener('click',function(){
+        currentPage+=1;
+        atualizarPaginacao();
+      });
+      document.getElementById('admin-sair').addEventListener('click',function(){
+        localStorage.clear();
+        window.location.href='/login.html';
+      });
+      carregar();
+    })();
+  </script>
+</body>
+</html>

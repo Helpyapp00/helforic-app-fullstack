@@ -53,6 +53,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const temaInput = document.getElementById('tema');
     const temaOpcoes = document.querySelectorAll('.tema-opcao');
     const temaContainer = document.querySelector('.tema-selecao-container');
+    const consentCheckbox = document.getElementById('aceito-termos');
 
     function setTema(tema) {
         if (!temaInput) return;
@@ -295,6 +296,13 @@ document.addEventListener('DOMContentLoaded', function() {
         // Armazena dados do formulário
         emailDoFormulario = email;
         const formData = new FormData(formCadastro);
+        if (!consentCheckbox || !consentCheckbox.checked) {
+            showMessage('Você precisa aceitar os Termos de Uso e a Política de Privacidade.', 'error');
+            return;
+        }
+        if (consentCheckbox && consentCheckbox.checked) {
+            formData.set('consentimentoLGPDAt', new Date().toISOString());
+        }
         // Combina nome e sobrenome em um único campo "nome"
         const nomeCompleto = `${nomeInput.value.trim()} ${sobrenomeInput.value.trim()}`.trim();
         formData.set('nome', nomeCompleto);

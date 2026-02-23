@@ -135,26 +135,37 @@
                         <li class="config-menu-item active" data-section="sec-dados-pessoais">
                             <i class="fas fa-id-card"></i>
                             <span>Dados pessoais</span>
+                            <i class="fas fa-chevron-right config-menu-chevron"></i>
                         </li>
                         <li class="config-menu-item" data-section="sec-senha">
                             <i class="fas fa-shield-alt"></i>
                             <span>Senha e segurança</span>
+                            <i class="fas fa-chevron-right config-menu-chevron"></i>
                         </li>
                         <li class="config-menu-item" data-section="sec-anuncios">
                             <i class="fas fa-bullhorn"></i>
                             <span>Preferências de anúncios</span>
+                            <i class="fas fa-chevron-right config-menu-chevron"></i>
                         </li>
                         <li class="config-menu-item" data-section="sec-selo">
                             <i class="fas fa-certificate"></i>
                             <span>Selo</span>
+                            <i class="fas fa-chevron-right config-menu-chevron"></i>
                         </li>
                         <li class="config-menu-item" data-section="sec-notificacoes">
                             <i class="fas fa-bell"></i>
                             <span>Notificações</span>
+                            <i class="fas fa-chevron-right config-menu-chevron"></i>
                         </li>
                         <li class="config-menu-item" data-section="sec-personalizacao">
                             <i class="fas fa-sliders-h"></i>
-                            <span>Personalização</span>
+                            <span>Tema</span>
+                            <i class="fas fa-chevron-right config-menu-chevron"></i>
+                        </li>
+                        <li class="config-menu-item" data-section="sec-sobre-helpy">
+                            <i class="fas fa-info-circle"></i>
+                            <span>Sobre o Helpy</span>
+                            <i class="fas fa-chevron-right config-menu-chevron"></i>
                         </li>
                     </ul>
                 </aside>
@@ -235,7 +246,7 @@
                         <hr class="config-divider">
                         <h3>Área de perigo</h3>
                         <p class="config-descricao">Ações permanentes. Tenha cuidado.</p>
-                        <button class="cancelar-btn">Desativar minha conta</button>
+                        <button class="cancelar-btn" id="btn-excluir-conta">Excluir conta</button>
                     </div>
 
                     <!-- Seção: Preferências de anúncios -->
@@ -302,19 +313,73 @@
                         </div>
                     </div>
 
-                    <!-- Seção: Personalização -->
+                    <!-- Seção: Tema -->
                     <div id="sec-personalizacao" class="config-section">
-                        <h3>Personalização</h3>
+                        <h3>Tema</h3>
                         <div class="config-form">
-                            <div class="config-item-toggle">
-                                <div class="config-item-texto">
-                                    <strong>Modo escuro</strong>
-                                    <p>Deixe o Helpy mais confortável para os olhos, especialmente à noite.</p>
+                            <p class="config-descricao">Escolha como você prefere visualizar o Helpy.</p>
+                            <div class="tema-selecao-container tema-selecao-config tema-dark-ativo">
+                                <div class="tema-opcao selected" data-tema="dark">
+                                    <div class="tema-preview dark-preview">
+                                        <div class="preview-header">
+                                            <div class="preview-avatar"></div>
+                                            <div class="preview-lines">
+                                                <div class="preview-line"></div>
+                                                <div class="preview-line short"></div>
+                                            </div>
+                                        </div>
+                                        <div class="preview-content">
+                                            <div class="preview-card"></div>
+                                            <div class="preview-card"></div>
+                                        </div>
+                                    </div>
+                                    <div class="tema-label">
+                                        <i class="fas fa-moon"></i>
+                                        <span>Escuro</span>
+                                    </div>
+                                    <div class="tema-arrow">
+                                        <i class="fas fa-check"></i>
+                                    </div>
                                 </div>
-                                <label class="switch">
-                                    <input type="checkbox" id="dark-mode-toggle-config">
-                                    <span class="slider round"></span>
-                                </label>
+                                <div class="tema-opcao" data-tema="light">
+                                    <div class="tema-preview light-preview">
+                                        <div class="preview-header">
+                                            <div class="preview-avatar"></div>
+                                            <div class="preview-lines">
+                                                <div class="preview-line"></div>
+                                                <div class="preview-line short"></div>
+                                            </div>
+                                        </div>
+                                        <div class="preview-content">
+                                            <div class="preview-card"></div>
+                                            <div class="preview-card"></div>
+                                        </div>
+                                    </div>
+                                    <div class="tema-label">
+                                        <i class="fas fa-sun"></i>
+                                        <span>Claro</span>
+                                    </div>
+                                    <div class="tema-arrow">
+                                        <i class="fas fa-check"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Seção: Sobre o Helpy / Informações Legais -->
+                    <div id="sec-sobre-helpy" class="config-section">
+                        <h3>Sobre o Helpy</h3>
+                        <div class="config-form">
+                            <p class="config-descricao">
+                                Versão do aplicativo: <strong>1.0.0</strong>
+                            </p>
+                            <div class="config-descricao">
+                                <p>Documentos legais:</p>
+                                <p>
+                                    <a href="/termos" target="_blank">Termos de Uso</a> •
+                                    <a href="/privacidade" target="_blank">Política de Privacidade</a>
+                                </p>
                             </div>
                         </div>
                     </div>
@@ -407,7 +472,13 @@
                             <label class="plan-card">
                                 <input type="radio" name="anuncio-plano-radio" value="basico" checked>
                                 <div class="plan-card-body">
-                                    <div class="plan-card-title">Básico</div>
+                                        <div class="plan-card-title">
+                                            Básico • R$ 19,90
+                                            <span class="plan-card-payments">
+                                                <i class="fas fa-credit-card"></i>
+                                                <i class="fas fa-qrcode"></i>
+                                            </span>
+                                        </div>
                                     <ul class="plan-card-list">
                                         <li>Presença padrão no feed</li>
                                         <li>Até 30 dias ativo</li>
@@ -418,11 +489,17 @@
                             <label class="plan-card">
                                 <input type="radio" name="anuncio-plano-radio" value="premium">
                                 <div class="plan-card-body">
-                                    <div class="plan-card-title">Premium 3 meses</div>
+                                        <div class="plan-card-title">
+                                            Premium • R$ 39,90
+                                            <span class="plan-card-payments">
+                                                <i class="fas fa-credit-card"></i>
+                                                <i class="fas fa-qrcode"></i>
+                                            </span>
+                                        </div>
                                     <ul class="plan-card-list">
                                         <li>Prioridade de exibição</li>
                                         <li>Mais visualizações</li>
-                                        <li>Melhor destaque visual</li>
+                                            <li>Melhor destaque visual (mensal)</li>
                                     </ul>
                                 </div>
                             </label>
@@ -520,4 +597,3 @@
     <script src="/configuracoes.js"></script>
 </body>
 </html>
-

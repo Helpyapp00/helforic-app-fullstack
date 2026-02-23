@@ -2251,6 +2251,57 @@ textarea#post-content-input::placeholder { color: var(--text-placeholder); }
     opacity: 0.75;
 }
 
+/* Desktop: aumentar área visível de comentários no modal de postagem no perfil */
+@media (min-width: 1024px) {
+    /* Estrutura em coluna para controlar alturas da mídia e dos comentários */
+    #modal-postagem-completa .post {
+        display: flex !important;
+        flex-direction: column !important;
+        max-height: calc(100dvh - 40px) !important;
+        overflow: hidden !important;
+    }
+    #modal-postagem-completa .post-header,
+    #modal-postagem-completa .post-actions {
+        flex-shrink: 0 !important;
+    }
+    #modal-postagem-completa .post-content {
+        flex-shrink: 0 !important;
+        margin-bottom: 8px !important;
+    }
+    /* Limita a altura da mídia no desktop para sobrar espaço aos comentários */
+    #modal-postagem-completa .post-image,
+    #modal-postagem-completa .post-video,
+    #modal-postagem-completa .post-content img,
+    #modal-postagem-completa .post-content video {
+        max-height: 40vh !important; /* reduz a mídia para abrir mais espaço abaixo */
+        width: 100% !important;
+        height: auto !important;
+        object-fit: contain !important;
+    }
+    #modal-postagem-completa .post-comments {
+        padding-bottom: 0;
+        max-width: 100% !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
+        flex-shrink: 1 !important;
+        overflow: hidden !important;
+    }
+    /* Deixa a lista de comentários com altura confortável e rolagem própria */
+    #modal-postagem-completa .comment-list {
+        min-height: 34vh !important; /* área mínima mais generosa */
+        max-height: 70vh !important; /* e teto maior, caso a mídia seja pequena */
+        overflow-y: auto !important;
+        overflow-x: hidden !important;
+        padding-bottom: 10px;
+    }
+    /* Permite que o container do modal role quando necessário em desktops */
+    #modal-postagem-completa.modal-overlay .modal-content.modal-grande {
+        max-height: calc(100dvh - 24px) !important;
+        overflow-y: auto !important;
+        overflow-x: hidden !important;
+    }
+}
+
 /* Ajustes específicos para tablets e celulares */
 @media (max-width: 1023px) {
     #modal-postagem-completa .modal-content {
@@ -2823,7 +2874,7 @@ textarea#post-content-input::placeholder { color: var(--text-placeholder); }
         margin: 10px 0 14px 0 !important;
     }
 
-    /* ====== FIX: no desktop, NÃO rolar a caixa principal; rolar SOMENTE a .comment-list ====== */
+    /* ====== Desktop: não rolar o overlay; rola SOMENTE a .comment-list, com mais altura útil ====== */
     #modal-postagem-completa.modal-overlay {
         overflow: hidden !important;
     }
@@ -2831,11 +2882,10 @@ textarea#post-content-input::placeholder { color: var(--text-placeholder); }
     #modal-postagem-completa .modal-content.modal-grande {
         display: flex !important;
         flex-direction: column !important;
-        /* mantém o tamanho “do jeito que está”, mas limita para não gerar scroll do overlay */
-        max-height: calc(100vh - 140px) !important;
-        /* trava de vez: não cresce ao carregar mais comentários */
-        height: calc(100vh - 140px) !important;
-        overflow: hidden !important;
+        /* aumenta espaço total do modal em desktop */
+        max-height: calc(100vh - 60px) !important;
+        height: calc(100vh - 60px) !important;
+        overflow: hidden !important; /* rolagem fica na lista de comentários */
     }
 
     /* O body do modal precisa ser flex e ocupar o restante da altura */
@@ -3029,12 +3079,16 @@ textarea#post-content-input::placeholder { color: var(--text-placeholder); }
 .feed-empresa-card p video {
     display: none !important;
 }
-.post-actions { display: flex; gap: 10px; padding: 10px 0; border-top: none; margin-top: 10px; } 
+.post-actions { display: flex; gap: 10px; padding: 10px 0; border-top: none; margin-top: 10px; align-items: center; } 
 .action-btn { background-color: var(--bg-action); border: none; border-radius: 5px; padding: 8px 12px; cursor: pointer; color: var(--text-secondary); font-weight: bold; display: flex; align-items: center; gap: 5px; transition: background-color 0.2s; font-size: 14px; } 
 .action-btn:hover { background-color: var(--bg-action-hover); } 
 .action-btn i { font-size: 16px; }
 .btn-like.liked { color: var(--text-link); } 
 .btn-like.liked i { color: var(--text-link); } 
+
+.btn-report {
+    margin-left: auto;
+}
 
 /* --- Seção de Comentários (Base) --- */
 .post-comments { 
@@ -4894,6 +4948,18 @@ textarea#post-content-input::placeholder { color: var(--text-placeholder); }
 .plan-card-title {
     font-weight: 700;
     font-size: 15px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.plan-card-payments {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 13px;
+    opacity: 0.85;
 }
 
 .plan-card-list {
@@ -7599,6 +7665,83 @@ html.dark-mode #aviso-localizacao-incompleta {
     0% { transform: scale(0.4); opacity: 0; }
     60% { transform: scale(1.1); opacity: 1; }
     100% { transform: scale(1); opacity: 1; }
+}
+
+/* Modal genérico */
+.modal-conteudo {
+    background: var(--bg-elevated, #15171c);
+    border-radius: 12px;
+    padding: 16px 18px;
+    max-width: 360px;
+    width: 100%;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+    color: var(--text-primary, #fff);
+    margin: 0 16px;
+    position: relative;
+}
+
+.modal-conteudo h3 {
+    font-size: 18px;
+    margin: 0 0 8px;
+}
+
+.modal-conteudo p {
+    margin: 0 0 12px;
+    font-size: 14px;
+    opacity: 0.9;
+}
+
+.denuncia-opcoes {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.denuncia-opcao {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    cursor: pointer;
+}
+
+.denuncia-opcao input[type="radio"] {
+    accent-color: var(--text-link, #4f46e5);
+}
+
+.denuncia-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 16px;
+}
+
+.btn-denuncia-cancelar {
+    background: transparent;
+    border-radius: 999px;
+    border: 1px solid var(--border-color, rgba(148, 163, 184, 0.6));
+    color: var(--text-secondary, #e5e7eb);
+    padding: 8px 14px;
+    font-size: 14px;
+    cursor: pointer;
+}
+
+.btn-denuncia-enviar {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border-radius: 999px;
+    border: none;
+    background: var(--primary-color, #4f46e5);
+    color: #fff;
+    padding: 8px 14px;
+    font-size: 14px;
+    cursor: pointer;
+}
+
+.btn-denuncia-icon {
+    width: 18px;
+    height: 18px;
 }
 
 /* 🆕 Miniatura e overlay da foto do pedido nas propostas */
@@ -12432,6 +12575,26 @@ body.explorar-open header.search-open .header-actions {
     color: #f97373 !important;
 }
 
+.explorar-report-btn {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    background: transparent;
+    border: none;
+    color: #fff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    cursor: pointer;
+    z-index: 3;
+}
+
+.explorar-report-btn i {
+    font-size: 18px;
+}
+
 @keyframes likePulse {
     0% { transform: scale(1); }
     40% { transform: scale(1.25); }
@@ -12848,6 +13011,33 @@ body.explorar-open header.search-open .header-actions {
         height: 85vh;
         border-radius: 12px;
         overflow: hidden;
+    }
+
+    /* Modal de postagem: reduzir espaçamento e usar rolagem dentro do artigo */
+    #modal-postagem-completa .modal-body {
+        padding-top: 8px !important;
+        padding-bottom: 8px !important;
+    }
+
+    #modal-postagem-completa article.post {
+        flex: 1 1 auto !important;
+        max-height: calc(85vh - 60px) !important;
+        overflow-y: auto !important;  /* rolagem interna no conteúdo da postagem */
+        overflow-x: hidden !important;
+        display: flex !important;
+        flex-direction: column !important;
+    }
+
+    #modal-postagem-completa .post-comments {
+        flex: 0 0 auto !important;
+        max-height: none !important;
+        overflow: visible !important;
+    }
+
+    #modal-postagem-completa .comment-list {
+        flex: 0 0 auto !important;
+        max-height: none !important;
+        overflow-y: visible !important;
     }
 }
 

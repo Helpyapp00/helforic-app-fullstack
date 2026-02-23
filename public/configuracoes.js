@@ -100,11 +100,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 const cidadeEstado = [a?.cidade, a?.estado].filter(Boolean).join(' - ');
                 const status = a?.ativo ? 'Ativo' : 'Inativo';
                 const plano = a?.plano ? String(a.plano) : 'basico';
+                const preco = plano === 'premium' ? 'R$ 39,90/mês' : 'R$ 19,90';
                 return `
                     <div style="padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.08);">
                         <div style="font-weight: 700;">${titulo}</div>
-                        <div style="opacity: 0.85;">${cidadeEstado || 'Geral'} • ${status} • ${plano}</div>
-                        <button class="salvar-btn btn-ghost" data-pay-anuncio="${a?._id}" style="margin-top: 8px; padding: 8px 12px;">Pagar / Impulsionar</button>
+                        <div style="opacity: 0.85;">${cidadeEstado || 'Geral'} • ${status} • Plano: ${plano} (${preco})</div>
+                        <button class="salvar-btn btn-ghost" data-pay-anuncio="${a?._id}" data-pay-plano="${plano}" style="margin-top: 8px; padding: 8px 12px;">Pagar / Impulsionar</button>
                     </div>
                 `;
             }).join('');
@@ -347,7 +348,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
 
-                const resp = await fetch('/api/anuncios', {
+                const resp = await fetch('/api/pagamentos/mercadopago/preference', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -362,24 +363,48 @@ document.addEventListener('DOMContentLoaded', () => {
                         numero,
                         cidade,
                         estado,
-                        plano,
-                        ativo: true
+                        plano
                     })
                 });
                 const data = await resp.json().catch(() => ({}));
                 if (!resp.ok) {
-                    if (msgAnuncio) msgAnuncio.textContent = data?.message || 'Não foi possível criar o anúncio.';
+                    if (msgAnuncio) msgAnuncio.textContent = data?.message || 'Não foi possível iniciar o pagamento do anúncio.';
                     return;
                 }
-                if (msgAnuncio) msgAnuncio.textContent = 'Anúncio criado! Agora ele já pode aparecer no feed.';
-                formCriarAnuncio.reset();
-                clearAdPreview();
-                await carregarMeusAnuncios();
+                if (!data?.init_point) {
+                    if (msgAnuncio) msgAnuncio.textContent = 'Pagamento criado, mas não retornou link do checkout.';
+                    return;
+                }
+                if (msgAnuncio) msgAnuncio.textContent = 'Redirecionando para o pagamento do anúncio...';
+                window.location.href = data.init_point;
             } catch (err) {
                 console.error('Erro ao criar anúncio:', err);
-                if (msgAnuncio) msgAnuncio.textContent = 'Erro ao criar anúncio.';
+                if (msgAnuncio) msgAnuncio.textContent = 'Erro ao iniciar pagamento do anúncio.';
             }
         });
+    }
+
+    async function iniciarPagamentoAnuncio(anuncioId, plano) {
+        try {
+            const resp = await fetch('/api/pagamentos/mercadopago/preference', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...getAuthHeaders()
+                },
+                body: JSON.stringify({ anuncioId, plano })
+            });
+            const data = await resp.json().catch(() => ({}));
+            if (!resp.ok || !data?.init_point) {
+                console.error('Erro ao iniciar pagamento:', data);
+                alert(data?.message || 'Não foi possível iniciar o pagamento.');
+                return;
+            }
+            window.location.href = data.init_point;
+        } catch (error) {
+            console.error('Erro ao iniciar pagamento do anúncio:', error);
+            alert('Erro ao iniciar pagamento do anúncio.');
+        }
     }
 
     document.addEventListener('click', (e) => {
@@ -387,7 +412,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!btn) return;
         const id = btn.getAttribute('data-pay-anuncio');
         if (!id) return;
-        alert('Pagamento/impulsionamento ainda não foi implementado. Por enquanto, o anúncio é criado manualmente e pode aparecer no feed.');
+        const plano = btn.getAttribute('data-pay-plano') || 'basico';
+        iniciarPagamentoAnuncio(id, plano);
     });
 
     carregarMeusAnuncios();
@@ -791,6 +817,28 @@ document.addEventListener('DOMContentLoaded', () => {
             logoutConfirmModal && logoutConfirmModal.classList.remove('hidden');
         });
     }
+    const btnExcluirConta = document.getElementById('btn-excluir-conta');
+    if (btnExcluirConta) {
+        btnExcluirConta.textContent = 'Excluir conta';
+        btnExcluirConta.addEventListener('click', async (e) => {
+            e.preventDefault();
+            const confirma = confirm('Tem certeza? Todos os seus anúncios e vídeos de 24h serão apagados permanentemente.');
+            if (!confirma) return;
+            try {
+                const resp = await fetch('/api/user/me', {
+                    method: 'DELETE',
+                    headers: getAuthHeaders()
+                });
+                const data = await resp.json().catch(() => ({}));
+                if (!resp.ok || data?.success === false) {
+                    throw new Error(data?.message || 'Não foi possível excluir sua conta.');
+                }
+                doLogout();
+            } catch (err) {
+                alert(err.message || 'Erro ao excluir conta.');
+            }
+        });
+    }
     function doLogout() {
         // Mesma lógica do confirmLogoutYesBtn
             const modalPropostas = document.getElementById('modal-propostas');
@@ -855,92 +903,140 @@ document.addEventListener('DOMContentLoaded', () => {
     // ============================================
     const menuItems = document.querySelectorAll('.config-menu-item');
     const sections = document.querySelectorAll('.config-section');
+    const menu = document.querySelector('.config-menu');
+    let menuColapsado = false;
 
-    function ativarSecao(sectionId) {
-        sections.forEach(sec => {
-            sec.classList.toggle('active', sec.id === sectionId);
-        });
+    function mostrarTodosOsItensMenu() {
+        if (menu) menu.classList.remove('menu-colapsado');
+        menuColapsado = false;
     }
 
-    menuItems.forEach(item => {
-        item.addEventListener('click', () => {
-            menuItems.forEach(i => i.classList.remove('active'));
-            item.classList.add('active');
-            const alvo = item.getAttribute('data-section');
-            if (alvo) {
-                ativarSecao(alvo);
-                // Em telas pequenas, rola suavemente até a seção escolhida
-                if (window.innerWidth <= 900) {
-                    const alvoEl = document.getElementById(alvo);
-                    if (alvoEl) {
-                        const headerOffset = 80; // altura aproximada do header fixo
+    function mostrarApenasItemAtivo() {
+        if (menu) menu.classList.add('menu-colapsado');
+        menuColapsado = true;
+    }
+
+    function inicializarAccordion() {
+        menuItems.forEach(item => {
+            item.addEventListener('click', () => {
+                const alvo = item.getAttribute('data-section');
+                if (!alvo) return;
+
+                const alvoEl = document.getElementById(alvo);
+                const jaAtivo = item.classList.contains('active') && alvoEl && alvoEl.classList.contains('active');
+
+                if (menuColapsado && jaAtivo) {
+                    mostrarTodosOsItensMenu();
+                    return;
+                }
+
+                menuItems.forEach(i => i.classList.remove('active'));
+                sections.forEach(sec => sec.classList.remove('active'));
+
+                item.classList.add('active');
+                if (alvoEl) {
+                    alvoEl.classList.add('active');
+                    if (window.innerWidth <= 900) {
+                        const headerOffset = 80;
                         const y = alvoEl.getBoundingClientRect().top + window.scrollY - headerOffset;
                         window.scrollTo({ top: y, behavior: 'smooth' });
                     }
                 }
-            }
-        });
-    });
 
-    // Mantém "Dados pessoais" como padrão se nada estiver selecionado
-    if (!document.querySelector('.config-menu-item.active') && menuItems[0]) {
-        menuItems[0].classList.add('active');
-        const alvo = menuItems[0].getAttribute('data-section');
-        if (alvo) ativarSecao(alvo);
+                mostrarApenasItemAtivo();
+            });
+        });
+
+        if (!document.querySelector('.config-menu-item.active') && menuItems[0]) {
+            menuItems[0].classList.add('active');
+        }
+        const ativa = document.querySelector('.config-menu-item.active');
+        if (ativa) {
+            const alvo = ativa.getAttribute('data-section');
+            if (alvo) {
+                const alvoEl = document.getElementById(alvo);
+                if (alvoEl) alvoEl.classList.add('active');
+            }
+        }
+    }
+
+    if (menuItems.length && sections.length) {
+        inicializarAccordion();
     }
 
     // ============================================
     // Personalização - Tema (Modo Escuro)
     // ============================================
-    const darkModeToggleConfig = document.getElementById('dark-mode-toggle-config');
     const htmlElement = document.documentElement;
 
     function applyTheme(theme) {
         if (theme === 'dark') {
             htmlElement.classList.add('dark-mode');
-            if (darkModeToggleConfig) darkModeToggleConfig.checked = true;
         } else {
             htmlElement.classList.remove('dark-mode');
-            if (darkModeToggleConfig) darkModeToggleConfig.checked = false;
         }
     }
 
     const savedTheme = localStorage.getItem('theme') || 'light';
     applyTheme(savedTheme);
 
-    if (darkModeToggleConfig) {
-        darkModeToggleConfig.addEventListener('change', async () => {
-            const theme = darkModeToggleConfig.checked ? 'dark' : 'light';
-            applyTheme(theme);
-            localStorage.setItem('theme', theme);
+    const temaContainerConfig = document.querySelector('.tema-selecao-config');
+    const temaOpcoesConfig = document.querySelectorAll('.tema-selecao-config .tema-opcao');
 
-            // Atualiza preferência no servidor (mesma lógica do feed)
-            if (loggedInUserId && token) {
-                try {
-                    const response = await fetch('/api/user/theme', {
-                        method: 'PUT',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${token}`
-                        },
-                        body: JSON.stringify({ tema: theme })
-                    });
+    async function salvarTema(theme) {
+        applyTheme(theme);
+        localStorage.setItem('theme', theme);
 
-                    const result = await response.json();
+        if (temaContainerConfig) {
+            temaContainerConfig.classList.remove('tema-light-ativo', 'tema-dark-ativo');
+            temaContainerConfig.classList.add(theme === 'dark' ? 'tema-dark-ativo' : 'tema-light-ativo');
+        }
 
-                    if (!response.ok) {
-                        throw new Error(result.message || 'Erro ao atualizar o tema');
-                    }
-                } catch (error) {
-                    console.error('Erro ao atualizar preferência de tema:', error);
-                    const revertedTheme = theme === 'dark' ? 'light' : 'dark';
-                    applyTheme(revertedTheme);
-                    localStorage.setItem('theme', revertedTheme);
-                    darkModeToggleConfig.checked = revertedTheme === 'dark';
-                    alert('Não foi possível salvar sua preferência de tema. Tente novamente.');
+        if (loggedInUserId && token) {
+            try {
+                const response = await fetch('/api/user/theme', {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ tema: theme })
+                });
+
+                const result = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(result.message || 'Erro ao atualizar o tema');
                 }
+            } catch (error) {
+                console.error('Erro ao atualizar preferência de tema:', error);
+                const revertedTheme = theme === 'dark' ? 'light' : 'dark';
+                applyTheme(revertedTheme);
+                localStorage.setItem('theme', revertedTheme);
+                alert('Não foi possível salvar sua preferência de tema. Tente novamente.');
             }
+        }
+    }
+
+    if (temaOpcoesConfig.length) {
+        temaOpcoesConfig.forEach(opcao => {
+            const tema = opcao.getAttribute('data-tema') || 'light';
+            if (tema === savedTheme) {
+                opcao.classList.add('selected');
+            } else {
+                opcao.classList.remove('selected');
+            }
+            opcao.addEventListener('click', () => {
+                temaOpcoesConfig.forEach(o => o.classList.remove('selected'));
+                opcao.classList.add('selected');
+                salvarTema(tema);
+            });
         });
+
+        if (temaContainerConfig) {
+            temaContainerConfig.classList.remove('tema-light-ativo', 'tema-dark-ativo');
+            temaContainerConfig.classList.add(savedTheme === 'dark' ? 'tema-dark-ativo' : 'tema-light-ativo');
+        }
     }
 
     // ============================================

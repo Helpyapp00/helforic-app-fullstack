@@ -4,6 +4,182 @@ document.addEventListener('DOMContentLoaded', () => {
     const userId = localStorage.getItem('userId');
     const token = localStorage.getItem('jwtToken');
     const userType = localStorage.getItem('userType');
+    let denunciaModalOverlay = null;
+    let denunciaContext = null;
+    let toastTimeoutId = null;
+
+    function showSucessoToast(message) {
+        const toast = document.createElement('div');
+        toast.className = 'toast-sucesso';
+        toast.textContent = '';
+        const spanCheck = document.createElement('span');
+        spanCheck.className = 'check-animado';
+        spanCheck.textContent = '✔';
+        const spanMsg = document.createElement('span');
+        spanMsg.textContent = message;
+        toast.appendChild(spanCheck);
+        toast.appendChild(spanMsg);
+        document.body.appendChild(toast);
+        requestAnimationFrame(() => {
+            toast.classList.add('show');
+        });
+        if (toastTimeoutId) {
+            clearTimeout(toastTimeoutId);
+        }
+        toastTimeoutId = setTimeout(() => {
+            toast.classList.remove('show');
+            setTimeout(() => toast.remove(), 250);
+        }, 2500);
+    }
+
+    function ensureDenunciaModal() {
+        if (denunciaModalOverlay) return denunciaModalOverlay;
+        const overlay = document.createElement('div');
+        overlay.id = 'denuncia-modal-overlay';
+        overlay.className = 'modal-overlay hidden';
+        const modal = document.createElement('div');
+        modal.className = 'modal-conteudo';
+
+        const title = document.createElement('h3');
+        title.textContent = 'Denunciar conteúdo';
+        modal.appendChild(title);
+
+        const subtitle = document.createElement('p');
+        subtitle.textContent = 'O que há de errado com este conteúdo?';
+        modal.appendChild(subtitle);
+
+        const options = document.createElement('div');
+        options.className = 'denuncia-opcoes';
+
+        const motivos = [
+            'Spam',
+            'Conteúdo impróprio',
+            'Assédio'
+        ];
+
+        motivos.forEach((motivo, index) => {
+            const label = document.createElement('label');
+            label.className = 'denuncia-opcao';
+            const input = document.createElement('input');
+            input.type = 'radio';
+            input.name = 'denuncia-motivo';
+            input.value = motivo;
+            if (index === 1) {
+                input.checked = true;
+            }
+            label.appendChild(input);
+            const span = document.createElement('span');
+            span.textContent = motivo;
+            label.appendChild(span);
+            options.appendChild(label);
+        });
+
+        modal.appendChild(options);
+
+        const actions = document.createElement('div');
+        actions.className = 'denuncia-actions';
+
+        const btnCancel = document.createElement('button');
+        btnCancel.type = 'button';
+        btnCancel.className = 'btn-denuncia-cancelar';
+        btnCancel.textContent = 'Cancelar';
+
+        const btnConfirm = document.createElement('button');
+        btnConfirm.type = 'button';
+        btnConfirm.className = 'btn-denuncia-enviar';
+        const btnConfirmImg = document.createElement('img');
+        btnConfirmImg.className = 'btn-denuncia-icon';
+        btnConfirmImg.alt = '';
+        btnConfirmImg.setAttribute('data-src-light', '/imagens/enviar.tema.claro.png');
+        btnConfirmImg.setAttribute('data-src-dark', '/imagens/enviar.tema.escuro.png');
+        const isDark = document.documentElement.classList.contains('dark-mode');
+        btnConfirmImg.src = isDark ? '/imagens/enviar.tema.escuro.png' : '/imagens/enviar.tema.claro.png';
+        btnConfirm.appendChild(btnConfirmImg);
+        const btnConfirmSpan = document.createElement('span');
+        btnConfirmSpan.textContent = 'Enviar denúncia';
+        btnConfirm.appendChild(btnConfirmSpan);
+
+        actions.appendChild(btnCancel);
+        actions.appendChild(btnConfirm);
+        modal.appendChild(actions);
+
+        overlay.appendChild(modal);
+        overlay.addEventListener('click', (event) => {
+            if (event.target === overlay) {
+                overlay.classList.add('hidden');
+            }
+        });
+
+        btnCancel.addEventListener('click', () => {
+            overlay.classList.add('hidden');
+        });
+
+        btnConfirm.addEventListener('click', async () => {
+            if (!denunciaContext || !token) {
+                overlay.classList.add('hidden');
+                return;
+            }
+            const radios = overlay.querySelectorAll('input[name="denuncia-motivo"]');
+            let motivoSelecionado = 'Conteúdo impróprio';
+            radios.forEach((input) => {
+                if (input.checked) {
+                    motivoSelecionado = input.value;
+                }
+            });
+            btnConfirm.disabled = true;
+            try {
+                const response = await fetch('/api/denuncias', {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        alvoTipo: denunciaContext.alvoTipo,
+                        alvoId: denunciaContext.alvoId,
+                        motivo: motivoSelecionado,
+                        origem: denunciaContext.origem
+                    })
+                });
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok || data?.success === false) {
+                    throw new Error(data?.message || 'Não foi possível enviar a denúncia.');
+                }
+                overlay.classList.add('hidden');
+                showSucessoToast('Obrigado, analisaremos sua denúncia.');
+            } catch (error) {
+                overlay.classList.add('hidden');
+                showSucessoToast('Erro ao enviar denúncia.');
+            } finally {
+                btnConfirm.disabled = false;
+            }
+        });
+
+        document.body.appendChild(overlay);
+        denunciaModalOverlay = overlay;
+        return overlay;
+    }
+
+    function abrirDenunciaModal(context) {
+        const overlay = ensureDenunciaModal();
+        denunciaContext = context;
+        const radios = overlay.querySelectorAll('input[name="denuncia-motivo"]');
+        let defaultFound = false;
+        radios.forEach((input) => {
+            if (input.value === 'Conteúdo impróprio') {
+                input.checked = true;
+                defaultFound = true;
+            }
+        });
+        if (!defaultFound && radios[0]) {
+            radios[0].checked = true;
+        }
+        const isDark = document.documentElement.classList.contains('dark-mode');
+        const icon = overlay.querySelector('.btn-denuncia-icon');
+        if (icon) {
+            const srcLight = icon.getAttribute('data-src-light') || '/imagens/enviar.tema.claro.png';
+            const srcDark = icon.getAttribute('data-src-dark') || '/imagens/enviar.tema.escuro.png';
+            icon.src = isDark ? srcDark : srcLight;
+        }
+        overlay.classList.remove('hidden');
+    }
     const profileReturnKey = 'helpy:profile-return';
     let shouldRestoreExplorar = false;
     let pendingExplorarOpen = false;
@@ -2851,7 +3027,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const perfilAction = actions.find((action) => action.label === 'Ver perfil');
             const rawPerfilId = item?.userId?._id || item?.userId || item?.dono?._id || item?.dono?.id || item?.ownerId || item?.autorId;
             const ownerId = rawPerfilId?._id || rawPerfilId;
-            const fallbackPerfilUrl = rawPerfilId ? `/perfil?id=${rawPerfilId}` : null;
+            const fallbackPerfilUrl = rawPerfilId ? `/perfil.html?id=${rawPerfilId}&statusOwnerId=${rawPerfilId}` : null;
             const perfilUrl = item?.perfilUrl || perfilAction?.url || fallbackPerfilUrl || '#';
             const rawFoto = item?.foto
                 || item?.avatarUrl
@@ -2884,6 +3060,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     ${mediaHTML}
                     ${badge ? `<div class="explorar-card-badge">${badge}</div>` : ''}
                     ${deleteButtonHTML}
+                    ${rawItemId ? `
+                    <button class="explorar-report-btn" type="button" data-post-id="${rawItemId}" aria-label="Denunciar">
+                        <i class="fas fa-flag"></i>
+                    </button>` : ''}
                     <div class="explorar-card-info-overlay">
                         <div class="explorar-card-info">
                             <a class="explorar-card-perfil" href="${perfilUrl}">
@@ -2965,6 +3145,11 @@ document.addEventListener('DOMContentLoaded', () => {
             if (videoEl) {
                 videoEl.addEventListener('click', (event) => {
                     event.preventDefault();
+                    if (ownerId) {
+                        const url = `/perfil.html?id=${encodeURIComponent(ownerId)}&statusOwnerId=${encodeURIComponent(ownerId)}`;
+                        window.location.href = url;
+                        return;
+                    }
                     const src = videoEl.getAttribute('src') || videoEl.getAttribute('data-src');
                     if (src && !videoEl.getAttribute('src')) {
                         videoEl.setAttribute('src', src);
@@ -3050,6 +3235,16 @@ document.addEventListener('DOMContentLoaded', () => {
             const likeBtn = card.querySelector('.explorar-like-btn.btn-like');
             if (likeBtn) {
                 likeBtn.addEventListener('click', handleLikePost);
+            }
+            const reportBtn = card.querySelector('.explorar-report-btn');
+            if (reportBtn) {
+                reportBtn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const postId = reportBtn.dataset.postId;
+                    if (!postId) return;
+                    abrirDenunciaModal({ alvoTipo: 'explorar', alvoId: postId, origem: 'explorar' });
+                });
             }
 
             explorarFeedList.appendChild(card);
@@ -3834,6 +4029,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 <button class="action-btn btn-comment ${comentariosVisiveis ? 'active' : ''}" data-post-id="${post._id}">
                     <i class="fas fa-comment"></i> ${visibleCommentsCount} Comentários
                 </button>
+                <button class="action-btn btn-report" data-post-id="${post._id}">
+                    <i class="fas fa-flag"></i> Denunciar
+                </button>
             </div>
             <div class="post-comments ${comentariosVisiveis}">
                 <div class="comment-list">
@@ -4278,6 +4476,12 @@ document.addEventListener('DOMContentLoaded', () => {
         document.querySelectorAll('.btn-like').forEach(btn => btn.addEventListener('click', handleLikePost));
         document.querySelectorAll('.btn-comment').forEach(btn => btn.addEventListener('click', toggleCommentSection));
         document.querySelectorAll('.btn-send-comment').forEach(btn => btn.addEventListener('click', handleSendComment));
+        document.querySelectorAll('.btn-report').forEach(btn => btn.addEventListener('click', (e) => {
+            e.preventDefault();
+            const postId = e.currentTarget.dataset.postId;
+            if (!postId) return;
+            abrirDenunciaModal({ alvoTipo: 'post', alvoId: postId, origem: 'feed' });
+        }));
         document.querySelectorAll('.feed-empresa-whatsapp').forEach(link => {
             link.addEventListener('click', () => {
                 const postEl = link.closest('.post');

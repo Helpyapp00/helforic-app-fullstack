@@ -203,6 +203,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     const loggedInUserId = localStorage.getItem('userId');
+    const statusOwnerIdParam = urlParams.get('statusOwnerId');
     // Suporte a slug em /perfil/:slug e também query ?id=...
     const pathParts = window.location.pathname.split('/').filter(Boolean);
     const slugFromPath = (pathParts.length >= 2 && pathParts[0] === 'perfil') ? pathParts[1] : null;
@@ -2133,6 +2134,10 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         abrirStoryIndex(0);
+    }
+
+    if (statusOwnerIdParam) {
+        abrirStatusDiretoNoPerfil(statusOwnerIdParam);
     }
 
     function fecharOverlayPerfil() {
@@ -4225,6 +4230,17 @@ document.addEventListener('DOMContentLoaded', () => {
             </article>
         `;
         
+        // Garante que os comentários aparecem imediatamente também em telas grandes
+        try {
+            const commentListPre = modalContent.querySelector('.comment-list');
+            if (commentListPre) {
+                const anyRendered = commentListPre.querySelector('.comment');
+                if (!anyRendered && commentsArray.length > 0) {
+                    commentListPre.innerHTML = `${allCommentsHTML}${commentListPre.innerHTML}`;
+                }
+            }
+        } catch (_) {}
+        
         // Configurar botão de fechar
         const btnFechar = modalPostagem.querySelector('.btn-close-modal');
         if (btnFechar) {
@@ -4508,18 +4524,21 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
         
-        // Toggle comentários
+        // Comentários: já vêm abertos; botão apenas foca/rola até a área
         const btnComment = postElement.querySelector('.btn-comment');
         if (btnComment) {
             btnComment.addEventListener('click', (e) => {
                 e.stopPropagation();
                 const commentsSection = postElement.querySelector('.post-comments');
                 if (commentsSection) {
-                    commentsSection.classList.toggle('visible');
-                    btnComment.classList.toggle('active');
-                    if (commentsSection.classList.contains('visible')) {
-                        const input = commentsSection.querySelector('.comment-input');
-                        if (input) input.focus();
+                    commentsSection.classList.add('visible');
+                    btnComment.classList.add('active');
+                    const input = commentsSection.querySelector('.comment-input');
+                    if (input) input.focus();
+                    if (window.innerWidth >= 1024) {
+                        try {
+                            commentsSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                        } catch (_) {}
                     }
                 }
             });
