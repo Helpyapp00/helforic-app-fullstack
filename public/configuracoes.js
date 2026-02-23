@@ -404,25 +404,26 @@ document.addEventListener('DOMContentLoaded', () => {
     async function verificarStatusPix() {
         if (!pixCurrentPaymentId) return;
         try {
+            const currentId = pixCurrentPaymentId;
             const resp = await fetch(`/api/pagamentos/mercadopago/pix/status?id=${encodeURIComponent(pixCurrentPaymentId)}`, {
                 headers: getAuthHeaders()
             });
             const data = await resp.json().catch(() => ({}));
             const status = data?.status;
             if (status === 'approved') {
-                limparEstadoPix();
                 try {
-                    if (pixCurrentPaymentId) {
+                    if (currentId) {
                         await fetch('/api/pagamentos/mercadopago/pix/confirm', {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json',
                                 ...getAuthHeaders()
                             },
-                            body: JSON.stringify({ id: pixCurrentPaymentId })
+                            body: JSON.stringify({ id: currentId })
                         });
                     }
                 } catch (e) {}
+                limparEstadoPix();
                 if (pixMsg) pixMsg.textContent = 'Pagamento aprovado! Redirecionando...';
                 window.location.href = 'configuracoes-conta.html?pagamento=sucesso&section=sec-anuncios';
             } else if (status === 'rejected' || status === 'cancelled') {

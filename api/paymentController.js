@@ -384,19 +384,21 @@ async function confirmarPagamentoPix(req, res) {
                     const planoAtual = anuncioExistente.plano === 'premium' ? 'premium' : 'basico';
                     const amount = Number(payment && payment.transaction_amount ? payment.transaction_amount : 0);
                     const diff = Math.max(Number(PLANOS.premium.price) - Number(PLANOS.basico.price), 0);
-                    const isUpgrade = (planoAtual === 'basico') && Math.abs(amount - diff) < 0.1;
-                    const inicioFinal = new Date();
-                    const fimFinal = new Date(inicioFinal.getTime() + 30 * 24 * 60 * 60 * 1000);
-                    const update = { ativo: true };
+                    const EPS = 0.1;
+                    const paidPremium = Math.abs(amount - Number(PLANOS.premium.price)) < EPS;
+                    const paidBasico = Math.abs(amount - Number(PLANOS.basico.price)) < EPS;
+                    const isUpgrade = (planoAtual === 'basico') && Math.abs(amount - diff) < EPS;
+                    const now = new Date();
+                    const later = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+                    let update = { ativo: true };
                     if (isUpgrade) {
-                        update.inicioEm = inicioFinal;
-                        update.fimEm = fimFinal;
-                        update.prioridade = 10;
-                        update.plano = 'premium';
+                        update = { ativo: true, inicioEm: now, fimEm: later, prioridade: 10, plano: 'premium' };
+                    } else if (paidPremium) {
+                        update = { ativo: true, inicioEm: now, fimEm: later, prioridade: 10, plano: 'premium' };
+                    } else if (paidBasico) {
+                        update = { ativo: true, inicioEm: now, fimEm: later, prioridade: 0, plano: 'basico' };
                     } else if (!anuncioExistente.inicioEm) {
-                        update.inicioEm = inicioFinal;
-                        update.fimEm = fimFinal;
-                        update.prioridade = planoAtual === 'premium' ? 10 : 0;
+                        update = { ativo: true, inicioEm: now, fimEm: later, prioridade: planoAtual === 'premium' ? 10 : 0 };
                     }
                     console.log('[PIX][CONFIRM] approved', {
                         paymentId: id,
@@ -448,27 +450,24 @@ async function webhookMercadoPago(req, res) {
                         try {
                             const anuncioExistente = await AnuncioPago.findById(externalRef);
                             if (anuncioExistente) {
-                                const inicioAtual = anuncioExistente.inicioEm;
                                 const planoAtual = anuncioExistente.plano === 'premium' ? 'premium' : 'basico';
-                                const prioridadeAtual = planoAtual === 'premium' ? 10 : 0;
                                 const amount = Number(payment && payment.transaction_amount ? payment.transaction_amount : 0);
+                                const EPS = 0.1;
                                 const diff = Math.max(Number(PLANOS.premium.price) - Number(PLANOS.basico.price), 0);
-                                const isUpgrade = (planoAtual === 'basico') && Math.abs(amount - diff) < 0.1;
-
-                                const update = { ativo: true };
+                                const paidPremium = Math.abs(amount - Number(PLANOS.premium.price)) < EPS;
+                                const paidBasico = Math.abs(amount - Number(PLANOS.basico.price)) < EPS;
+                                const isUpgrade = (planoAtual === 'basico') && Math.abs(amount - diff) < EPS;
+                                const now = new Date();
+                                const later = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+                                let update = { ativo: true };
                                 if (isUpgrade) {
-                                    const inicioFinal = new Date();
-                                    const fimFinal = new Date(inicioFinal.getTime() + 30 * 24 * 60 * 60 * 1000);
-                                    update.inicioEm = inicioFinal;
-                                    update.fimEm = fimFinal;
-                                    update.prioridade = 10;
-                                    update.plano = 'premium';
-                                } else if (!inicioAtual) {
-                                    const inicioFinal = new Date();
-                                    const fimFinal = new Date(inicioFinal.getTime() + 30 * 24 * 60 * 60 * 1000);
-                                    update.inicioEm = inicioFinal;
-                                    update.fimEm = fimFinal;
-                                    update.prioridade = prioridadeAtual;
+                                    update = { ativo: true, inicioEm: now, fimEm: later, prioridade: 10, plano: 'premium' };
+                                } else if (paidPremium) {
+                                    update = { ativo: true, inicioEm: now, fimEm: later, prioridade: 10, plano: 'premium' };
+                                } else if (paidBasico) {
+                                    update = { ativo: true, inicioEm: now, fimEm: later, prioridade: 0, plano: 'basico' };
+                                } else if (!anuncioExistente.inicioEm) {
+                                    update = { ativo: true, inicioEm: now, fimEm: later, prioridade: planoAtual === 'premium' ? 10 : 0 };
                                 }
                                 console.log('[WEBHOOK] Atualizando anúncio existente', {
                                     _id: externalRef,
