@@ -700,11 +700,11 @@ html.dark-mode {
 /* Fim das Variáveis */
 
 
-/* Rolagem padrão restaurada */
+/* Previne navegação por gesto e efeitos de borda (bolinha/seta) */
 html,
 body {
-    overscroll-behavior: auto !important;
-    touch-action: auto !important;
+    overscroll-behavior: none !important;
+    touch-action: pan-y !important;
 }
 
 #explorar-video-overlay,
@@ -6808,7 +6808,7 @@ html.dark-mode #aviso-localizacao-incompleta {
 
     /* Espaço para não cobrir o fim do feed */
     body {
-        padding-bottom: 68px;
+        padding-bottom: 72px;
     }
 
     body.explorar-open {
@@ -6865,6 +6865,7 @@ html.dark-mode #aviso-localizacao-incompleta {
         width: 100% !important;
         max-width: 100% !important;
         box-sizing: border-box;
+        touch-action: pan-x;
     }
 
     .categorias,
@@ -12126,6 +12127,8 @@ body.explorar-open header.search-open .header-actions {
         overflow: auto;
         scrollbar-width: none;
         -ms-overflow-style: none;
+        /* Espaço extra para não cobrir o último item com a barra de navegação */
+        padding-bottom: 72px !important;
     }
 
     .feed-explorar-slider > main::-webkit-scrollbar,
@@ -13068,6 +13071,13 @@ body.explorar-open header.search-open .header-actions {
         display: block;
         margin: 0 auto;
         background: #000;
+    }
+}
+
+/* Correção final para garantir que a última postagem não fique escondida atrás da barra inferior */
+@media (max-width: 768px) {
+    #posts-container .post:last-child {
+        margin-bottom: 72px !important;
     }
 }
 

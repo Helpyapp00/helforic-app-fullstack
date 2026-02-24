@@ -522,9 +522,9 @@
                 <button type="button" id="pix-fechar-btn" class="btn-secondary" style="padding: 0 8px; font-size: 28px; font-weight: 900; background: transparent; border-radius: 999px; color: var(--text-primary); margin: 0; display: inline-flex; align-items: center; justify-content: center;">
                     ←
                 </button>
-                <h3 style="margin: 0;">Pagamento do anúncio via Pix</h3>
+                <h3 style="margin: 0;" id="modal-pagamento-titulo">Pagamento do anúncio</h3>
             </div>
-            <p id="pix-modal-etapa-texto" class="config-descricao" style="margin-bottom: 12px;">Informe seus dados para gerar o Pix.</p>
+            
             <div id="pix-anuncio-preview" class="form-group hidden">
                 <div id="pix-anuncio-preview-card" style="border-radius: 10px; border: 1px solid rgba(148,163,184,0.4); padding: 10px; display: flex; gap: 10px; align-items: center;">
                     <div id="pix-anuncio-preview-img-wrapper" style="width: 120px; height: 68px; border-radius: 10px; background: rgba(15,23,42,0.05); overflow: hidden; display: flex; align-items: center; justify-content: center;">
@@ -537,34 +537,49 @@
                     </div>
                 </div>
             </div>
-            <div id="pix-email-group" class="form-group">
-                <label for="pix-email">E-mail</label>
-                <input type="email" id="pix-email" class="input-edicao" autocomplete="email">
-            </div>
-            <div id="pix-cpf-group" class="form-group">
-                <label for="pix-cpf">CPF</label>
-                <input type="text" id="pix-cpf" class="input-edicao" maxlength="14" inputmode="numeric" placeholder="000.000.000-00">
-            </div>
-            <div id="pix-qrcode-wrapper" class="form-group hidden">
-                <div style="display: flex; flex-direction: column; gap: 10px; align-items: center;">
-                    <img id="pix-qrcode-img" alt="QR Code Pix" style="max-width: 220px; border-radius: 8px;">
-                    <textarea id="pix-copia-cola" class="input-edicao" style="width: 100%; min-height: 80px; font-size: 13px; display: none;" readonly></textarea>
-                    <button type="button" id="pix-copy-btn" class="btn-secondary" style="width: auto; min-width: 160px; max-width: 260px; align-self: center; font-size: 13px; padding: 8px 14px; border-radius: 999px;">
-                        Copiar Código Pix
+
+            <div id="pix-container">
+                <p id="pix-modal-etapa-texto" class="config-descricao" style="margin-bottom: 12px;">Informe seus dados para gerar o Pix.</p>
+                <div id="pix-email-group" class="form-group">
+                    <label for="pix-email">E-mail</label>
+                    <input type="email" id="pix-email" class="input-edicao" autocomplete="email">
+                </div>
+                <div id="pix-cpf-group" class="form-group">
+                    <label for="pix-cpf">CPF</label>
+                    <input type="text" id="pix-cpf" class="input-edicao" maxlength="14" inputmode="numeric" placeholder="000.000.000-00">
+                </div>
+                <div id="pix-qrcode-wrapper" class="form-group hidden">
+                    <div style="display: flex; flex-direction: column; gap: 10px; align-items: center;">
+                        <img id="pix-qrcode-img" alt="QR Code Pix" style="max-width: 220px; border-radius: 8px;">
+                        <textarea id="pix-copia-cola" class="input-edicao" style="width: 100%; min-height: 80px; font-size: 13px; display: none;" readonly></textarea>
+                        <button type="button" id="pix-copy-btn" class="btn-secondary" style="width: auto; min-width: 160px; max-width: 260px; align-self: center; font-size: 13px; padding: 8px 14px; border-radius: 999px;">
+                            Copiar Código Pix
+                        </button>
+                    </div>
+                </div>
+                <button type="button" id="pix-alterar-dados-btn" style="display: none; margin-top: 4px; background: none; border: none; padding: 0; color: var(--primary-color); font-size: 12px; text-decoration: underline; cursor: pointer;">
+                    Alterar CPF/E-mail
+                </button>
+                <p id="pix-msg" class="config-descricao" style="margin-top: 6px; min-height: 18px;"></p>
+                <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 14px;">
+                    <button type="button" id="pix-gerar-btn" class="salvar-btn btn-ghost">
+                        Gerar Pix agora
+                    </button>
+                    <button type="button" id="pix-cartao-btn" class="salvar-btn btn-ghost" style="background: transparent; border: 1px solid rgba(148,163,184,0.35); color: var(--text-secondary); font-size: 13px;">
+                        Pagar com Cartão de Crédito
                     </button>
                 </div>
             </div>
-            <button type="button" id="pix-alterar-dados-btn" style="display: none; margin-top: 4px; background: none; border: none; padding: 0; color: var(--primary-color); font-size: 12px; text-decoration: underline; cursor: pointer;">
-                Alterar CPF/E-mail
-            </button>
-            <p id="pix-msg" class="config-descricao" style="margin-top: 6px; min-height: 18px;"></p>
-            <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 14px;">
-                <button type="button" id="pix-gerar-btn" class="salvar-btn btn-ghost">
-                    Gerar Pix agora
+
+            <div id="card-container" class="hidden">
+              <p class="config-descricao" style="margin-bottom: 12px;">Preencha os dados do cartão.</p>
+              <div id="cardPaymentBrick_container"></div>
+              <div id="card-msg" style="margin-top: 10px; font-size: 13px; color: #ef4444; text-align: center; min-height: 20px;"></div>
+              <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 14px;">
+                <button type="button" id="card-voltar-pix-btn" class="salvar-btn btn-ghost" style="background: transparent; border: 1px solid rgba(148,163,184,0.35); color: var(--text-secondary); font-size: 13px;">
+                  Voltar para Pix
                 </button>
-                <button type="button" id="pix-cartao-btn" class="salvar-btn btn-ghost" style="background: transparent; border: 1px solid rgba(148,163,184,0.35); color: var(--text-secondary); font-size: 13px;">
-                    Pagar com Cartão/Boleto (Checkout Mercado Pago)
-                </button>
+              </div>
             </div>
         </div>
     </div>
@@ -645,6 +660,7 @@
         </button>
     </nav>
     
+    <script src="https://sdk.mercadopago.com/js/v2"></script>
     <script src="/header-notificacoes.js"></script>
     <script src="/configuracoes.js"></script>
 </body>

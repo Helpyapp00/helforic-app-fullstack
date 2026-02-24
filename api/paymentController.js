@@ -377,43 +377,9 @@ async function confirmarPagamentoPix(req, res) {
         const payment = await paymentClient.get({ id });
         const status = payment && payment.status;
         const externalRef = payment && payment.external_reference;
+        
         if (status === 'approved' && externalRef && mongoose.Types.ObjectId.isValid(externalRef)) {
-            try {
-                const anuncioExistente = await AnuncioPago.findById(externalRef);
-                if (anuncioExistente) {
-                    const planoAtual = anuncioExistente.plano === 'premium' ? 'premium' : 'basico';
-                    const amount = Number(payment && payment.transaction_amount ? payment.transaction_amount : 0);
-                    const diff = Math.max(Number(PLANOS.premium.price) - Number(PLANOS.basico.price), 0);
-                    const EPS = 0.1;
-                    const paidPremium = Math.abs(amount - Number(PLANOS.premium.price)) < EPS;
-                    const paidBasico = Math.abs(amount - Number(PLANOS.basico.price)) < EPS;
-                    const isUpgrade = (planoAtual === 'basico') && Math.abs(amount - diff) < EPS;
-                    const now = new Date();
-                    const later = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
-                    let update = { ativo: true };
-                    if (isUpgrade) {
-                        update = { ativo: true, inicioEm: now, fimEm: later, prioridade: 10, plano: 'premium' };
-                    } else if (paidPremium) {
-                        update = { ativo: true, inicioEm: now, fimEm: later, prioridade: 10, plano: 'premium' };
-                    } else if (paidBasico) {
-                        update = { ativo: true, inicioEm: now, fimEm: later, prioridade: 0, plano: 'basico' };
-                    } else if (!anuncioExistente.inicioEm) {
-                        update = { ativo: true, inicioEm: now, fimEm: later, prioridade: planoAtual === 'premium' ? 10 : 0 };
-                    }
-                    console.log('[PIX][CONFIRM] approved', {
-                        paymentId: id,
-                        externalRef,
-                        amount,
-                        planoAtual,
-                        isUpgrade,
-                        set: update
-                    });
-                    const result = await AnuncioPago.findByIdAndUpdate(externalRef, { $set: update });
-                    console.log('[PIX][CONFIRM] update result', { _id: externalRef, ok: !!result });
-                }
-            } catch (e) {
-                console.error('Erro ao confirmar pagamento de anúncio:', e);
-            }
+            await _atualizarAnuncioAposPagamento(externalRef, payment);
         }
         return res.json({ success: true, status: status || null });
     } catch (error) {
@@ -447,41 +413,7 @@ async function webhookMercadoPago(req, res) {
                         });
                     } catch (e) {}
                     if (mongoose.Types.ObjectId.isValid(externalRef)) {
-                        try {
-                            const anuncioExistente = await AnuncioPago.findById(externalRef);
-                            if (anuncioExistente) {
-                                const planoAtual = anuncioExistente.plano === 'premium' ? 'premium' : 'basico';
-                                const amount = Number(payment && payment.transaction_amount ? payment.transaction_amount : 0);
-                                const EPS = 0.1;
-                                const diff = Math.max(Number(PLANOS.premium.price) - Number(PLANOS.basico.price), 0);
-                                const paidPremium = Math.abs(amount - Number(PLANOS.premium.price)) < EPS;
-                                const paidBasico = Math.abs(amount - Number(PLANOS.basico.price)) < EPS;
-                                const isUpgrade = (planoAtual === 'basico') && Math.abs(amount - diff) < EPS;
-                                const now = new Date();
-                                const later = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
-                                let update = { ativo: true };
-                                if (isUpgrade) {
-                                    update = { ativo: true, inicioEm: now, fimEm: later, prioridade: 10, plano: 'premium' };
-                                } else if (paidPremium) {
-                                    update = { ativo: true, inicioEm: now, fimEm: later, prioridade: 10, plano: 'premium' };
-                                } else if (paidBasico) {
-                                    update = { ativo: true, inicioEm: now, fimEm: later, prioridade: 0, plano: 'basico' };
-                                } else if (!anuncioExistente.inicioEm) {
-                                    update = { ativo: true, inicioEm: now, fimEm: later, prioridade: planoAtual === 'premium' ? 10 : 0 };
-                                }
-                                console.log('[WEBHOOK] Atualizando anúncio existente', {
-                                    _id: externalRef,
-                                    planoAtual,
-                                    amount,
-                                    isUpgrade,
-                                    set: update
-                                });
-                                const result = await AnuncioPago.findByIdAndUpdate(externalRef, { $set: update });
-                                console.log('[WEBHOOK] Update result', { _id: externalRef, ok: !!result });
-                            }
-                        } catch (e) {
-                            console.error('Erro ao atualizar anúncio existente a partir do webhook:', e);
-                        }
+                        await _atualizarAnuncioAposPagamento(externalRef, payment);
                     } else {
                         try {
                             const json = Buffer.from(String(externalRef), 'base64').toString('utf8');
@@ -532,10 +464,175 @@ async function webhookMercadoPago(req, res) {
     }
 }
 
+async function _atualizarAnuncioAposPagamento(anuncioId, payment) {
+    try {
+        const anuncioExistente = await AnuncioPago.findById(anuncioId);
+        if (anuncioExistente) {
+            const planoAtual = anuncioExistente.plano === 'premium' ? 'premium' : 'basico';
+            const amount = Number(payment && payment.transaction_amount ? payment.transaction_amount : 0);
+            const diff = Math.max(Number(PLANOS.premium.price) - Number(PLANOS.basico.price), 0);
+            const EPS = 0.1;
+            const paidPremium = Math.abs(amount - Number(PLANOS.premium.price)) < EPS;
+            const paidBasico = Math.abs(amount - Number(PLANOS.basico.price)) < EPS;
+            const isUpgrade = (planoAtual === 'basico') && Math.abs(amount - diff) < EPS;
+            const now = new Date();
+            const later = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+            let update = { ativo: true };
+            
+            if (isUpgrade) {
+                update = { ativo: true, inicioEm: now, fimEm: later, prioridade: 10, plano: 'premium' };
+            } else if (paidPremium) {
+                update = { ativo: true, inicioEm: now, fimEm: later, prioridade: 10, plano: 'premium' };
+            } else if (paidBasico) {
+                update = { ativo: true, inicioEm: now, fimEm: later, prioridade: 0, plano: 'basico' };
+            } else if (!anuncioExistente.inicioEm) {
+                update = { ativo: true, inicioEm: now, fimEm: later, prioridade: planoAtual === 'premium' ? 10 : 0 };
+            }
+            
+            console.log('[_atualizarAnuncio] approved', {
+                paymentId: payment?.id,
+                anuncioId,
+                amount,
+                planoAtual,
+                isUpgrade,
+                set: update
+            });
+            
+            await AnuncioPago.findByIdAndUpdate(anuncioId, { $set: update });
+        }
+    } catch (e) {
+        console.error('Erro ao atualizar anúncio após pagamento:', e);
+    }
+}
+
+async function processarPagamentoCartao(req, res) {
+    try {
+        const body = req.body || {};
+        const {
+            token,
+            issuer_id,
+            payment_method_id,
+            transaction_amount,
+            installments,
+            payer,
+            anuncioId,
+            plano,
+            titulo,
+            imagemUrl,
+            descricao,
+            linkUrl,
+            endereco,
+            numero,
+            cidade,
+            estado
+        } = body;
+
+        if (!token || !payment_method_id || !payer || !payer.email) {
+            return res.status(400).json({ success: false, message: 'Dados incompletos para processar pagamento.' });
+        }
+
+        const paymentClient = createPaymentClient();
+        if (!paymentClient) {
+            return res.status(500).json({ success: false, message: 'Pagamento indisponível no momento.' });
+        }
+
+        let anuncio = null;
+        let expectedAmount = 0;
+        let itemDescription = '';
+        let targetAnuncioId = anuncioId;
+
+        const planoKey = String(plano || 'basico').toLowerCase() === 'premium' ? 'premium' : 'basico';
+        const planoInfo = PLANOS[planoKey];
+
+        if (anuncioId && mongoose.Types.ObjectId.isValid(anuncioId)) {
+            // Anúncio existente
+            anuncio = await AnuncioPago.findById(anuncioId).lean();
+            if (!anuncio) {
+                return res.status(404).json({ success: false, message: 'Anúncio não encontrado.' });
+            }
+            
+            // Valor padrão é o do plano escolhido
+            expectedAmount = Number(planoInfo.price);
+            itemDescription = anuncio.titulo || planoInfo.title;
+
+            // Lógica de Upgrade: Só aplica se o anúncio JÁ ESTIVER ATIVO (pago anteriormente)
+            // Se não estiver ativo (ativo: false), cobra o valor cheio, pois é o primeiro pagamento.
+            if (anuncio.ativo && planoKey === 'premium' && String(anuncio.plano) === 'basico') {
+                const diff = Math.max(Number(PLANOS.premium.price) - Number(PLANOS.basico.price), 0);
+                expectedAmount = diff;
+                itemDescription = 'Upgrade para Premium - Anúncio Helpy';
+            }
+        } else {
+            // Novo Anúncio
+            const userId = req.user && req.user.id ? String(req.user.id) : null;
+            if (!userId) {
+                return res.status(401).json({ success: false, message: 'Usuário não autenticado.' });
+            }
+            if (!titulo || !imagemUrl) {
+                return res.status(400).json({ success: false, message: 'Título e imagem são obrigatórios para criar o anúncio.' });
+            }
+
+            const anuncioNovo = new AnuncioPago({
+                ownerId: userId,
+                titulo: String(titulo || '').trim(),
+                descricao: descricao ? String(descricao).trim() : '',
+                imagemUrl: String(imagemUrl || '').trim(),
+                linkUrl: linkUrl ? String(linkUrl).trim() : '',
+                endereco: endereco ? String(endereco).trim() : '',
+                numero: numero ? String(numero).trim() : '',
+                cidade: cidade ? String(cidade).trim() : '',
+                estado: estado ? String(estado).trim() : '',
+                plano: planoKey,
+                ativo: false, // Só ativa após pagamento aprovado
+                prioridade: planoKey === 'premium' ? 10 : 0
+            });
+            const salvo = await anuncioNovo.save();
+            targetAnuncioId = String(salvo._id);
+            expectedAmount = Number(planoInfo.price);
+            itemDescription = salvo.titulo || planoInfo.title;
+        }
+
+        const paymentData = {
+            transaction_amount: expectedAmount, // Força o valor correto calculado pelo backend
+            token,
+            description: itemDescription,
+            installments: Number(installments || 1),
+            payment_method_id,
+            issuer_id,
+            payer: {
+                email: payer.email,
+                identification: payer.identification
+            },
+            external_reference: targetAnuncioId
+        };
+
+        const payment = await paymentClient.create({ body: paymentData });
+        
+        if (payment.status === 'approved') {
+            await _atualizarAnuncioAposPagamento(targetAnuncioId, payment);
+        }
+
+        return res.json({
+            success: true,
+            id: payment.id,
+            status: payment.status,
+            status_detail: payment.status_detail
+        });
+
+    } catch (error) {
+        console.error('Erro ao processar pagamento cartão:', error);
+        // Tenta extrair mensagem de erro do Mercado Pago
+        const mpError = error.cause || error;
+        const msg = mpError?.message || 'Erro ao processar pagamento.';
+        return res.status(500).json({ success: false, message: msg });
+    }
+}
+
 module.exports = {
     criarPreferenciaPagamento,
     criarPagamentoPix,
-    webhookMercadoPago,
     consultarPagamentoPix,
-    confirmarPagamentoPix
+    confirmarPagamentoPix,
+    processarPagamentoCartao,
+    webhookMercadoPago
 };

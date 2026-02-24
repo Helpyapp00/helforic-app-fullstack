@@ -81,6 +81,38 @@ document.addEventListener('DOMContentLoaded', () => {
     let loggedUserEmail = null;
     let loggedUserCpf = null;
 
+    let countdownInterval = null;
+
+    function startCountdown() {
+        if (countdownInterval) clearInterval(countdownInterval);
+        
+        function update() {
+            const timers = document.querySelectorAll('.countdown-timer');
+            timers.forEach(el => {
+                const createdAtStr = el.dataset.createdAt;
+                if (!createdAtStr) return;
+                
+                const created = new Date(createdAtStr);
+                const now = new Date();
+                const expire = new Date(created.getTime() + 24 * 60 * 60 * 1000);
+                const diff = expire - now;
+                
+                if (diff <= 0) {
+                    el.textContent = 'Expirado';
+                    el.style.background = '#ef4444';
+                } else {
+                    const h = Math.floor(diff / (1000 * 60 * 60));
+                    const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+                    const s = Math.floor((diff % (1000 * 60)) / 1000);
+                    el.textContent = `${h}h ${m}m ${s}s`;
+                }
+            });
+        }
+        
+        update();
+        countdownInterval = setInterval(update, 1000);
+    }
+
     async function carregarMeusAnuncios() {
         const container = document.getElementById('lista-meus-anuncios');
         if (!container) return;
@@ -107,18 +139,52 @@ document.addEventListener('DOMContentLoaded', () => {
                 const preco = plano === 'premium' ? 'R$ 39,90' : 'R$ 19,90';
                 const planoBadge = plano === 'premium' ? 'PREMIUM' : 'BÁSICO';
                 const fim = a?.fimEm ? new Date(a.fimEm) : null;
-                const expiraTxt = fim ? `Expira em: ${('0'+fim.getDate()).slice(-2)}/${('0'+(fim.getMonth()+1)).slice(-2)}/${fim.getFullYear()}` : null;
-                const isUpgradeBasico = plano === 'basico';
-                const btnLabel = isUpgradeBasico ? 'Impulsionar' : 'Renovar';
-                const payPlano = 'premium';
+                const createdAt = a?.createdAt ? new Date(a.createdAt) : new Date();
+                
+                // Lógica de expiração e status
+                let leftPill = '';
+                let btnLabel = '';
+                let btnClass = 'salvar-btn btn-ghost'; // default
+                let targetPlano = plano; // Default to current plan (for first payment)
+
+                if (ativo) {
+                    // Ativo
+                    const expiraTxt = fim ? `Expira em: ${('0'+fim.getDate()).slice(-2)}/${('0'+(fim.getMonth()+1)).slice(-2)}/${fim.getFullYear()}` : '';
+                    leftPill = `<span style="background: rgba(0,0,0,0.6); color: #fff; font-size: 11px; padding: 3px 8px; border-radius: 999px;">${expiraTxt}</span>`;
+                    
+                    if (plano === 'basico') {
+                        btnLabel = 'Impulsionar'; // Upgrade
+                        targetPlano = 'premium';
+                    } else {
+                        btnLabel = 'Renovar';
+                        targetPlano = 'premium';
+                    }
+                } else {
+                    // Inativo (Aguardando pagamento ou expirado)
+                    // Verifica se está dentro das 24h
+                    const now = new Date();
+                    const expireTime = new Date(createdAt.getTime() + 24 * 60 * 60 * 1000);
+                    const isRecent = now < expireTime;
+                    
+                    if (isRecent) {
+                        // Mostra countdown
+                        leftPill = `<span class="countdown-timer" data-created-at="${createdAt.toISOString()}" style="background: #eab308; color: #000; font-weight: bold; font-size: 11px; padding: 3px 8px; border-radius: 999px;">Calculando...</span>`;
+                        btnLabel = 'Pagar';
+                        targetPlano = plano; // Pay for what was selected
+                    } else {
+                        // Expirado
+                        leftPill = `<span style="background: #ef4444; color: #fff; font-size: 11px; padding: 3px 8px; border-radius: 999px;">Expirado</span>`;
+                        btnLabel = 'Pagar'; 
+                        targetPlano = plano;
+                    }
+                }
+
+                const payPlano = targetPlano;
                 const bgStyle = imagemUrl
                     ? `background-image: url('${imagemUrl.replace(/'/g, '%27')}'); background-size: cover; background-position: center;`
                     : `background: linear-gradient(135deg, #111 0%, #1f2937 100%);`;
                 const safeTitle = titulo.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
                 const safeDesc = descricao.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-                const leftPill = ativo && expiraTxt
-                    ? `<span style="background: rgba(0,0,0,0.6); color: #fff; font-size: 11px; padding: 3px 8px; border-radius: 999px;">${expiraTxt}</span>`
-                    : `<span style="background: rgba(107,114,128,0.95); color: #fff; font-size: 11px; padding: 3px 8px; border-radius: 999px;">INATIVO</span>`;
 
                 return `
                     <div style="padding: 12px 0; border-bottom: 1px solid rgba(148,163,184,0.18);">
@@ -134,11 +200,42 @@ document.addEventListener('DOMContentLoaded', () => {
                                 <div style="font-weight: 700; font-size: 16px; line-height: 1.2; text-shadow: 0 1px 2px rgba(0,0,0,0.5);">${safeTitle}</div>
                                 <div style="opacity: 0.9; font-size: 13px; margin-top: 2px; text-shadow: 0 1px 2px rgba(0,0,0,0.5);">${plano === 'premium' ? 'Premium' : 'Básico'} • ${preco}</div>
                             </div>
-                            <button class="salvar-btn btn-ghost" data-pay-anuncio="${a?._id}" data-pay-plano="${payPlano}" data-title="${safeTitle}" data-imagem="${encodeURIComponent(imagemUrl)}" data-descricao="${safeDesc}" style="position: absolute; right: 14px; bottom: 8px; padding: 5px 12px; font-size: 12px; line-height: 1.1; min-width: auto; width: auto; border-width: 1px;">${btnLabel}</button>
+                            <button class="${btnClass}" data-pay-anuncio="${a?._id}" data-pay-plano="${payPlano}" data-current-plano="${plano}" data-ativo="${ativo}" data-title="${safeTitle}" data-imagem="${encodeURIComponent(imagemUrl)}" data-descricao="${safeDesc}" style="position: absolute; right: 14px; bottom: 8px; padding: 5px 12px; font-size: 12px; line-height: 1.1; min-width: auto; width: auto; border-width: 1px;">${btnLabel}</button>
                         </div>
                     </div>
                 `;
             }).join('');
+            
+            // Adiciona listeners aos botões
+            const payBtns = container.querySelectorAll('[data-pay-anuncio]');
+            payBtns.forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const anuncioId = btn.dataset.payAnuncio;
+                    const plano = btn.dataset.payPlano;
+                    const currentPlano = btn.dataset.currentPlano;
+                    const ativo = btn.dataset.ativo === 'true'; // Capture ativo status
+                    const titulo = btn.dataset.title;
+                    const imagemUrl = decodeURIComponent(btn.dataset.imagem || '');
+                    const descricao = btn.dataset.descricao;
+
+                    const payload = {
+                        anuncioId, 
+                        plano,
+                        titulo,
+                        descricao,
+                        imagemUrl,
+                        currentPlano,
+                        ativo, // Pass ativo to payload
+                        isUpgrade: (ativo && currentPlano === 'basico' && plano === 'premium') // Only upgrade if active
+                    };
+                    abrirModalPix(payload);
+                });
+            });
+
+            // Inicia countdown
+            startCountdown();
+            
         } catch (e) {
             console.error('Erro ao carregar anúncios:', e);
             container.innerHTML = 'Erro ao carregar seus anúncios.';
@@ -413,7 +510,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (status === 'approved') {
                 try {
                     if (currentId) {
-                        await fetch('/api/pagamentos/mercadopago/pix/confirm', {
+                        const confirmResp = await fetch('/api/pagamentos/mercadopago/pix/confirm', {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json',
@@ -421,8 +518,18 @@ document.addEventListener('DOMContentLoaded', () => {
                             },
                             body: JSON.stringify({ id: currentId })
                         });
+                        if (!confirmResp.ok) {
+                            const errData = await confirmResp.json().catch(() => ({}));
+                            console.error('Erro na confirmação:', errData);
+                            if (pixMsg) pixMsg.textContent = 'Pagamento aprovado, mas falha ao ativar anúncio: ' + (errData.message || 'Erro desconhecido');
+                            return; // Não redireciona se falhou
+                        }
                     }
-                } catch (e) {}
+                } catch (e) {
+                    console.error('Erro de rede na confirmação:', e);
+                    if (pixMsg) pixMsg.textContent = 'Erro de conexão ao confirmar anúncio. Contate o suporte.';
+                    return;
+                }
                 limparEstadoPix();
                 if (pixMsg) pixMsg.textContent = 'Pagamento aprovado! Redirecionando...';
                 window.location.href = 'configuracoes-conta.html?pagamento=sucesso&section=sec-anuncios';
@@ -603,40 +710,227 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    async function iniciarCheckoutPreferencia(payload) {
-        if (!payload) return;
-        if (msgAnuncio) msgAnuncio.textContent = '';
-        try {
-            const resp = await fetch('/api/pagamentos/mercadopago/preference', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...getAuthHeaders()
+    // --- Mercado Pago Card Payment Brick ---
+    let mp = null;
+    let cardPaymentBrickController = null;
+    let mpPromise = null;
+
+    async function ensureMercadoPago() {
+        if (mp) return mp;
+        if (!mpPromise) {
+            mpPromise = (async () => {
+                try {
+                    const resp = await fetch('/api/config/mp-public-key');
+                    const data = await resp.json();
+                    if (data.success && data.key) {
+                        const key = data.key.trim();
+                        console.log('Inicializando Mercado Pago com Key:', key.substring(0, 8) + '...');
+                        
+                        // Validação prévia da chave para evitar erros do SDK no console
+                        try {
+                             const checkUrl = `https://api.mercadopago.com/v1/payment_methods/search?public_key=${key}&status=active&limit=1`;
+                             const checkResp = await fetch(checkUrl);
+                             if (!checkResp.ok) {
+                                 console.warn('Aviso: Chave pública não reconhecida pela API (404). O Mercado Pago pode não carregar.');
+                                 return null;
+                             }
+                        } catch (checkErr) {
+                             console.warn('Não foi possível validar a chave pública previamente:', checkErr);
+                             // Continua para tentar com o SDK caso seja apenas erro de rede na validação
+                        }
+
+                        try {
+                            mp = new MercadoPago(key, {
+                                locale: 'pt-BR'
+                            });
+                        } catch (err) {
+                            console.error('Falha ao instanciar SDK MercadoPago:', err);
+                            return null;
+                        }
+                        return mp;
+                    } else {
+                        console.warn('Public Key do Mercado Pago não encontrada.');
+                        return null;
+                    }
+                } catch (e) {
+                    console.warn('Erro ao carregar Public Key do Mercado Pago:', e);
+                    return null;
+                }
+            })();
+        }
+        return mpPromise;
+    }
+
+    // Tenta carregar assim que possível (removido para evitar erros no console se a chave for inválida)
+    // ensureMercadoPago().catch(() => {});
+
+    const cardContainer = document.getElementById('card-container');
+    const pixContainer = document.getElementById('pix-container');
+    const cardVoltarPixBtn = document.getElementById('card-voltar-pix-btn');
+
+    async function initCardBrick(amount) {
+        await ensureMercadoPago();
+        if (!mp) {
+            const msgEl = document.getElementById('card-msg');
+            if (msgEl) {
+                msgEl.style.display = 'block';
+                msgEl.style.color = '#ef4444';
+                msgEl.innerHTML = '<strong>Erro de Configuração:</strong><br>A Chave Pública do Mercado Pago informada no arquivo .env é inválida ou não foi encontrada.<br>Verifique suas credenciais.';
+            }
+            return;
+        }
+        const container = document.getElementById('cardPaymentBrick_container');
+        if (!container) return;
+        
+        // Limpa anterior se existir
+        if (cardPaymentBrickController) {
+             try {
+                 await cardPaymentBrickController.unmount();
+             } catch (e) {}
+             cardPaymentBrickController = null;
+        }
+        container.innerHTML = '';
+
+        const settings = {
+            initialization: {
+                amount: Number(amount) || 19.90, // Fallback de segurança
+                payer: {
+                    email: loggedUserEmail || 'email@example.com', // Brick exige email válido
                 },
-                body: JSON.stringify(payload)
-            });
-            const data = await resp.json().catch(() => ({}));
-            if (!resp.ok) {
-                if (msgAnuncio) msgAnuncio.textContent = data?.message || 'Não foi possível iniciar o pagamento do anúncio.';
-                return;
-            }
-            if (!data?.init_point) {
-                if (msgAnuncio) msgAnuncio.textContent = 'Pagamento criado, mas não retornou link do checkout.';
-                return;
-            }
-            if (msgAnuncio) msgAnuncio.textContent = 'Redirecionando para o pagamento do anúncio...';
-            window.location.href = data.init_point;
-        } catch (error) {
-            console.error('Erro ao iniciar pagamento do anúncio:', error);
-            if (msgAnuncio) msgAnuncio.textContent = 'Erro ao iniciar pagamento do anúncio.';
+            },
+            customization: {
+                visual: {
+                    style: {
+                        theme: 'default',
+                    },
+                },
+                paymentMethods: {
+                    maxInstallments: 12,
+                    types: {
+                        all: ['credit_card', 'debit_card']
+                    }
+                }
+            },
+            callbacks: {
+                onReady: () => {
+                    // Brick carregado
+                },
+                onSubmit: async (cardFormData) => {
+                    const msgEl = document.getElementById('card-msg');
+                    if (msgEl) msgEl.textContent = 'Processando pagamento...';
+                    
+                    if (!pendingAnuncioPagamento) return;
+                    try {
+                         const payload = {
+                             ...pendingAnuncioPagamento,
+                             token: cardFormData.token,
+                             issuer_id: cardFormData.issuer_id,
+                             payment_method_id: cardFormData.payment_method_id,
+                             transaction_amount: cardFormData.transaction_amount,
+                             installments: cardFormData.installments,
+                             payer: cardFormData.payer,
+                             plano: pendingAnuncioPagamento.plano || 'basico'
+                         };
+
+                         const resp = await fetch('/api/pagamentos/mercadopago/processar-cartao', {
+                             method: 'POST',
+                             headers: {
+                                 'Content-Type': 'application/json',
+                                 ...getAuthHeaders()
+                             },
+                             body: JSON.stringify(payload)
+                         });
+                         
+                         const data = await resp.json().catch(() => ({}));
+                         if (resp.ok && data.success) {
+                             if (msgEl) {
+                                 msgEl.style.color = 'green';
+                                 msgEl.textContent = 'Pagamento aprovado! Redirecionando...';
+                             }
+                             window.location.href = 'configuracoes-conta.html?pagamento=sucesso&section=sec-anuncios';
+                         } else {
+                             if (msgEl) {
+                                 msgEl.style.color = '#ef4444';
+                                 msgEl.textContent = 'Pagamento não aprovado: ' + (data.message || data.status_detail || 'Erro desconhecido');
+                             }
+                         }
+                    } catch (error) {
+                         console.error('Erro no pagamento:', error);
+                         if (msgEl) {
+                             msgEl.style.color = '#ef4444';
+                             msgEl.textContent = 'Erro ao processar pagamento. Tente novamente.';
+                         }
+                    }
+                },
+                onError: (error) => {
+                    console.error('Erro no Brick:', error);
+                    const msgEl = document.getElementById('card-msg');
+                    if (msgEl) {
+                        msgEl.style.color = '#ef4444';
+                        msgEl.textContent = 'Verifique os dados do cartão.';
+                    }
+                },
+            },
+        };
+        
+        try {
+            const bricksBuilder = mp.bricks();
+            cardPaymentBrickController = await bricksBuilder.create("payment", "cardPaymentBrick_container", settings);
+        } catch (e) {
+             console.error('Erro ao criar Brick:', e);
+             const msgEl = document.getElementById('card-msg');
+             if (msgEl) {
+                 msgEl.style.color = '#ef4444';
+                 msgEl.textContent = 'Erro ao carregar formulário de cartão. Verifique a chave pública ou a conexão.';
+             }
         }
     }
 
     if (pixCartaoBtn) {
-        pixCartaoBtn.addEventListener('click', () => {
+        pixCartaoBtn.addEventListener('click', async () => {
             if (!pendingAnuncioPagamento) return;
-            fecharModalPix();
-            iniciarCheckoutPreferencia(pendingAnuncioPagamento);
+            
+            // Alterna visibilidade
+            if (pixContainer) pixContainer.classList.add('hidden');
+            if (cardContainer) cardContainer.classList.remove('hidden');
+            
+            // Limpa mensagem anterior
+            const msgEl = document.getElementById('card-msg');
+            if (msgEl) {
+                msgEl.textContent = '';
+                msgEl.style.color = '#ef4444';
+            }
+            
+            // Calcula valor
+            let amount = 19.90; // Default Básico
+            const planoAlvo = pendingAnuncioPagamento.plano || 'basico';
+            // Se não tem anuncioId, é novo anúncio. Se tem, verifica se já está ativo.
+            const isNovoAnuncio = !pendingAnuncioPagamento.anuncioId;
+            const isAtivo = !!pendingAnuncioPagamento.ativo;
+            const planoAtual = isNovoAnuncio ? null : (pendingAnuncioPagamento.currentPlano || 'basico');
+            
+            if (planoAlvo === 'premium') {
+                if (!isNovoAnuncio && isAtivo && planoAtual === 'basico') {
+                    // Upgrade: Diferença (Somente se já estiver ativo/pago)
+                    amount = 20.00; // 39.90 - 19.90
+                } else {
+                    // Novo Premium ou Renovação Premium ou Primeiro Pagamento Premium
+                    amount = 39.90;
+                }
+            } else {
+                // Básico (Novo ou Renovação)
+                amount = 19.90;
+            }
+            
+            // Inicializa Brick
+            await initCardBrick(amount);
+        });
+    }
+    
+    if (cardVoltarPixBtn) {
+        cardVoltarPixBtn.addEventListener('click', () => {
+            if (cardContainer) cardContainer.classList.add('hidden');
+            if (pixContainer) pixContainer.classList.remove('hidden');
         });
     }
 
@@ -751,12 +1045,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const id = btn.getAttribute('data-pay-anuncio');
         if (!id) return;
         const plano = btn.getAttribute('data-pay-plano') || 'premium';
+        const currentPlano = btn.getAttribute('data-current-plano') || 'basico';
         const titulo = btn.getAttribute('data-title') || '';
         const imagem = btn.getAttribute('data-imagem') ? decodeURIComponent(btn.getAttribute('data-imagem')) : '';
         const descricao = btn.getAttribute('data-descricao') || '';
         abrirModalPix({
             anuncioId: id,
             plano,
+            currentPlano,
             titulo,
             imagemUrl: imagem,
             descricao

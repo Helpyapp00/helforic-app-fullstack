@@ -882,6 +882,10 @@ const InteresseUsuario = mongoose.models.InteresseUsuario
 
 // ...
 
+app.get('/api/config/mp-public-key', (req, res) => {
+    return res.json({ success: true, key: (process.env.MERCADOPAGO_PUBLIC_KEY || '').trim() });
+});
+
 app.post('/api/anuncios', authMiddleware, async (req, res) => {
     try {
         const { titulo, descricao, imagemUrl, linkUrl, endereco, numero, cidade, estado, ativo, plano } = req.body;
@@ -979,6 +983,15 @@ app.get('/api/anuncios', authMiddleware, async (req, res) => {
     try {
         const limitRaw = Number(req.query.limit);
         const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 50) : 30;
+
+        // Limpeza de anúncios inativos (não pagos) com mais de 24h
+        const ontem = new Date(Date.now() - 24 * 60 * 60 * 1000);
+        await AnuncioPago.deleteMany({
+            ownerId: req.user.id,
+            ativo: false,
+            createdAt: { $lt: ontem }
+        }).catch(() => {});
+
         const anuncios = await AnuncioPago.find({ ownerId: req.user.id })
             .sort({ createdAt: -1 })
             .limit(limit)
@@ -994,6 +1007,10 @@ app.post('/api/pagamentos/mercadopago/preference', authMiddleware, paymentContro
 app.post('/api/pagamentos/mercadopago/pix', authMiddleware, paymentController.criarPagamentoPix);
 app.get('/api/pagamentos/mercadopago/pix/status', authMiddleware, paymentController.consultarPagamentoPix);
 app.post('/api/pagamentos/mercadopago/pix/confirm', authMiddleware, paymentController.confirmarPagamentoPix);
+app.post('/api/pagamentos/mercadopago/processar-cartao', authMiddleware, paymentController.processarPagamentoCartao);
+app.get('/api/config/mp-public-key', (req, res) => {
+    return res.json({ success: true, key: process.env.MERCADOPAGO_PUBLIC_KEY || '' });
+});
 app.post('/webhooks/mercadopago', express.json({ type: '*/*' }), paymentController.webhookMercadoPago);
 
 app.get('/api/anuncios-feed', authMiddleware, async (req, res) => {

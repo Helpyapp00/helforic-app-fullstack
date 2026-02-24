@@ -3483,6 +3483,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const deltaY = touch.clientY - explorarTouchStart.y;
             const absX = Math.abs(deltaX);
             const absY = Math.abs(deltaY);
+
+            // Bloqueia navegação nativa do browser (swipe back) se o movimento for horizontal
+            if (absX > absY && absX > 0) {
+                if (event.cancelable) event.preventDefault();
+            }
+
             if (absX < 40) return;
             if (absX < absY * 2.2) return;
             const isMobile = window.matchMedia('(max-width: 768px)').matches;
@@ -3623,16 +3629,23 @@ document.addEventListener('DOMContentLoaded', () => {
     async function fetchAdsFeed() {
         if (adsLoadedFeed) return;
         try {
+            // Adiciona timeout de 5s para não travar o feed
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 5000);
+
             const resp = await fetch('/api/anuncios-feed?limit=50', {
-                headers: { 'Authorization': `Bearer ${token}` }
+                headers: { 'Authorization': `Bearer ${token}` },
+                signal: controller.signal
             });
+            clearTimeout(timeoutId);
+
             if (!resp.ok) throw new Error('Falha ao buscar anúncios.');
             const json = await resp.json();
             const anuncios = Array.isArray(json?.anuncios) ? json.anuncios : [];
             adsPoolFeed = anuncios;
             adsLoadedFeed = true;
         } catch (e) {
-            console.warn('Não foi possível carregar anúncios do feed:', e);
+            console.warn('Não foi possível carregar anúncios do feed (ou timeout):', e);
             adsPoolFeed = [];
             adsLoadedFeed = true;
         }
@@ -4073,23 +4086,31 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const end = Math.min(nextPostIndexFeed + feedChunkSize, allPostsFeed.length);
             for (let i = nextPostIndexFeed; i < end; i += 1) {
-                const p = allPostsFeed[i];
-                const postEl = renderSinglePostElement(p);
-                if (!postEl) continue;
-                postsContainer.appendChild(postEl);
-                renderedPostsCountFeed += 1;
+                try {
+                    const p = allPostsFeed[i];
+                    const postEl = renderSinglePostElement(p);
+                    if (!postEl) continue;
+                    postsContainer.appendChild(postEl);
+                    renderedPostsCountFeed += 1;
 
-                setupFeedInterestObserver();
-                if (feedInterestObserver) {
-                    feedInterestObserver.observe(postEl);
-                }
-
-                if (isMobileAds && renderedPostsCountFeed % 4 === 0) {
-                    const ad = pickNextAdFeed();
-                    if (ad) {
-                        const adEl = buildAdElementFeed(ad);
-                        postsContainer.appendChild(adEl);
+                    setupFeedInterestObserver();
+                    if (feedInterestObserver) {
+                        feedInterestObserver.observe(postEl);
                     }
+
+                    if (isMobileAds && renderedPostsCountFeed % 4 === 0) {
+                        try {
+                            const ad = pickNextAdFeed();
+                            if (ad) {
+                                const adEl = buildAdElementFeed(ad);
+                                postsContainer.appendChild(adEl);
+                            }
+                        } catch (adErr) {
+                            console.warn('Erro ao inserir anúncio:', adErr);
+                        }
+                    }
+                } catch (err) {
+                    console.error('Erro ao renderizar post no feed:', err);
                 }
             }
             nextPostIndexFeed = end;
@@ -4136,11 +4157,40 @@ document.addEventListener('DOMContentLoaded', () => {
         if (window.__feedInfiniteScrollSetup) return;
         window.__feedInfiniteScrollSetup = true;
 
-        window.addEventListener('scroll', () => {
-            const nearBottom = (window.innerHeight + window.scrollY) >= (document.body.offsetHeight - 900);
+        const checkScroll = () => {
+            const scrollTop = window.scrollY || window.pageYOffset || document.documentElement.scrollTop;
+            const windowHeight = window.innerHeight || document.documentElement.clientHeight;
+            const docHeight = Math.max(
+                document.body.scrollHeight,
+                document.body.offsetHeight,
+                document.documentElement.clientHeight,
+                document.documentElement.scrollHeight,
+                document.documentElement.offsetHeight
+            );
+            
+            // Margem de 900px para garantir que carregue antes de chegar ao fim absoluto
+            const nearBottom = (scrollTop + windowHeight) >= (docHeight - 900);
+            
             if (!nearBottom) return;
             renderNextFeedChunk();
-        }, { passive: true });
+        };
+
+        window.addEventListener('scroll', checkScroll, { passive: true });
+        window.addEventListener('resize', checkScroll, { passive: true });
+        
+        // Verificação periódica inicial (fallback para telas grandes ou carregamento lento de layout)
+        // Isso ajuda se o conteúdo inicial não gerar scroll suficiente ou se o evento de scroll falhar
+        const initCheck = setInterval(() => {
+            if (document.body.scrollHeight > window.innerHeight * 2) {
+                // Se já tem conteúdo suficiente, paramos de verificar ativamente
+                clearInterval(initCheck);
+            } else {
+                checkScroll();
+            }
+        }, 1000);
+        
+        // Limpa o intervalo de segurança após 15 segundos
+        setTimeout(() => clearInterval(initCheck), 15000);
     }
 
     function atualizarSugestoesCidades(posts) {
