@@ -18,6 +18,21 @@
     .muted { color: #9aa0a6; font-size: 13px; margin-top: 6px; }
   </style>
   <meta name="robots" content="noindex">
+  <!-- Evita cache para garantir carregamento correto -->
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <script>
+    // Remove Service Workers antigos que podem estar interceptando esta página
+    // e causando comportamentos estranhos (como redirecionamentos indesejados)
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(function(registrations) {
+        for(let registration of registrations) {
+          registration.unregister();
+        }
+      });
+    }
+  </script>
 </head>
 <body>
   <div class="container">
