@@ -1692,18 +1692,13 @@ document.addEventListener('DOMContentLoaded', () => {
         explorarMediaInput.addEventListener('change', (event) => {
             const file = event.target.files && event.target.files[0];
             if (file) {
-                // Determine Limit based on OS
+                // Determine Limit based on OS (Limitado pela Vercel Serverless a 4.5MB)
                 const ua = navigator.userAgent;
-                let maxSize = 500 * 1024 * 1024; // Default Desktop 500MB
-                if (/Android/i.test(ua)) {
-                    maxSize = 72 * 1024 * 1024;
-                } else if (/iPhone|iPad|iPod/i.test(ua)) {
-                    maxSize = 287 * 1024 * 1024;
-                }
-
+                let maxSize = 4.5 * 1024 * 1024; // 4.5MB Default
+                
                 // Validação de Tamanho
                 if (file.size > maxSize) {
-                    showExplorarMsg('Exedeu o limite de tamanho do video');
+                    alert(`O arquivo é muito grande (${(file.size / 1024 / 1024).toFixed(2)}MB). O limite é de 4.5MB.`);
                     explorarMediaInput.value = ''; // Limpa o input
                     return;
                 }
@@ -1758,10 +1753,28 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!token) return;
             // Evita duplicidade por cliques repetidos
             if (explorarPostSend.dataset.sending === '1' || explorarPostSend.disabled) return;
+            
             const content = explorarPostDesc?.value || '';
             if (!content.trim() && !explorarSelectedFile) return;
+
+            // Validação de Tamanho do Arquivo (Limite Vercel Serverless: 4.5MB)
+            if (explorarSelectedFile) {
+                const MAX_SIZE_MB = 4.5;
+                const MAX_SIZE_BYTES = MAX_SIZE_MB * 1024 * 1024;
+                
+                if (explorarSelectedFile.size > MAX_SIZE_BYTES) {
+                    alert(`O arquivo selecionado é muito grande (${(explorarSelectedFile.size / 1024 / 1024).toFixed(2)}MB). \n\nO limite atual para envio rápido é de ${MAX_SIZE_MB}MB. Por favor, escolha um vídeo menor ou comprima o arquivo.`);
+                    return;
+                }
+            }
+
             explorarPostSend.dataset.sending = '1';
             explorarPostSend.disabled = true;
+            
+            // Feedback visual imediato
+            const originalBtnText = explorarPostSend.innerHTML;
+            explorarPostSend.innerHTML = '<div class="spinner-border spinner-border-sm" role="status"></div> Enviando...';
+
             const formData = new FormData();
             formData.append('content', content);
             const categoriaAtual = explorarCategoriaCurrent?.textContent?.trim();
@@ -1805,6 +1818,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         uploadBar.style.width = '20%';
                     }
                 };
+                xhr.timeout = 60000; // 60 segundos de timeout no cliente
+                xhr.ontimeout = () => {
+                     alert('O envio demorou muito e expirou. Tente uma conexão mais rápida ou um arquivo menor.');
+                };
                 xhr.onreadystatechange = () => {
                     if (xhr.readyState !== 4) return;
                     if (uploadWrapper && uploadBar) {
@@ -1823,6 +1840,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     } finally {
                         delete explorarPostSend.dataset.sending;
                         explorarPostSend.disabled = false;
+                        if (originalBtnText) explorarPostSend.innerHTML = originalBtnText;
                     }
                 };
                 xhr.send(formData);
@@ -1830,6 +1848,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.error('Erro ao enviar explorar:', err);
                 delete explorarPostSend.dataset.sending;
                 explorarPostSend.disabled = false;
+                if (originalBtnText) explorarPostSend.innerHTML = originalBtnText;
             }
         });
     }
