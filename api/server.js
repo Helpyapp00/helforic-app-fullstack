@@ -1007,6 +1007,7 @@ app.post('/api/pagamentos/mercadopago/preference', authMiddleware, paymentContro
 app.post('/api/pagamentos/mercadopago/pix', authMiddleware, paymentController.criarPagamentoPix);
 app.get('/api/pagamentos/mercadopago/pix/status', authMiddleware, paymentController.consultarPagamentoPix);
 app.post('/api/pagamentos/mercadopago/pix/confirm', authMiddleware, paymentController.confirmarPagamentoPix);
+app.post('/api/pagamentos/mercadopago/card', authMiddleware, paymentController.processarPagamentoCartao);
 app.post('/api/pagamentos/mercadopago/processar-cartao', authMiddleware, paymentController.processarPagamentoCartao);
 app.get('/api/config/mp-public-key', (req, res) => {
     return res.json({ success: true, key: process.env.MERCADOPAGO_PUBLIC_KEY || '' });

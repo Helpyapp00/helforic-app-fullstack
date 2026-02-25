@@ -88,7 +88,7 @@ function createPaymentClient() {
 const PLANOS = {
     basico: {
         title: 'Plano Básico - Anúncio Helpy',
-        price: 1.0
+        price: 19.9
     },
     premium: {
         title: 'Plano Premium - Anúncio Helpy',
@@ -422,7 +422,9 @@ async function webhookMercadoPago(req, res) {
                                 const planoFinal = payload.plano === 'premium' ? 'premium' : 'basico';
                                 const prioridadeFinal = planoFinal === 'premium' ? 10 : 0;
                                 const inicioFinal = new Date();
-                                const fimFinal = new Date(inicioFinal.getTime() + 30 * 24 * 60 * 60 * 1000);
+                                // Lógica de duração: Premium = 30 dias, Básico = 14 dias
+                                const days = planoFinal === 'premium' ? 30 : 14;
+                                const fimFinal = new Date(inicioFinal.getTime() + days * 24 * 60 * 60 * 1000);
 
                                 const anuncio = new AnuncioPago({
                                     ownerId: payload.userId,
@@ -476,17 +478,24 @@ async function _atualizarAnuncioAposPagamento(anuncioId, payment) {
             const paidBasico = Math.abs(amount - Number(PLANOS.basico.price)) < EPS;
             const isUpgrade = (planoAtual === 'basico') && Math.abs(amount - diff) < EPS;
             const now = new Date();
-            const later = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+            
+            // Lógica de duração: Premium = 30 dias, Básico = 14 dias
+            const daysPremium = 30;
+            const daysBasic = 14;
+            const getExpiry = (days) => new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
+
             let update = { ativo: true };
             
             if (isUpgrade) {
-                update = { ativo: true, inicioEm: now, fimEm: later, prioridade: 10, plano: 'premium' };
+                update = { ativo: true, inicioEm: now, fimEm: getExpiry(daysPremium), prioridade: 10, plano: 'premium' };
             } else if (paidPremium) {
-                update = { ativo: true, inicioEm: now, fimEm: later, prioridade: 10, plano: 'premium' };
+                update = { ativo: true, inicioEm: now, fimEm: getExpiry(daysPremium), prioridade: 10, plano: 'premium' };
             } else if (paidBasico) {
-                update = { ativo: true, inicioEm: now, fimEm: later, prioridade: 0, plano: 'basico' };
+                update = { ativo: true, inicioEm: now, fimEm: getExpiry(daysBasic), prioridade: 0, plano: 'basico' };
             } else if (!anuncioExistente.inicioEm) {
-                update = { ativo: true, inicioEm: now, fimEm: later, prioridade: planoAtual === 'premium' ? 10 : 0 };
+                const isPremium = planoAtual === 'premium';
+                const days = isPremium ? daysPremium : daysBasic;
+                update = { ativo: true, inicioEm: now, fimEm: getExpiry(days), prioridade: isPremium ? 10 : 0 };
             }
             
             console.log('[_atualizarAnuncio] approved', {
@@ -508,6 +517,8 @@ async function _atualizarAnuncioAposPagamento(anuncioId, payment) {
 async function processarPagamentoCartao(req, res) {
     try {
         const body = req.body || {};
+        console.log('Recebendo pagamento cartão. Body:', JSON.stringify(body, null, 2));
+
         const {
             token,
             issuer_id,
@@ -527,8 +538,9 @@ async function processarPagamentoCartao(req, res) {
             estado
         } = body;
 
-        if (!token || !payment_method_id || !payer || !payer.email) {
-            return res.status(400).json({ success: false, message: 'Dados incompletos para processar pagamento.' });
+        if (!token || !payment_method_id) {
+            console.error('Dados incompletos recebidos do frontend:', { token: !!token, payment_method_id, payer });
+            return res.status(400).json({ success: false, message: 'Dados incompletos para processar pagamento (token ou método faltando).' });
         }
 
         const paymentClient = createPaymentClient();
@@ -600,31 +612,36 @@ async function processarPagamentoCartao(req, res) {
             payment_method_id,
             issuer_id,
             payer: {
-                email: payer.email,
-                identification: payer.identification
+                email: (payer && payer.email) ? payer.email : 'user@example.com' 
             },
             external_reference: targetAnuncioId
         };
-
-        const payment = await paymentClient.create({ body: paymentData });
         
-        if (payment.status === 'approved') {
-            await _atualizarAnuncioAposPagamento(targetAnuncioId, payment);
+        // Adiciona identificação se disponível (obrigatório em alguns casos de produção)
+        if (payer && payer.identification) {
+            paymentData.payer.identification = payer.identification;
         }
 
-        return res.json({
-            success: true,
-            id: payment.id,
-            status: payment.status,
-            status_detail: payment.status_detail
-        });
+        // Se o email vier do frontend (payer.email), confiamos nele.
+        // Removemos a lógica que forçava e-mail de teste, pois estava causando 403 Forbidden.
+        
+        console.log('Enviando pagamento para MP:', JSON.stringify(paymentData, null, 2));
+        
+        const response = await paymentClient.create({ body: paymentData });
+        
+        if (response.status === 'approved') {
+            await _atualizarAnuncioAposPagamento(targetAnuncioId, response);
+        }
+
+        return res.status(200).json({ success: true, payment_id: response.id, status: response.status });
 
     } catch (error) {
         console.error('Erro ao processar pagamento cartão:', error);
-        // Tenta extrair mensagem de erro do Mercado Pago
-        const mpError = error.cause || error;
-        const msg = mpError?.message || 'Erro ao processar pagamento.';
-        return res.status(500).json({ success: false, message: msg });
+        if (error.cause) {
+            console.error('Causa do erro Mercado Pago:', JSON.stringify(error.cause, null, 2));
+        }
+        const statusDetail = error.status_detail || error.message || 'Erro desconhecido';
+        return res.status(500).json({ success: false, message: 'Erro ao processar pagamento.', status_detail: statusDetail });
     }
 }
 

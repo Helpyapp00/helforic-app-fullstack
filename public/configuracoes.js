@@ -130,7 +130,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            container.innerHTML = anuncios.map((a) => {
+            // Filtra anúncios expirados (inativos > 24h)
+            const anunciosVisiveis = anuncios.filter(a => {
+                const ativo = !!a?.ativo;
+                if (ativo) return true;
+                const createdAt = a?.createdAt ? new Date(a.createdAt) : new Date();
+                const now = new Date();
+                const expireTime = new Date(createdAt.getTime() + 24 * 60 * 60 * 1000);
+                return now < expireTime; 
+            });
+
+            if (anunciosVisiveis.length === 0) {
+                container.innerHTML = 'Você ainda não criou nenhum anúncio ou seus anúncios expiraram.';
+                return;
+            }
+
+            container.innerHTML = anunciosVisiveis.map((a) => {
                 const titulo = a?.titulo ? String(a.titulo) : 'Anúncio';
                 const descricao = a?.descricao ? String(a.descricao) : '';
                 const plano = a?.plano ? String(a.plano) : 'basico';
@@ -198,7 +213,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             </div>
                             <div style="position: absolute; left: 12px; right: 12px; bottom: 10px; color: #fff;">
                                 <div style="font-weight: 700; font-size: 16px; line-height: 1.2; text-shadow: 0 1px 2px rgba(0,0,0,0.5);">${safeTitle}</div>
-                                <div style="opacity: 0.9; font-size: 13px; margin-top: 2px; text-shadow: 0 1px 2px rgba(0,0,0,0.5);">${plano === 'premium' ? 'Premium' : 'Básico'} • ${preco}</div>
+
                             </div>
                             <button class="${btnClass}" data-pay-anuncio="${a?._id}" data-pay-plano="${payPlano}" data-current-plano="${plano}" data-ativo="${ativo}" data-title="${safeTitle}" data-imagem="${encodeURIComponent(imagemUrl)}" data-descricao="${safeDesc}" style="position: absolute; right: 14px; bottom: 8px; padding: 5px 12px; font-size: 12px; line-height: 1.1; min-width: auto; width: auto; border-width: 1px;">${btnLabel}</button>
                         </div>
@@ -679,10 +694,39 @@ document.addEventListener('DOMContentLoaded', () => {
                     estado,
                     plano
                 };
-                abrirModalPix(payload);
+
+                // Cria o anúncio no banco antes de pagar
+                const resp = await fetch('/api/anuncios', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...getAuthHeaders()
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                const data = await resp.json().catch(() => ({}));
+
+                if (!resp.ok) {
+                    if (msgAnuncio) msgAnuncio.textContent = data.message || 'Erro ao criar anúncio.';
+                    return;
+                }
+
+                // Sucesso: prepara dados com ID para o pagamento
+                const anuncioCriado = data.anuncio || {};
+                const dadosParaPagamento = {
+                    anuncioId: anuncioCriado._id || anuncioCriado.id,
+                    titulo: anuncioCriado.titulo || titulo,
+                    descricao: anuncioCriado.descricao || descricao,
+                    imagemUrl: anuncioCriado.imagemUrl || imagemUrl,
+                    plano: anuncioCriado.plano || plano,
+                    ativo: false // Novo anúncio ainda não está ativo
+                };
+
+                abrirModalPix(dadosParaPagamento);
             } catch (err) {
                 console.error('Erro ao criar anúncio:', err);
-                if (msgAnuncio) msgAnuncio.textContent = 'Erro ao iniciar pagamento do anúncio.';
+                if (msgAnuncio) msgAnuncio.textContent = 'Erro ao processar criação do anúncio.';
             }
         });
     }
@@ -782,57 +826,109 @@ document.addEventListener('DOMContentLoaded', () => {
         const container = document.getElementById('cardPaymentBrick_container');
         if (!container) return;
         
-        // Limpa anterior se existir
-        if (cardPaymentBrickController) {
+        console.log('Valor enviado ao Brick:', amount);
+
+        // Limpa anterior se existir de forma robusta
+        if (window.cardPaymentBrickController) {
              try {
-                 await cardPaymentBrickController.unmount();
-             } catch (e) {}
-             cardPaymentBrickController = null;
+                 await window.cardPaymentBrickController.unmount();
+             } catch (e) { console.warn('Erro ao desmontar controller anterior:', e); }
+             window.cardPaymentBrickController = null;
         }
+
         container.innerHTML = '';
+
+        // Obtém e-mail do usuário logado (variável global ou localStorage)
+        const userEmail = loggedUserEmail || localStorage.getItem('userEmail') || localStorage.getItem('email');
+        
+        // Em produção, DEVE usar o e-mail real do usuário.
+        // Em localhost, se não houver e-mail logado, usa um fallback, mas preferencialmente usa o do usuário.
+        const payerEmail = userEmail || 'user@example.com';
+
+        console.log('Inicializando Brick com Payer Email:', payerEmail);
 
         const settings = {
             initialization: {
-                amount: Number(amount) || 19.90, // Fallback de segurança
+                amount: Number(amount), // Valor estrito
                 payer: {
-                    email: loggedUserEmail || 'email@example.com', // Brick exige email válido
+                    email: payerEmail,
                 },
             },
+            locale: 'pt-BR',
             customization: {
                 visual: {
                     style: {
-                        theme: 'default',
+                        theme: 'dark', // Tema escuro solicitado
+                        customVariables: {
+                            baseColor: '#007bff', // Azul Helpy
+                            outlinePrimaryColor: '#007bff',
+                            buttonBackgroundColor: '#007bff',
+                            buttonTextColor: '#ffffff',
+                            borderRadius: '8px',
+                            inputBackgroundColor: '#2d3748',
+                            inputTextColor: '#ffffff',
+                            inputBorderColor: '#4b5563',
+                            formBackgroundColor: 'transparent', // Fundo transparente
+                            secondaryColor: '#64748b'
+                        }
                     },
+                    hideFormTitle: true,
                 },
                 paymentMethods: {
-                    maxInstallments: 12,
-                    types: {
-                        all: ['credit_card', 'debit_card']
-                    }
+                    creditCard: 'all',
+                    debitCard: 'all',
+                    maxInstallments: 12
                 }
             },
             callbacks: {
                 onReady: () => {
-                    // Brick carregado
+                    console.log('Brick pronto para uso.');
+                    const msgEl = document.getElementById('card-msg');
+                    if (msgEl) msgEl.style.display = 'none';
                 },
                 onSubmit: async (cardFormData) => {
+                    console.log('Brick onSubmit acionado com dados:', cardFormData);
                     const msgEl = document.getElementById('card-msg');
-                    if (msgEl) msgEl.textContent = 'Processando pagamento...';
+                    if (msgEl) {
+                        msgEl.style.display = 'block';
+                        msgEl.style.color = '#eab308'; // Amarelo
+                        msgEl.textContent = 'Processando pagamento...';
+                    }
                     
-                    if (!pendingAnuncioPagamento) return;
+                    // Normaliza os dados (algumas versões retornam dentro de .formData)
+                    const paymentData = cardFormData.formData || cardFormData;
+
+                    // Validação básica do token
+                    if (!paymentData || !paymentData.token) {
+                         console.error('Dados do formulário incompletos ou token ausente:', cardFormData);
+                         if (msgEl) {
+                             msgEl.style.color = '#ef4444';
+                             msgEl.innerHTML = `<strong>Falha na validação:</strong><br>O Mercado Pago não gerou o token do cartão.<br>Verifique se o número do cartão é válido (use cartões de teste em localhost).`;
+                         }
+                         return;
+                    }
+
                     try {
+                         // Garante que identification existe
+                         const payerData = paymentData.payer || {};
+                         const identification = payerData.identification || { type: 'CPF', number: '' };
+
                          const payload = {
                              ...pendingAnuncioPagamento,
-                             token: cardFormData.token,
-                             issuer_id: cardFormData.issuer_id,
-                             payment_method_id: cardFormData.payment_method_id,
-                             transaction_amount: cardFormData.transaction_amount,
-                             installments: cardFormData.installments,
-                             payer: cardFormData.payer,
-                             plano: pendingAnuncioPagamento.plano || 'basico'
+                             token: paymentData.token,
+                             issuer_id: paymentData.issuer_id,
+                             payment_method_id: paymentData.payment_method_id,
+                             transaction_amount: Number(paymentData.transaction_amount),
+                             installments: Number(paymentData.installments),
+                             payer: {
+                                 email: payerEmail,
+                                 identification: identification
+                             }
                          };
+                         
+                         console.log('Enviando payload para backend:', payload);
 
-                         const resp = await fetch('/api/pagamentos/mercadopago/processar-cartao', {
+                         const resp = await fetch('/api/pagamentos/mercadopago/card', {
                              method: 'POST',
                              headers: {
                                  'Content-Type': 'application/json',
@@ -840,51 +936,83 @@ document.addEventListener('DOMContentLoaded', () => {
                              },
                              body: JSON.stringify(payload)
                          });
-                         
-                         const data = await resp.json().catch(() => ({}));
-                         if (resp.ok && data.success) {
+
+                         const data = await resp.json();
+                         console.log('Resposta do backend:', data);
+
+                         if (data.success) {
                              if (msgEl) {
-                                 msgEl.style.color = 'green';
+                                 msgEl.style.color = '#22c55e'; // Verde
                                  msgEl.textContent = 'Pagamento aprovado! Redirecionando...';
                              }
-                             window.location.href = 'configuracoes-conta.html?pagamento=sucesso&section=sec-anuncios';
+                             setTimeout(() => {
+                                 window.location.href = 'configuracoes-conta.html?pagamento=sucesso&section=sec-anuncios';
+                             }, 1500);
                          } else {
                              if (msgEl) {
                                  msgEl.style.color = '#ef4444';
-                                 msgEl.textContent = 'Pagamento não aprovado: ' + (data.message || data.status_detail || 'Erro desconhecido');
+                                 let errorMsg = data.message || 'Erro ao processar pagamento.';
+                                 if (data.status_detail) errorMsg += ` (${data.status_detail})`;
+                                 msgEl.innerHTML = `<strong>Erro:</strong> ${errorMsg}`;
                              }
                          }
-                    } catch (error) {
-                         console.error('Erro no pagamento:', error);
+                    } catch (e) {
+                         console.error('Erro na requisição de pagamento:', e);
                          if (msgEl) {
                              msgEl.style.color = '#ef4444';
-                             msgEl.textContent = 'Erro ao processar pagamento. Tente novamente.';
+                             msgEl.textContent = 'Erro de conexão ao processar pagamento.';
                          }
                     }
                 },
                 onError: (error) => {
-                    console.error('Erro no Brick:', error);
+                    // Ignora erros não críticos de inicialização (ex: campos vazios ao carregar)
+                    if (error && (error.type === 'non_critical' || error.cause === 'missing_payment_information')) {
+                        console.log('Aviso não crítico do Brick (ignorado na UI):', error);
+                        return;
+                    }
+
+                    // Log solicitado pelo usuário para debug profundo
+                    console.error('Erro detalhado do Brick (onError):', error);
+                    if (error && error.cause) {
+                        console.error('Causa do erro (onError cause):', error.cause);
+                    }
+                    
                     const msgEl = document.getElementById('card-msg');
                     if (msgEl) {
+                        msgEl.style.display = 'block';
                         msgEl.style.color = '#ef4444';
-                        msgEl.textContent = 'Verifique os dados do cartão.';
+                        let reason = 'Erro desconhecido';
+                        if (error) {
+                            if (typeof error === 'string') reason = error;
+                            else if (error.cause) {
+                                 // Tenta extrair mensagem mais útil
+                                 reason = JSON.stringify(error.cause);
+                                 if (Array.isArray(error.cause)) {
+                                     const codes = error.cause.map(c => c.code || c.description).join(', ');
+                                     reason = `Erro no preenchimento: ${codes}`;
+                                 }
+                            }
+                            else if (error.message) reason = error.message;
+                            else reason = JSON.stringify(error);
+                        }
+                        msgEl.innerHTML = `<strong>Erro ao processar:</strong><br>${reason}<br>Verifique os dados e tente novamente.`;
                     }
                 },
             },
         };
-        
-        try {
-            const bricksBuilder = mp.bricks();
-            cardPaymentBrickController = await bricksBuilder.create("payment", "cardPaymentBrick_container", settings);
-        } catch (e) {
-             console.error('Erro ao criar Brick:', e);
-             const msgEl = document.getElementById('card-msg');
-             if (msgEl) {
-                 msgEl.style.color = '#ef4444';
-                 msgEl.textContent = 'Erro ao carregar formulário de cartão. Verifique a chave pública ou a conexão.';
-             }
+            
+            try {
+                const bricksBuilder = mp.bricks();
+                window.cardPaymentBrickController = await bricksBuilder.create("payment", "cardPaymentBrick_container", settings);
+            } catch (e) {
+                 console.error('Erro ao criar Brick:', e);
+                 const msgEl = document.getElementById('card-msg');
+                 if (msgEl) {
+                     msgEl.style.color = '#ef4444';
+                     msgEl.textContent = 'Erro ao carregar formulário de cartão. Verifique a chave pública ou a conexão.';
+                 }
+            }
         }
-    }
 
     if (pixCartaoBtn) {
         pixCartaoBtn.addEventListener('click', async () => {

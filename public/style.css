@@ -2197,6 +2197,29 @@ textarea#post-content-input::placeholder { color: var(--text-placeholder); }
     box-sizing: border-box;
 }
 
+/* Ajuste do container do Brick para garantir scroll se necessário e fundo transparente */
+#cardPaymentBrick_container {
+    width: 100%;
+    min-height: 400px; /* Garante altura mínima para o form */
+    max-height: 70vh; /* Limita altura para permitir scroll interno se o modal for pequeno */
+    overflow-y: auto; /* Permite scroll vertical */
+    background-color: transparent !important; /* Força transparência para assumir o fundo do modal */
+    border-radius: 8px;
+    padding: 10px;
+}
+
+/* Scrollbar personalizada para o container do Brick */
+#cardPaymentBrick_container::-webkit-scrollbar {
+    width: 6px;
+}
+#cardPaymentBrick_container::-webkit-scrollbar-track {
+    background: #1a1a1a;
+}
+#cardPaymentBrick_container::-webkit-scrollbar-thumb {
+    background: #4b5563;
+    border-radius: 3px;
+}
+
 /* Ajustes para formulário de comentários no modal - fixo na parte inferior */
 #modal-postagem-completa .comment-form {
     display: flex;
