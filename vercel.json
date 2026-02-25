@@ -6,39 +6,39 @@
     },
     {
       "source": "/",
-      "destination": "/public/index.html"
+      "destination": "/index.html"
     },
     {
       "source": "/login",
-      "destination": "/public/login.html"
+      "destination": "/login.html"
     },
     {
       "source": "/cadastro",
-      "destination": "/public/cadastro.html"
+      "destination": "/cadastro.html"
     },
     {
       "source": "/esqueci-senha",
-      "destination": "/public/esqueci-senha.html"
+      "destination": "/esqueci-senha.html"
     },
     {
       "source": "/perfil",
-      "destination": "/public/perfil.html"
+      "destination": "/perfil.html"
     },
     {
       "source": "/privacidade",
-      "destination": "/public/privacidade.html"
+      "destination": "/privacidade.html"
     },
     {
       "source": "/termos",
-      "destination": "/public/termos.html"
+      "destination": "/termos.html"
     },
     {
       "source": "/admin",
-      "destination": "/public/admin.html"
+      "destination": "/admin.html"
     },
     {
       "source": "/(.*)",
-      "destination": "/public/$1"
+      "destination": "/$1"
     }
   ],
   "headers": [
@@ -72,4 +72,4 @@
   },
   "installCommand": "npm install",
   "buildCommand": "npm run vercel-build"
-}    
+}
