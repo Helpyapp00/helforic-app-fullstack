@@ -13105,3 +13105,176 @@ body.explorar-open header.search-open .header-actions {
 }
 
 
+
+/* --- Video Editor Sidebar --- */
+.video-editor-sidebar {
+    position: absolute;
+    right: 16px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    z-index: 20;
+}
+
+.editor-tool-btn {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: #fff;
+    font-size: 18px;
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+    transition: all 0.2s ease;
+    backdrop-filter: blur(4px);
+}
+
+.editor-tool-btn:hover {
+    background: rgba(0, 0, 0, 0.8);
+    transform: scale(1.05);
+}
+
+.editor-tool-btn.active {
+    background: #10b981;
+    border-color: #10b981;
+    color: #fff;
+}
+
+/* Drawing Canvas */
+.video-drawing-canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 15;
+    pointer-events: none; /* Allows clicks to pass through unless drawing */
+}
+
+.video-drawing-canvas.drawing-active {
+    pointer-events: auto;
+    cursor: crosshair;
+}
+
+/* Trim UI */
+.video-trim-ui {
+    position: absolute;
+    bottom: 80px; /* Above actions */
+    left: 16px;
+    right: 16px;
+    background: rgba(0, 0, 0, 0.8);
+    border-radius: 12px;
+    padding: 12px;
+    z-index: 25;
+    backdrop-filter: blur(8px);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.trim-slider-container {
+    position: relative;
+    height: 40px;
+    display: flex;
+    align-items: center;
+}
+
+.trim-track {
+    position: absolute;
+    top: 50%;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.3);
+    transform: translateY(-50%);
+    border-radius: 2px;
+}
+
+.trim-range-highlight {
+    position: absolute;
+    top: 50%;
+    height: 4px;
+    background: #10b981;
+    transform: translateY(-50%);
+    z-index: 2;
+}
+
+.trim-thumb {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 100%;
+    pointer-events: none;
+    -webkit-appearance: none;
+    background: transparent;
+    z-index: 3;
+    margin: 0;
+}
+
+.trim-thumb::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    pointer-events: auto;
+    width: 16px;
+    height: 24px;
+    background: #fff;
+    border-radius: 4px;
+    cursor: ew-resize;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+
+.trim-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: #fff;
+    font-size: 14px;
+}
+
+.trim-btn-apply, .trim-btn-cancel {
+    background: transparent;
+    border: none;
+    color: #fff;
+    font-size: 18px;
+    cursor: pointer;
+    width: 32px;
+    height: 32px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+}
+
+.trim-btn-apply { color: #10b981; }
+.trim-btn-cancel { color: #ef4444; }
+
+.trim-btn-apply:hover { background: rgba(16, 185, 129, 0.2); }
+.trim-btn-cancel:hover { background: rgba(239, 68, 68, 0.2); }
+
+/* Media Container */
+.explorar-preview-media-container {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    z-index: 1;
+}
+
+.explorar-preview-media-container video,
+.explorar-preview-media-container img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    max-height: 780px;
+}
+
+@media (max-width: 767px) {
+    .explorar-preview-media-container video {
+        object-fit: cover;
+        max-height: none;
+    }
+}

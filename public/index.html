@@ -166,7 +166,46 @@
                 <div id="explorar-post-modal" class="explorar-post-modal" aria-hidden="true">
                     <div class="explorar-post-modal-card">
                         <button id="explorar-post-close" class="explorar-post-close" type="button" aria-label="Fechar">×</button>
-                        <div class="explorar-post-preview" id="explorar-post-preview"></div>
+                        <div class="explorar-post-preview" id="explorar-post-preview">
+                            <div id="explorar-preview-media-container" class="explorar-preview-media-container"></div>
+                            
+                            <!-- Sidebar de Edição de Vídeo -->
+                            <div id="video-editor-sidebar" class="video-editor-sidebar hidden">
+                                <button id="tool-mute" class="editor-tool-btn" aria-label="Mutar/Desmutar" title="Mutar áudio original">
+                                    <i class="fas fa-volume-up"></i>
+                                </button>
+                                <button id="tool-trim" class="editor-tool-btn" aria-label="Cortar Vídeo" title="Cortar vídeo">
+                                    <i class="fas fa-cut"></i>
+                                </button>
+                                <button id="tool-draw" class="editor-tool-btn" aria-label="Desenhar" title="Desenhar">
+                                    <i class="fas fa-pencil-alt"></i>
+                                </button>
+                                <button id="tool-music" class="editor-tool-btn" aria-label="Adicionar Música" title="Adicionar música">
+                                    <i class="fas fa-music"></i>
+                                </button>
+                            </div>
+
+                            <!-- Canvas de Desenho -->
+                            <canvas id="video-drawing-canvas" class="video-drawing-canvas hidden"></canvas>
+
+                            <!-- Controles de Recorte (Trim) -->
+                            <div id="video-trim-ui" class="video-trim-ui hidden">
+                                <div class="trim-slider-container">
+                                    <div class="trim-track"></div>
+                                    <div id="trim-range-highlight" class="trim-range-highlight"></div>
+                                    <input type="range" id="trim-start" class="trim-thumb trim-start" min="0" max="100" value="0" step="0.1">
+                                    <input type="range" id="trim-end" class="trim-thumb trim-end" min="0" max="100" value="100" step="0.1">
+                                </div>
+                                <div class="trim-actions">
+                                    <span id="trim-time-display">0s - 30s</span>
+                                    <button id="trim-apply" class="trim-btn-apply"><i class="fas fa-check"></i></button>
+                                    <button id="trim-cancel" class="trim-btn-cancel"><i class="fas fa-times"></i></button>
+                                </div>
+                            </div>
+
+                            <!-- Input de Música (Oculto) -->
+                            <input type="file" id="music-file-input" accept="audio/*" hidden>
+                        </div>
                         <div class="explorar-post-actions">
                             <textarea id="explorar-post-desc" class="explorar-card-desc" placeholder="Descreva sua postagem..."></textarea>
                             <button id="explorar-post-send" class="explorar-post-send" type="button" aria-label="Enviar postagem">

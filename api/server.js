@@ -41,6 +41,7 @@ const jwt = require('jsonwebtoken');
 const multer = require('multer');
 const nodemailer = require('nodemailer');
 const { S3Client, PutObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
+const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const { URL } = require('url');
 const http = require('http');
 const https = require('https');
@@ -886,6 +887,41 @@ app.get('/api/config/mp-public-key', (req, res) => {
     return res.json({ success: true, key: (process.env.MERCADOPAGO_PUBLIC_KEY || '').trim() });
 });
 
+// --- Rota para Presigned URL (Upload Direto S3) ---
+app.post('/api/upload-url', authMiddleware, async (req, res) => {
+    try {
+        if (!s3Client || !bucketName) {
+            return res.status(503).json({ success: false, message: 'Serviço de armazenamento indisponível.' });
+        }
+        
+        const { fileName, fileType } = req.body;
+        if (!fileName || !fileType) {
+            return res.status(400).json({ success: false, message: 'Nome e tipo de arquivo obrigatórios.' });
+        }
+
+        const userId = req.user.id;
+        // Gera um nome único mantendo a extensão original
+        const ext = path.extname(fileName) || '';
+        const uniqueName = `${Date.now()}_${crypto.randomBytes(8).toString('hex')}${ext}`;
+        const key = `explorar/${userId}/${uniqueName}`;
+
+        const command = new PutObjectCommand({
+            Bucket: bucketName,
+            Key: key,
+            ContentType: fileType
+        });
+
+        // Gera URL assinada válida por 5 minutos
+        const signedUrl = await getSignedUrl(s3Client, command, { expiresIn: 300 });
+        const publicUrl = `https://${bucketName}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`;
+
+        res.json({ success: true, signedUrl, publicUrl, key });
+    } catch (error) {
+        console.error('Erro ao gerar presigned URL:', error);
+        res.status(500).json({ success: false, message: 'Erro ao preparar upload.' });
+    }
+});
+
 app.post('/api/anuncios', authMiddleware, async (req, res) => {
     try {
         const { titulo, descricao, imagemUrl, linkUrl, endereco, numero, cidade, estado, ativo, plano } = req.body;
@@ -1072,13 +1108,15 @@ app.post('/api/explorar-posts', authMiddleware, upload.single('media'), async (r
         const categoriaManual = String(req.body?.category_tag || '').trim();
         const generoManual = String(req.body?.gender_tag || '').trim();
         const file = req.file;
+        let mediaUrl = String(req.body?.mediaUrl || '').trim(); // Suporte a URL enviada pelo front (S3 direto)
 
-        if (!content && !file) {
+        if (!content && !file && !mediaUrl) {
             return res.status(400).json({ success: false, message: 'Adicione texto ou mídia.' });
         }
 
-        let mediaUrl = '';
-        let mediaType = '';
+        let mediaType = String(req.body?.mediaType || '').trim(); // Tipo enviado pelo front se upload direto
+        
+        // Se veio arquivo via Multer (fallback antigo ou imagens pequenas)
         if (file) {
             mediaType = file.mimetype || '';
             let buffer = file.buffer;

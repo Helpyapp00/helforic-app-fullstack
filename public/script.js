@@ -264,6 +264,23 @@ document.addEventListener('DOMContentLoaded', () => {
     const explorarPostModal = document.getElementById('explorar-post-modal');
     const explorarPostClose = document.getElementById('explorar-post-close');
     const explorarPostPreview = document.getElementById('explorar-post-preview');
+    // Novos elementos do editor de vídeo
+    const explorarPreviewMediaContainer = document.getElementById('explorar-preview-media-container');
+    const videoEditorSidebar = document.getElementById('video-editor-sidebar');
+    const toolMute = document.getElementById('tool-mute');
+    const toolTrim = document.getElementById('tool-trim');
+    const toolDraw = document.getElementById('tool-draw');
+    const toolMusic = document.getElementById('tool-music');
+    const videoDrawingCanvas = document.getElementById('video-drawing-canvas');
+    const videoTrimUi = document.getElementById('video-trim-ui');
+    const trimStartInput = document.getElementById('trim-start');
+    const trimEndInput = document.getElementById('trim-end');
+    const trimRangeHighlight = document.getElementById('trim-range-highlight');
+    const trimTimeDisplay = document.getElementById('trim-time-display');
+    const trimApplyBtn = document.getElementById('trim-apply');
+    const trimCancelBtn = document.getElementById('trim-cancel');
+    const musicFileInput = document.getElementById('music-file-input');
+
     const explorarPostDesc = document.getElementById('explorar-post-desc');
     const explorarPostSend = document.getElementById('explorar-post-send');
     const explorarVideoOverlay = document.getElementById('explorar-video-overlay');
@@ -1608,23 +1625,56 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let explorarSelectedFile = null;
 
-    const normalizeExplorarText = (text) => String(text || '')
-        .normalize('NFD')
-        .replace(/[\u0000-\u001f\u007f-\u009f]/g, ' ')
-        .replace(/\s+/g, ' ')
-        .replace(/[\u0300-\u036f]/g, '')
-        .toLowerCase()
-        .trim();
+    // Estado do editor de vídeo
+    let editorState = {
+        isMuted: false,
+        trimStart: 0,
+        trimEnd: 100, // Porcentagem
+        hasDrawing: false,
+        musicFile: null,
+        originalDuration: 0,
+        audioPlayer: null,
+        isDrawingMode: false,
+        isDraggingTrim: null // 'start' ou 'end'
+    };
 
     const resetExplorarModal = () => {
         explorarSelectedFile = null;
         if (explorarPostDesc) explorarPostDesc.value = '';
-        if (explorarPostPreview) explorarPostPreview.innerHTML = '';
+        if (explorarPreviewMediaContainer) explorarPreviewMediaContainer.innerHTML = '';
         if (explorarMediaInput) explorarMediaInput.value = '';
+        
+        // Reset Editor
+        if (videoEditorSidebar) videoEditorSidebar.classList.add('hidden');
+        if (videoTrimUi) videoTrimUi.classList.add('hidden');
+        if (videoDrawingCanvas) {
+            videoDrawingCanvas.classList.add('hidden');
+            videoDrawingCanvas.classList.remove('drawing-active');
+            const ctx = videoDrawingCanvas.getContext('2d');
+            ctx.clearRect(0, 0, videoDrawingCanvas.width, videoDrawingCanvas.height);
+        }
+        if (musicFileInput) musicFileInput.value = '';
+        if (editorState.audioPlayer) {
+            editorState.audioPlayer.pause();
+            editorState.audioPlayer = null;
+        }
+        editorState = {
+            isMuted: false,
+            trimStart: 0,
+            trimEnd: 100,
+            hasDrawing: false,
+            musicFile: null,
+            originalDuration: 0,
+            audioPlayer: null,
+            isDrawingMode: false,
+            isDraggingTrim: null
+        };
+        // Reset botões
+        document.querySelectorAll('.editor-tool-btn').forEach(btn => btn.classList.remove('active'));
     };
 
     const openExplorarModal = (file) => {
-        if (!explorarPostModal || !explorarPostPreview) return;
+        if (!explorarPostModal || !explorarPreviewMediaContainer) return;
         try {
             if (explorarPostModal.parentElement && explorarPostModal.parentElement !== document.body) {
                 document.body.appendChild(explorarPostModal);
@@ -1635,31 +1685,313 @@ document.addEventListener('DOMContentLoaded', () => {
             document.documentElement.scrollTop = 0;
             document.body.scrollTop = 0;
         } catch {}
+        
         explorarSelectedFile = file || null;
-        explorarPostPreview.innerHTML = '';
+        explorarPreviewMediaContainer.innerHTML = '';
+        resetExplorarModal(); // Reseta estado anterior
+        explorarSelectedFile = file; // Restaura file após reset
+
         if (file) {
             const isVideo = file.type.startsWith('video/');
             const url = URL.createObjectURL(file);
-            explorarPostPreview.innerHTML = isVideo
-                ? `<video src="${url}" playsinline controls preload="metadata"></video>`
-                : `<img src="${url}" alt="Prévia">`;
+            
             if (isVideo) {
-                const previewVideo = explorarPostPreview.querySelector('video');
-                if (previewVideo) {
-                    previewVideo.addEventListener('loadeddata', () => {
-                        try {
-                            previewVideo.currentTime = Math.min(0.1, previewVideo.duration || 0);
-                        } catch (e) {}
-                        try { previewVideo.muted = false; } catch {}
-                        previewVideo.play().catch(() => {});
-                    }, { once: true });
-                }
+                const videoEl = document.createElement('video');
+                videoEl.src = url;
+                videoEl.playsInline = true;
+                videoEl.controls = false; // Usaremos controles customizados ou nativos sem UI de trim nativa
+                videoEl.preload = 'metadata';
+                videoEl.style.width = '100%';
+                videoEl.style.height = '100%';
+                // videoEl.style.objectFit = 'contain'; // Já no CSS
+
+                explorarPreviewMediaContainer.appendChild(videoEl);
+
+                // Mostra sidebar
+                if (videoEditorSidebar) videoEditorSidebar.classList.remove('hidden');
+                
+                // Configuração inicial do vídeo
+                videoEl.addEventListener('loadedmetadata', () => {
+                    editorState.originalDuration = videoEl.duration;
+                    if (trimTimeDisplay) trimTimeDisplay.textContent = `0s - ${Math.floor(videoEl.duration)}s`;
+                    
+                    // Ajusta tamanho do canvas
+                    if (videoDrawingCanvas) {
+                        videoDrawingCanvas.width = videoEl.clientWidth;
+                        videoDrawingCanvas.height = videoEl.clientHeight;
+                    }
+                });
+
+                // Loop de trim e sincronia de música
+                videoEl.addEventListener('timeupdate', () => {
+                    const duration = videoEl.duration || 1;
+                    const startTime = (editorState.trimStart / 100) * duration;
+                    const endTime = (editorState.trimEnd / 100) * duration;
+
+                    if (videoEl.currentTime < startTime) {
+                        videoEl.currentTime = startTime;
+                    }
+                    if (videoEl.currentTime > endTime) {
+                        videoEl.currentTime = startTime;
+                        if (!videoEl.paused) videoEl.play();
+                    }
+
+                    // Sincroniza música extra
+                    if (editorState.audioPlayer && !editorState.audioPlayer.paused) {
+                        const diff = Math.abs(editorState.audioPlayer.currentTime - videoEl.currentTime);
+                        if (diff > 0.5) editorState.audioPlayer.currentTime = videoEl.currentTime;
+                    }
+                });
+
+                videoEl.addEventListener('play', () => {
+                    if (editorState.audioPlayer) editorState.audioPlayer.play().catch(() => {});
+                });
+                videoEl.addEventListener('pause', () => {
+                    if (editorState.audioPlayer) editorState.audioPlayer.pause();
+                });
+                videoEl.addEventListener('volumechange', () => {
+                    // Sincroniza mudo (se user mutar pelo controle nativo, embora tenhamos tirado controls)
+                });
+                
+                // Clique no vídeo para play/pause
+                videoEl.addEventListener('click', () => {
+                    if (editorState.isDrawingMode) return; // Se desenhando, não pausa
+                    videoEl.paused ? videoEl.play() : videoEl.pause();
+                });
+
+            } else {
+                explorarPreviewMediaContainer.innerHTML = `<img src="${url}" alt="Prévia">`;
+                if (videoEditorSidebar) videoEditorSidebar.classList.add('hidden');
             }
         }
+        
         explorarPostModal.classList.add('is-open');
         explorarPostModal.removeAttribute('inert');
         explorarPostModal.setAttribute('aria-hidden', 'false');
         document.body.classList.add('explorar-post-modal-open');
+    };
+
+    // --- Lógica das Ferramentas de Edição ---
+
+    // 1. Mute
+    if (toolMute) {
+        toolMute.addEventListener('click', () => {
+            const video = exploringGetVideo();
+            if (!video) return;
+            video.muted = !video.muted;
+            editorState.isMuted = video.muted;
+            
+            toolMute.innerHTML = video.muted ? '<i class="fas fa-volume-mute"></i>' : '<i class="fas fa-volume-up"></i>';
+            toolMute.classList.toggle('active', video.muted);
+        });
+    }
+
+    // 2. Trim
+    if (toolTrim) {
+        toolTrim.addEventListener('click', () => {
+            if (!videoTrimUi) return;
+            const isHidden = videoTrimUi.classList.contains('hidden');
+            if (isHidden) {
+                videoTrimUi.classList.remove('hidden');
+                toolTrim.classList.add('active');
+            } else {
+                videoTrimUi.classList.add('hidden');
+                toolTrim.classList.remove('active');
+            }
+        });
+    }
+
+    // Atualização dos Sliders de Trim
+    const updateTrimUI = () => {
+        if (!trimRangeHighlight) return;
+        trimRangeHighlight.style.left = `${editorState.trimStart}%`;
+        trimRangeHighlight.style.width = `${editorState.trimEnd - editorState.trimStart}%`;
+        
+        const video = exploringGetVideo();
+        if (video && trimTimeDisplay) {
+            const duration = video.duration || 0;
+            const startS = ((editorState.trimStart / 100) * duration).toFixed(1);
+            const endS = ((editorState.trimEnd / 100) * duration).toFixed(1);
+            trimTimeDisplay.textContent = `${startS}s - ${endS}s`;
+        }
+    };
+
+    if (trimStartInput && trimEndInput) {
+        trimStartInput.addEventListener('input', (e) => {
+            const val = parseFloat(e.target.value);
+            if (val >= editorState.trimEnd - 5) { // Mínimo 5% de intervalo
+                trimStartInput.value = editorState.trimEnd - 5;
+                editorState.trimStart = editorState.trimEnd - 5;
+            } else {
+                editorState.trimStart = val;
+            }
+            updateTrimUI();
+            seekVideoTo(editorState.trimStart);
+        });
+
+        trimEndInput.addEventListener('input', (e) => {
+            const val = parseFloat(e.target.value);
+            if (val <= editorState.trimStart + 5) {
+                trimEndInput.value = editorState.trimStart + 5;
+                editorState.trimEnd = editorState.trimStart + 5;
+            } else {
+                editorState.trimEnd = val;
+            }
+            updateTrimUI();
+            seekVideoTo(editorState.trimEnd); // Preview do fim
+        });
+    }
+
+    if (trimApplyBtn) {
+        trimApplyBtn.addEventListener('click', () => {
+            // Apenas fecha a UI, o estado já está salvo em editorState
+            videoTrimUi.classList.add('hidden');
+            toolTrim.classList.remove('active');
+            // Retorna vídeo ao início do corte
+            seekVideoTo(editorState.trimStart);
+        });
+    }
+    
+    if (trimCancelBtn) {
+        trimCancelBtn.addEventListener('click', () => {
+            // Reseta trim
+            editorState.trimStart = 0;
+            editorState.trimEnd = 100;
+            if (trimStartInput) trimStartInput.value = 0;
+            if (trimEndInput) trimEndInput.value = 100;
+            updateTrimUI();
+            videoTrimUi.classList.add('hidden');
+            toolTrim.classList.remove('active');
+        });
+    }
+
+    // 3. Draw (Canvas)
+    if (toolDraw) {
+        toolDraw.addEventListener('click', () => {
+            if (!videoDrawingCanvas) return;
+            const video = exploringGetVideo();
+            if (!video) return;
+
+            editorState.isDrawingMode = !editorState.isDrawingMode;
+            
+            if (editorState.isDrawingMode) {
+                videoDrawingCanvas.classList.remove('hidden');
+                videoDrawingCanvas.classList.add('drawing-active');
+                toolDraw.classList.add('active');
+                
+                // Garante tamanho correto
+                videoDrawingCanvas.width = video.clientWidth;
+                videoDrawingCanvas.height = video.clientHeight;
+                
+                // Configura contexto
+                const ctx = videoDrawingCanvas.getContext('2d');
+                ctx.strokeStyle = '#e11d48'; // Cor padrão (rosa/vermelho)
+                ctx.lineWidth = 4;
+                ctx.lineCap = 'round';
+            } else {
+                videoDrawingCanvas.classList.remove('drawing-active');
+                // Mantém visível se tiver desenho, mas desativa pointer events?
+                // Se quiser apagar ao desligar a ferramenta, use: videoDrawingCanvas.classList.add('hidden');
+                // Mas geralmente queremos ver o desenho. Apenas tiramos o modo edição.
+                toolDraw.classList.remove('active');
+            }
+        });
+    }
+
+    // Lógica de Desenho no Canvas
+    if (videoDrawingCanvas) {
+        let isDrawing = false;
+        let lastX = 0;
+        let lastY = 0;
+
+        const getPos = (e) => {
+            const rect = videoDrawingCanvas.getBoundingClientRect();
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            return {
+                x: clientX - rect.left,
+                y: clientY - rect.top
+            };
+        };
+
+        const startDraw = (e) => {
+            if (!editorState.isDrawingMode) return;
+            isDrawing = true;
+            const pos = getPos(e);
+            lastX = pos.x;
+            lastY = pos.y;
+            editorState.hasDrawing = true;
+        };
+
+        const draw = (e) => {
+            if (!isDrawing || !editorState.isDrawingMode) return;
+            e.preventDefault(); // Evita scroll em touch
+            const ctx = videoDrawingCanvas.getContext('2d');
+            const pos = getPos(e);
+            
+            ctx.beginPath();
+            ctx.moveTo(lastX, lastY);
+            ctx.lineTo(pos.x, pos.y);
+            ctx.stroke();
+            
+            lastX = pos.x;
+            lastY = pos.y;
+        };
+
+        const stopDraw = () => {
+            isDrawing = false;
+        };
+
+        videoDrawingCanvas.addEventListener('mousedown', startDraw);
+        videoDrawingCanvas.addEventListener('mousemove', draw);
+        videoDrawingCanvas.addEventListener('mouseup', stopDraw);
+        videoDrawingCanvas.addEventListener('mouseout', stopDraw);
+
+        videoDrawingCanvas.addEventListener('touchstart', startDraw, { passive: false });
+        videoDrawingCanvas.addEventListener('touchmove', draw, { passive: false });
+        videoDrawingCanvas.addEventListener('touchend', stopDraw);
+    }
+
+    // 4. Music
+    if (toolMusic && musicFileInput) {
+        toolMusic.addEventListener('click', () => {
+            musicFileInput.click();
+        });
+
+        musicFileInput.addEventListener('change', (e) => {
+            const file = e.target.files && e.target.files[0];
+            if (file) {
+                editorState.musicFile = file;
+                toolMusic.classList.add('active');
+                
+                // Setup preview audio
+                if (editorState.audioPlayer) editorState.audioPlayer.pause();
+                editorState.audioPlayer = new Audio(URL.createObjectURL(file));
+                editorState.audioPlayer.loop = true; // Loop da música? Ou toca uma vez?
+                
+                // Muta vídeo original ao adicionar música? Geralmente sim ou mixa.
+                // O usuário pediu "Mudar Áudio (Mudo/Ativo)", então ele controla manualmente.
+                // Mas talvez queira baixar o volume do original. Vamos manter controle manual.
+                
+                const video = exploringGetVideo();
+                if (video && !video.paused) {
+                    editorState.audioPlayer.play().catch(() => {});
+                }
+            }
+        });
+    }
+
+    // Helpers
+    const exploringGetVideo = () => {
+        return explorarPreviewMediaContainer ? explorarPreviewMediaContainer.querySelector('video') : null;
+    };
+
+    const seekVideoTo = (pct) => {
+        const video = exploringGetVideo();
+        if (video) {
+            const time = (pct / 100) * video.duration;
+            video.currentTime = time;
+        }
     };
 
     const closeExplorarModal = () => {
@@ -1757,13 +2089,13 @@ document.addEventListener('DOMContentLoaded', () => {
             const content = explorarPostDesc?.value || '';
             if (!content.trim() && !explorarSelectedFile) return;
 
-            // Validação de Tamanho do Arquivo (Limite Vercel Serverless: 4.5MB)
+            // Validação de Tamanho do Arquivo (Limite Aumentado para Upload Direto S3: 100MB)
             if (explorarSelectedFile) {
-                const MAX_SIZE_MB = 4.5;
+                const MAX_SIZE_MB = 100; // 100MB
                 const MAX_SIZE_BYTES = MAX_SIZE_MB * 1024 * 1024;
                 
                 if (explorarSelectedFile.size > MAX_SIZE_BYTES) {
-                    alert(`O arquivo selecionado é muito grande (${(explorarSelectedFile.size / 1024 / 1024).toFixed(2)}MB). \n\nO limite atual para envio rápido é de ${MAX_SIZE_MB}MB. Por favor, escolha um vídeo menor ou comprima o arquivo.`);
+                    alert(`O arquivo selecionado é muito grande (${(explorarSelectedFile.size / 1024 / 1024).toFixed(2)}MB). \n\nO limite atual é de ${MAX_SIZE_MB}MB. Por favor, escolha um vídeo menor.`);
                     return;
                 }
             }
@@ -1781,13 +2113,13 @@ document.addEventListener('DOMContentLoaded', () => {
             if (categoriaAtual && categoriaAtual !== 'Todas') {
                 formData.append('category_tag', categoriaAtual);
             }
-            if (explorarSelectedFile) {
-                formData.append('media', explorarSelectedFile);
-            }
+            
+            // Lógica de Upload
             try {
-                const xhr = new XMLHttpRequest();
-                xhr.open('POST', '/api/explorar-posts', true);
-                xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+                let mediaUrl = '';
+                let mediaType = '';
+
+                // Prepara barra de progresso
                 let uploadBar = null;
                 let uploadWrapper = null;
                 if (explorarPostPreview) {
@@ -1808,26 +2140,86 @@ document.addEventListener('DOMContentLoaded', () => {
                     uploadWrapper.style.display = 'block';
                     uploadBar.style.width = '0%';
                 }
+
+                // Se tiver arquivo, faz upload direto pro S3
+                if (explorarSelectedFile) {
+                    // 1. Pede URL assinada
+                    const presignResp = await fetch('/api/upload-url', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify({
+                            fileName: explorarSelectedFile.name,
+                            fileType: explorarSelectedFile.type
+                        })
+                    });
+                    
+                    if (!presignResp.ok) throw new Error('Falha ao preparar upload.');
+                    const presignData = await presignResp.json();
+                    if (!presignData.success) throw new Error(presignData.message || 'Erro ao obter URL de upload.');
+
+                    const { signedUrl, publicUrl } = presignData;
+                    mediaUrl = publicUrl;
+                    mediaType = explorarSelectedFile.type;
+
+                    // 2. Upload para S3 (PUT)
+                    const xhrS3 = new XMLHttpRequest();
+                    await new Promise((resolve, reject) => {
+                        xhrS3.open('PUT', signedUrl, true);
+                        xhrS3.setRequestHeader('Content-Type', explorarSelectedFile.type);
+                        
+                        xhrS3.upload.onprogress = (e) => {
+                            if (!uploadBar || !uploadWrapper) return;
+                            if (e.lengthComputable && e.total > 0) {
+                                const raw = (e.loaded / e.total) * 90; // Vai até 90% no upload S3
+                                const pct = Math.max(0, Math.min(90, Math.floor(raw)));
+                                uploadBar.style.width = `${pct}%`;
+                            }
+                        };
+
+                        xhrS3.onload = () => {
+                            if (xhrS3.status >= 200 && xhrS3.status < 300) {
+                                resolve();
+                            } else {
+                                reject(new Error('Erro no upload para o S3.'));
+                            }
+                        };
+                        xhrS3.onerror = () => reject(new Error('Erro de rede no upload S3.'));
+                        xhrS3.send(explorarSelectedFile);
+                    });
+                }
+
+                // 3. Salva o post no backend (com URL já pronta ou apenas texto)
+                if (mediaUrl) {
+                    formData.append('mediaUrl', mediaUrl);
+                    formData.append('mediaType', mediaType);
+                }
+                // Se não teve arquivo, formData só tem content/category (já adicionados acima)
+
+                const xhr = new XMLHttpRequest();
+                xhr.open('POST', '/api/explorar-posts', true);
+                xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+                
+                // Monitora progresso do post final (rápido se for só JSON/URL)
                 xhr.upload.onprogress = (e) => {
                     if (!uploadBar || !uploadWrapper) return;
+                    // Completa os 10% restantes
                     if (e.lengthComputable && e.total > 0) {
-                        const raw = (e.loaded / e.total) * 95;
-                        const pct = Math.max(0, Math.min(95, Math.floor(raw)));
+                        const raw = 90 + ((e.loaded / e.total) * 10);
+                        const pct = Math.max(90, Math.min(100, Math.floor(raw)));
                         uploadBar.style.width = `${pct}%`;
-                    } else {
-                        uploadBar.style.width = '20%';
                     }
                 };
-                xhr.timeout = 60000; // 60 segundos de timeout no cliente
-                xhr.ontimeout = () => {
-                     alert('O envio demorou muito e expirou. Tente uma conexão mais rápida ou um arquivo menor.');
-                };
+                
                 xhr.onreadystatechange = () => {
                     if (xhr.readyState !== 4) return;
+                    
                     if (uploadWrapper && uploadBar) {
                         uploadBar.style.width = '100%';
-                        uploadWrapper.style.display = 'block';
                     }
+
                     try {
                         const data = JSON.parse(xhr.responseText || '{}');
                         if (xhr.status < 200 || xhr.status >= 300 || data?.success === false) {
@@ -1836,16 +2228,20 @@ document.addEventListener('DOMContentLoaded', () => {
                         closeExplorarModal();
                         fetchExplorarFeed();
                     } catch (err) {
-                        console.error('Erro ao enviar explorar:', err);
+                        console.error('Erro ao salvar post:', err);
+                        alert('Erro ao salvar post: ' + err.message);
                     } finally {
                         delete explorarPostSend.dataset.sending;
                         explorarPostSend.disabled = false;
                         if (originalBtnText) explorarPostSend.innerHTML = originalBtnText;
+                        if (uploadWrapper) uploadWrapper.style.display = 'none';
                     }
                 };
                 xhr.send(formData);
+
             } catch (err) {
-                console.error('Erro ao enviar explorar:', err);
+                console.error('Erro geral no envio:', err);
+                alert('Falha no envio: ' + err.message);
                 delete explorarPostSend.dataset.sending;
                 explorarPostSend.disabled = false;
                 if (originalBtnText) explorarPostSend.innerHTML = originalBtnText;

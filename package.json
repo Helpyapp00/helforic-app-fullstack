@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.588.0",
+    "@aws-sdk/s3-request-presigner": "^3.997.0",
     "@google-cloud/vision": "^5.3.4",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
