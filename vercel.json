@@ -25,6 +25,18 @@
       "destination": "/public/perfil.html"
     },
     {
+      "source": "/privacidade",
+      "destination": "/public/privacidade.html"
+    },
+    {
+      "source": "/termos",
+      "destination": "/public/termos.html"
+    },
+    {
+      "source": "/admin",
+      "destination": "/public/admin.html"
+    },
+    {
       "source": "/(.*)",
       "destination": "/public/$1"
     }
