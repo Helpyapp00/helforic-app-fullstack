@@ -2024,13 +2024,12 @@ document.addEventListener('DOMContentLoaded', () => {
         explorarMediaInput.addEventListener('change', (event) => {
             const file = event.target.files && event.target.files[0];
             if (file) {
-                // Determine Limit based on OS (Limitado pela Vercel Serverless a 4.5MB)
-                const ua = navigator.userAgent;
-                let maxSize = 4.5 * 1024 * 1024; // 4.5MB Default
+                // Validação de Tamanho (Aumentado para 100MB para Upload Direto S3)
+                const MAX_SIZE_MB = 100; // 100MB
+                const maxSize = MAX_SIZE_MB * 1024 * 1024;
                 
-                // Validação de Tamanho
                 if (file.size > maxSize) {
-                    alert(`O arquivo é muito grande (${(file.size / 1024 / 1024).toFixed(2)}MB). O limite é de 4.5MB.`);
+                    alert(`O arquivo é muito grande (${(file.size / 1024 / 1024).toFixed(2)}MB). O limite é de ${MAX_SIZE_MB}MB.`);
                     explorarMediaInput.value = ''; // Limpa o input
                     return;
                 }
