@@ -17,3 +17,6 @@ Thumbs.db
 .vscode/ # Ignora configurações do VS Code específicas para o projeto
 .idea/   # Ignora configurações do IntelliJ/WebStorm
 .vercel
+
+.vercel
+.env*.local
