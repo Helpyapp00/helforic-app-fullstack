@@ -1858,6 +1858,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const explorarVideoOverlay = document.getElementById('explorar-video-overlay');
     const explorarVideoFull = document.getElementById('explorar-video-full');
+    const explorarVideoDrawing = document.getElementById('explorar-video-drawing');
     const explorarImageFull = document.getElementById('explorar-image-full');
     const explorarVideoBack = document.getElementById('explorar-video-back');
     const explorarVideoDelete = document.getElementById('explorar-video-delete');
@@ -1943,7 +1944,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const ownerVal = rawOwner?._id || rawOwner;
                 const isStatus = it?.tipo === 'post' && !!it.mediaUrl;
                 return ownerVal && String(ownerVal) === String(ownerId) && isStatus;
-            }).map((story) => ({
+            }).reverse().map((story) => ({
                 id: String(story._id || ''),
                 ownerId: story?.userId?._id || story?.userId || story?.ownerId || story?.autorId,
                 mediaUrl: story.mediaUrl,
@@ -1953,7 +1954,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 cidade: [story?.cidade, story?.estado].filter(Boolean).join(' - '),
                 avatar: story?.avatarUrl || story?.foto || '/imagens/default-user.png',
                 perfilUrl: story?.perfilUrl || '#',
-                postId: String(story._id || '')
+                postId: String(story._id || ''),
+                videoMuted: story.videoMuted,
+                trimStart: story.trimStart,
+                trimEnd: story.trimEnd,
+                drawingUrl: story.drawingUrl
             }));
             return stories;
         } catch {
@@ -2050,32 +2055,82 @@ document.addEventListener('DOMContentLoaded', () => {
                 explorarImageFull.removeAttribute('src');
                 explorarImageFull.classList.add('hidden');
             }
+            
+            // Desenho
+            if (explorarVideoDrawing) {
+                if (story.drawingUrl) {
+                    explorarVideoDrawing.src = story.drawingUrl;
+                    explorarVideoDrawing.classList.remove('hidden');
+                } else {
+                    explorarVideoDrawing.src = '';
+                    explorarVideoDrawing.classList.add('hidden');
+                }
+            }
+
             if (explorarVideoFull) {
                 explorarVideoFull.classList.remove('hidden');
                 explorarVideoFull.src = story.mediaUrl;
                 explorarVideoFull.controls = false;
                 try { explorarVideoFull.removeAttribute('controls'); } catch {}
-                explorarVideoFull.muted = false;
+                
+                // Mute e Trim
+                explorarVideoFull.muted = !!story.videoMuted;
                 explorarVideoFull.playsInline = true;
                 try { explorarVideoFull.preload = 'auto'; } catch {}
                 try { explorarVideoFull.autoplay = true; } catch {}
                 try { explorarVideoFull.setAttribute('controlsList', 'nofullscreen noplaybackrate nodownload'); } catch {}
                 try { explorarVideoFull.style.pointerEvents = 'none'; } catch {}
-                explorarVideoFull.currentTime = 0;
+                
+                const trimStart = Number(story.trimStart) || 0;
+                const trimEnd = Number(story.trimEnd) || 0;
+
+                // Remove handler anterior
+                if (explorarVideoFull._trimHandler) {
+                    explorarVideoFull.removeEventListener('timeupdate', explorarVideoFull._trimHandler);
+                    explorarVideoFull._trimHandler = null;
+                }
+
+                explorarVideoFull.currentTime = trimStart;
+
+                // Lógica de Trim para Story (avançar ao final do corte)
+                if (trimEnd > trimStart) {
+                    explorarVideoFull._trimHandler = () => {
+                        if (explorarVideoFull.currentTime >= trimEnd) {
+                            // Chegou ao fim do corte -> próximo story
+                            // Removemos o listener para não disparar múltiplas vezes
+                            explorarVideoFull.removeEventListener('timeupdate', explorarVideoFull._trimHandler);
+                            explorarVideoFull._trimHandler = null;
+                            if (perfilStoryQueue.length) abrirStoryIndex(perfilStoryIndex + 1);
+                        }
+                    };
+                    explorarVideoFull.addEventListener('timeupdate', explorarVideoFull._trimHandler);
+                }
+
                 explorarVideoFull.load();
                 const tryPlay = () => {
                     explorarVideoFull.play().catch(() => {});
                 };
                 explorarVideoFull.addEventListener('loadeddata', tryPlay, { once: true });
                 setTimeout(tryPlay, 200);
+
                 const onLoadedMeta = () => {
-                    const dur = (explorarVideoFull.duration && isFinite(explorarVideoFull.duration))
+                    let duration = (explorarVideoFull.duration && isFinite(explorarVideoFull.duration))
                         ? explorarVideoFull.duration * 1000
                         : 7000;
-                    startCurrentSegmentProgress(dur, perfilStoryIndex);
-                    explorarVideoFull.addEventListener('ended', () => {
-                        if (perfilStoryQueue.length) abrirStoryIndex(perfilStoryIndex + 1);
-                    }, { once: true });
+                    
+                    // Ajusta duração se houver trim
+                    if (trimEnd > trimStart) {
+                        duration = (trimEnd - trimStart) * 1000;
+                    }
+
+                    startCurrentSegmentProgress(duration, perfilStoryIndex);
+                    
+                    // Se NÃO tiver trim, usamos o evento ended padrão
+                    if (!(trimEnd > trimStart)) {
+                        explorarVideoFull.addEventListener('ended', () => {
+                            if (perfilStoryQueue.length) abrirStoryIndex(perfilStoryIndex + 1);
+                        }, { once: true });
+                    }
                 };
                 if (explorarVideoFull.readyState >= 1) {
                     onLoadedMeta();
@@ -2089,6 +2144,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 explorarVideoFull.removeAttribute('src');
                 try { explorarVideoFull.style.pointerEvents = ''; } catch {}
                 explorarVideoFull.classList.add('hidden');
+                if (explorarVideoFull._trimHandler) {
+                    explorarVideoFull.removeEventListener('timeupdate', explorarVideoFull._trimHandler);
+                    explorarVideoFull._trimHandler = null;
+                }
+            }
+            if (explorarVideoDrawing) {
+                explorarVideoDrawing.src = '';
+                explorarVideoDrawing.classList.add('hidden');
             }
             if (explorarImageFull) {
                 explorarImageFull.src = story.mediaUrl;
@@ -2133,7 +2196,10 @@ document.addEventListener('DOMContentLoaded', () => {
             expandirFoto();
             return;
         }
-        abrirStoryIndex(0);
+        // Encontra o índice do primeiro story não visualizado
+        const firstUnviewedIndex = perfilStoryQueue.findIndex(story => !isPerfilStoryViewed(story.id));
+        const startIndex = firstUnviewedIndex !== -1 ? firstUnviewedIndex : 0;
+        abrirStoryIndex(startIndex);
     }
 
     if (statusOwnerIdParam) {
@@ -3996,10 +4062,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 if (isVideo) {
                     mediaContent = `
-                        <div class="thumbnail-video-wrapper">
-                            <video src="${firstMedia.url}" class="thumbnail-video"></video>
-                            <i class="fas fa-play-circle thumbnail-play-icon"></i>
-                            ${extraCount > 0 ? `<div class="more-media-overlay" style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); color: white; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: bold; pointer-events: none;">+${extraCount}</div>` : ''}
+                        <div class="thumbnail-video-wrapper" style="position: relative;">
+                            <video src="${firstMedia.url}" class="thumbnail-video" preload="metadata"></video>
+                            ${post.drawingUrl ? `<img src="${post.drawingUrl}" class="thumbnail-drawing-overlay" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 2;">` : ''}
+                            <i class="fas fa-play-circle thumbnail-play-icon" style="z-index: 3;"></i>
+                            ${extraCount > 0 ? `<div class="more-media-overlay" style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); color: white; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: bold; pointer-events: none; z-index: 4;">+${extraCount}</div>` : ''}
                         </div>`;
                 } else {
                     mediaContent = `
@@ -4035,9 +4102,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 userId: post.userId,
                 createdAt: post.createdAt,
                 likesCount: post.likesCount || 0,
-                commentsCount: post.commentsCount || 0
+                commentsCount: post.commentsCount || 0,
+                videoMuted: post.videoMuted,
+                trimStart: post.trimStart,
+                trimEnd: post.trimEnd,
+                drawingUrl: post.drawingUrl
             });
             
+            // Ajusta o tempo inicial do vídeo se houver corte
+            const thumbVideo = thumbnail.querySelector('video');
+            if (thumbVideo && post.trimStart > 0) {
+                thumbVideo.currentTime = post.trimStart;
+            }
+
             // Event listener para abrir modal
             thumbnail.addEventListener('click', () => {
                 abrirModalPostagem(post);
@@ -4133,17 +4210,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 let content = '';
                 if (isVideo) {
-                     content = `<video src="${media.url}" class="post-media-item" preload="metadata"></video>`;
+                     content = `<div style="position: relative; width: 100%; height: 100%;">
+                        <video src="${media.url}" class="post-media-item" preload="metadata" ${postCompleto.videoMuted ? 'muted' : ''}></video>
+                        ${postCompleto.drawingUrl ? `<img src="${postCompleto.drawingUrl}" class="post-media-drawing" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 2;">` : ''}
+                     </div>`;
                 } else {
                      content = `<img src="${media.url}" alt="Mídia da postagem" class="post-media-item" loading="lazy">`;
                 }
 
                 // Wrapper para clique e overlay
                 mediaHTML += `
-                    <div class="post-media-wrapper" onclick="window.abrirLightbox('${postCompleto._id}', ${index})">
+                    <div class="post-media-wrapper" onclick="window.abrirLightbox('${postCompleto._id}', ${index})" style="position: relative;">
                         ${content}
-                        ${(isLast && remaining > 0) ? `<div class="more-media-overlay">+${remaining}</div>` : ''}
-                        ${isVideo ? '<div class="video-indicator"><i class="fas fa-play"></i></div>' : ''}
+                        ${(isLast && remaining > 0) ? `<div class="more-media-overlay" style="z-index: 3;">+${remaining}</div>` : ''}
+                        ${isVideo ? '<div class="video-indicator" style="z-index: 3;"><i class="fas fa-play"></i></div>' : ''}
                     </div>
                 `;
             });
@@ -4230,6 +4310,26 @@ document.addEventListener('DOMContentLoaded', () => {
             </article>
         `;
         
+        // Configurar vídeo com trim/loop se necessário
+        const videosModal = modalContent.querySelectorAll('video');
+        videosModal.forEach(videoEl => {
+            const trimStart = Number(postCompleto.trimStart) || 0;
+            const trimEnd = Number(postCompleto.trimEnd) || 0;
+            
+            if (trimStart > 0) {
+                videoEl.currentTime = trimStart;
+            }
+            
+            if (trimEnd > 0 && trimEnd > trimStart) {
+                videoEl.addEventListener('timeupdate', () => {
+                    if (videoEl.currentTime >= trimEnd) {
+                        videoEl.currentTime = trimStart;
+                        videoEl.play().catch(() => {});
+                    }
+                });
+            }
+        });
+
         // Garante que os comentários aparecem imediatamente também em telas grandes
         try {
             const commentListPre = modalContent.querySelector('.comment-list');

@@ -99,6 +99,29 @@
     box-shadow: 0 0 0 2px rgba(148, 163, 184, 0.9), 0 8px 18px rgba(15, 23, 42, 0.15);
 }
 
+.explorar-user-avatar.uploading-status {
+    opacity: 0.5;
+    transition: opacity 0.3s ease;
+    animation: pulse-avatar 1.5s infinite;
+    pointer-events: none;
+    box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.4);
+}
+
+@keyframes pulse-avatar {
+    0% {
+        transform: scale(1);
+        opacity: 0.5;
+    }
+    50% {
+        transform: scale(0.95);
+        opacity: 0.8;
+    }
+    100% {
+        transform: scale(1);
+        opacity: 0.5;
+    }
+}
+
 /* Anel de status no feed e header */
 .post-avatar.has-story {
     box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.95);
@@ -431,6 +454,16 @@ body.explorar-video-open .mobile-bottom-nav {
     height: 100%;
     object-fit: cover;
     background: #000;
+}
+
+.explorar-video-drawing {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    pointer-events: none;
+    z-index: 2;
 }
 
 .explorar-video-back {
@@ -11788,16 +11821,18 @@ body.explorar-post-modal-open #explorar-page {
     top: 10px;
     right: 12px;
     border: none;
-    background: var(--bg-secondary);
-    font-size: 32px;
-    color: var(--text-primary);
+    background: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(4px);
+    font-size: 24px;
+    color: #fff;
     cursor: pointer;
     width: 32px;
     height: 32px;
     display: grid;
     place-items: center;
-    border-radius: 10px;
-    z-index: 5;
+    border-radius: 50%;
+    z-index: 50;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.5);
 }
 
 .explorar-post-preview {
@@ -11810,6 +11845,7 @@ body.explorar-post-modal-open #explorar-page {
     align-items: center;
     justify-content: center;
     position: relative;
+    z-index: 1;
 }
 
 .explorar-post-preview img,
@@ -11826,17 +11862,20 @@ body.explorar-post-modal-open #explorar-page {
     top: 0;
     left: 0;
     right: 0;
-    height: 3px;
-    background: rgba(255, 255, 255, 0.18);
+    height: 6px;
+    background: rgba(255, 255, 255, 0.2);
     pointer-events: none;
     display: none;
+    z-index: 200; /* Ensure it is on top of video */
+    box-shadow: 0 1px 3px rgba(0,0,0,0.3);
 }
 
 .explorar-upload-progress-bar {
     width: 0%;
     height: 100%;
-    background: #10b981;
+    background: #00E676;
     transition: width 0.15s linear;
+    box-shadow: 0 0 10px rgba(0, 230, 118, 0.5);
 }
 
 .explorar-post-desc {
@@ -11994,7 +12033,7 @@ body.explorar-post-modal-open #explorar-page {
         left: 0;
         right: 0;
         bottom: calc(72px + env(safe-area-inset-bottom, 0px));
-        z-index: 3;
+        z-index: 50;
         padding: 12px 12px 8px;
         background: linear-gradient(180deg, rgba(0,0,0,0.0) 0%, rgba(0,0,0,0.55) 40%, rgba(0,0,0,0.55) 100%) !important;
         backdrop-filter: blur(2px);
@@ -12004,8 +12043,8 @@ body.explorar-post-modal-open #explorar-page {
     }
 
     .explorar-post-actions .explorar-card-desc {
-        flex: 0 0 78%;
-        max-width: 78%;
+        flex: 1;
+        min-width: 0;
         min-height: 64px;
         padding: 10px 12px;
         background: rgba(0, 0, 0, 0.4) !important;
@@ -12015,16 +12054,17 @@ body.explorar-post-modal-open #explorar-page {
     .explorar-post-actions .explorar-card-desc::placeholder { color: rgba(255, 255, 255, 0.75); }
 
     .explorar-post-send {
-        width: 40px;
-        height: 40px;
-        border-radius: 10px;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        align-self: center;
-        flex-shrink: 0;
-        background: rgba(0, 0, 0, 0.04);
-    }
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    align-self: flex-end;
+    flex-shrink: 0;
+    background: rgba(0, 0, 0, 0.04);
+    margin-bottom: 18px;
+}
 
     .explorar-post-send img {
         width: 28px;
@@ -12543,6 +12583,17 @@ body.explorar-open header.search-open .header-actions {
     display: block;
 }
 
+.explorar-drawing-layer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    pointer-events: none;
+    z-index: 2;
+}
+
 .explorar-card-badge {
     position: absolute;
     top: 12px;
@@ -13016,6 +13067,11 @@ body.explorar-open header.search-open .header-actions {
         max-width: 600px;
         margin: 0 auto 20px auto;
     }
+
+    /* Ajuste para modo de edição em desktop */
+    .explorar-preview-media-container.trim-mode-active video {
+        max-height: calc(100% - 100px);
+    }
 }
 
 /* FIX: Garantir que modal de postagem vazio não apareça (specificity override) */
@@ -13110,22 +13166,21 @@ body.explorar-open header.search-open .header-actions {
 .video-editor-sidebar {
     position: absolute;
     right: 16px;
-    top: 50%;
-    transform: translateY(-50%);
+    top: 60px; /* Abaixo do botão de fechar */
     display: flex;
     flex-direction: column;
     gap: 16px;
-    z-index: 20;
+    z-index: 60; /* Above post actions (z-index 50) */
 }
 
 .editor-tool-btn {
-    width: 44px;
-    height: 44px;
+    width: 40px;
+    height: 40px;
     border-radius: 50%;
-    background: rgba(0, 0, 0, 0.6);
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: rgba(0, 0, 0, 0.4);
+    border: none;
     color: #fff;
-    font-size: 18px;
+    font-size: 16px;
     cursor: pointer;
     display: grid;
     place-items: center;
@@ -13134,13 +13189,12 @@ body.explorar-open header.search-open .header-actions {
 }
 
 .editor-tool-btn:hover {
-    background: rgba(0, 0, 0, 0.8);
+    background: rgba(0, 0, 0, 0.6);
     transform: scale(1.05);
 }
 
 .editor-tool-btn.active {
-    background: #10b981;
-    border-color: #10b981;
+    background: rgba(255, 255, 255, 0.2);
     color: #fff;
 }
 
@@ -13151,8 +13205,8 @@ body.explorar-open header.search-open .header-actions {
     left: 0;
     width: 100%;
     height: 100%;
-    z-index: 15;
-    pointer-events: none; /* Allows clicks to pass through unless drawing */
+    z-index: 5;
+    pointer-events: none;
 }
 
 .video-drawing-canvas.drawing-active {
@@ -13160,98 +13214,363 @@ body.explorar-open header.search-open .header-actions {
     cursor: crosshair;
 }
 
-/* Trim UI */
-.video-trim-ui {
+/* Drawing Palette */
+.video-drawing-palette {
     position: absolute;
-    bottom: 80px; /* Above actions */
-    left: 16px;
-    right: 16px;
-    background: rgba(0, 0, 0, 0.8);
-    border-radius: 12px;
-    padding: 12px;
-    z-index: 25;
-    backdrop-filter: blur(8px);
+    top: 110px !important; /* Fixed position matching pencil location when others hidden */
+    right: 16px !important;
     display: flex;
     flex-direction: column;
     gap: 8px;
-}
-
-.trim-slider-container {
-    position: relative;
-    height: 40px;
-    display: flex;
+    z-index: 102; /* Higher than canvas (100) and sidebar (101) */
+    background: transparent !important;
+    padding: 4px !important; /* Space for shadows */
+    padding-bottom: 20px !important; /* Avoid bottom cutoff */
+    border-radius: 0 !important;
+    backdrop-filter: none !important;
+    width: auto;
+    min-width: 40px;
+    max-height: calc(100% - 120px);
+    overflow-y: auto;
     align-items: center;
 }
 
-.trim-track {
+/* Drawing Header */
+.video-drawing-header {
     position: absolute;
-    top: 50%;
+    top: 0;
     left: 0;
     right: 0;
-    height: 4px;
-    background: rgba(255, 255, 255, 0.3);
-    transform: translateY(-50%);
-    border-radius: 2px;
-}
-
-.trim-range-highlight {
-    position: absolute;
-    top: 50%;
-    height: 4px;
-    background: #10b981;
-    transform: translateY(-50%);
-    z-index: 2;
-}
-
-.trim-thumb {
-    position: absolute;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 100%;
-    pointer-events: none;
-    -webkit-appearance: none;
-    background: transparent;
-    z-index: 3;
-    margin: 0;
-}
-
-.trim-thumb::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    pointer-events: auto;
-    width: 16px;
-    height: 24px;
-    background: #fff;
-    border-radius: 4px;
-    cursor: ew-resize;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-}
-
-.trim-actions {
+    height: 60px;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    color: #fff;
-    font-size: 14px;
+    padding: 0 16px;
+    z-index: 103; /* Above palette */
+    background: linear-gradient(to bottom, rgba(0,0,0,0.6), transparent);
 }
 
-.trim-btn-apply, .trim-btn-cancel {
-    background: transparent;
+.drawing-header-btn {
+    background: transparent; /* Fundo transparente */
+    backdrop-filter: blur(4px);
     border: none;
     color: #fff;
-    font-size: 18px;
+    font-size: 24px;
     cursor: pointer;
-    width: 32px;
-    height: 32px;
+    width: 40px;
+    height: 40px;
     display: grid;
     place-items: center;
-    border-radius: 50%;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+    border-radius: 50%; /* Make them round like the back button usually is */
+    transition: background 0.2s;
 }
 
-.trim-btn-apply { color: #10b981; }
-.trim-btn-cancel { color: #ef4444; }
+.drawing-header-btn:active {
+    background: rgba(255, 255, 255, 0.1);
+}
 
-.trim-btn-apply:hover { background: rgba(16, 185, 129, 0.2); }
-.trim-btn-cancel:hover { background: rgba(239, 68, 68, 0.2); }
+.drawing-save-modal {
+    position: absolute;
+    top: 50px;
+    left: 16px;
+    background: rgba(0, 0, 0, 0.9);
+    border-radius: 12px;
+    padding: 16px;
+    z-index: 200;
+    color: white;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    min-width: 200px;
+    animation: fadeIn 0.2s ease-out;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.drawing-save-modal p {
+    margin: 0 0 12px 0;
+    font-size: 16px;
+    text-align: center;
+    font-weight: 500;
+    color: #fff;
+}
+
+.drawing-save-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    width: 100%;
+}
+
+.drawing-save-btn {
+    padding: 8px 20px;
+    border-radius: 8px;
+    border: none;
+    font-weight: 600;
+    cursor: pointer;
+    font-size: 14px;
+    flex: 1;
+}
+
+.drawing-save-btn.cancel {
+    background: #333;
+    color: white;
+}
+
+.drawing-save-btn.confirm {
+    background: white;
+    color: black;
+}
+
+/* Hide other icons in drawing mode */
+.video-editor-sidebar.drawing-mode {
+    z-index: 101 !important; /* Ensure pencil is above canvas */
+}
+
+.video-editor-sidebar.drawing-mode .editor-tool-btn:not(#tool-draw) {
+    display: none !important;
+}
+
+/* UI Cleanup in Drawing Mode */
+.explorar-post-modal-card.drawing-mode-active .explorar-post-actions,
+.explorar-post-modal-card.drawing-mode-active .explorar-post-close,
+.explorar-post-modal-card.drawing-mode-active .explorar-post-send,
+.explorar-post-modal-card.drawing-mode-active .explorar-card-desc,
+.explorar-post-modal-card.drawing-mode-active .explorar-post-comments-container,
+.explorar-post-modal-card.drawing-mode-active .explorar-post-header,
+.explorar-post-modal-card.drawing-mode-active .explorar-post-info-container {
+    display: none !important;
+}
+
+/* Ensure drawing canvas is on top and interactive */
+.video-drawing-canvas.drawing-active {
+    pointer-events: auto !important;
+    touch-action: none; /* Prevent scrolling while drawing */
+    cursor: crosshair;
+}
+
+.color-btn {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    border: 2px solid #fff;
+    cursor: pointer;
+    transition: transform 0.2s;
+    flex-shrink: 0;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+
+.color-btn:hover, .color-btn.active {
+    transform: scale(1.2);
+    border-color: #fff;
+    box-shadow: 0 0 8px rgba(255, 255, 255, 0.6);
+}
+
+.draw-done-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: #fff;
+    color: #000;
+    border: none;
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+    margin-top: 4px;
+    flex-shrink: 0;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+
+/* Trim Header */
+.video-trim-header {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 60px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 16px;
+    z-index: 30;
+    background: linear-gradient(to bottom, rgba(0,0,0,0.6), transparent);
+}
+
+.trim-header-btn {
+    background: rgba(0, 0, 0, 0.3); /* Fundo transparente embaçado */
+    backdrop-filter: blur(4px);
+    border: none;
+    color: #fff;
+    font-size: 20px;
+    cursor: pointer;
+    width: 40px;
+    height: 40px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%; /* Redondo */
+    transition: background 0.2s;
+}
+
+.trim-header-btn:active {
+    background: rgba(0, 0, 0, 0.5);
+}
+
+.trim-header-title {
+    color: #fff;
+    font-weight: 600;
+    font-size: 16px;
+    background: rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(4px);
+    padding: 4px 12px;
+    border-radius: 20px;
+}
+
+/* Trim UI */
+.video-trim-ui {
+    position: absolute;
+    top: 60px; /* Moved to top, below header */
+    left: 16px;
+    right: 16px;
+    z-index: 25;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    background: transparent;
+}
+
+/* Container que agrupa filmstrip e sliders */
+.trim-slider-wrapper {
+    position: relative;
+    height: 60px;
+    width: 100%;
+    /* overflow: hidden; Removed to allow handles outside */
+    background: transparent;
+    margin-top: 10px; /* Space for handles if they stick out top */
+    padding: 0 16px; /* Inset filmstrip so handles can go to screen edge */
+    box-sizing: border-box; /* Include padding in width */
+}
+
+.trim-preview-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 100%;
+    display: flex;
+    z-index: 1;
+    opacity: 1; 
+    border-radius: 8px; /* Rounded corners on thumbnails */
+    overflow: hidden; /* Clip thumbnails */
+}
+
+.filmstrip-thumb {
+    height: 100%;
+    flex: 1; /* Distribui espaço igualmente */
+    object-fit: cover;
+    pointer-events: none;
+}
+
+.trim-slider-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 100%;
+    z-index: 2;
+}
+
+/* Remove trilha antiga */
+.trim-track {
+    display: none;
+}
+
+/* Overlay Blur (Areas outside selection) */
+.trim-overlay-blur {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    background: rgba(255, 255, 255, 0.15); /* Bem transparente */
+    backdrop-filter: blur(2px); /* Embaça */
+    z-index: 3;
+    pointer-events: none;
+}
+
+#trim-overlay-left {
+    left: 0;
+    /* width set by JS */
+    border-top-left-radius: 8px;
+    border-bottom-left-radius: 8px;
+}
+
+#trim-overlay-right {
+    right: 0;
+    /* width set by JS */
+    border-top-right-radius: 8px;
+    border-bottom-right-radius: 8px;
+}
+
+/* Área de destaque (Seleção) */
+.trim-range-highlight {
+    position: absolute;
+    top: -2px; /* Expande um pouco para fora */
+    bottom: -2px; /* Expande um pouco para fora */
+    border-top: 4px solid #FFD700;
+    border-bottom: 4px solid #FFD700;
+    z-index: 4;
+    pointer-events: none;
+    /* box-shadow removido, usando overlays agora */
+}
+
+/* Alças de arraste (Handles) */
+.trim-handle {
+    position: absolute;
+    top: 0; /* Relative to highlight container height */
+    bottom: 0;
+    width: 24px; /* Larger touch area */
+    background: #FFD700;
+    cursor: ew-resize;
+    pointer-events: auto; /* Essential for touch */
+    touch-action: none; /* Prevent scrolling while dragging */
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    /* Shadow for depth */
+    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+
+.trim-handle-start {
+    left: -12px; /* Center handle on the start line */
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+}
+
+.trim-handle-end {
+    right: -12px; /* Center handle on the end line */
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+}
+
+.trim-handle::after {
+    content: '';
+    width: 2px;
+    height: 12px;
+    background: #000;
+    border-radius: 1px;
+}
+
+
+.trim-info {
+    text-align: center;
+    color: #fff;
+    font-size: 13px;
+    font-weight: 500;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+    margin-top: 4px;
+}
 
 /* Media Container */
 .explorar-preview-media-container {
@@ -13262,6 +13581,31 @@ body.explorar-open header.search-open .header-actions {
     justify-content: center;
     position: relative;
     z-index: 1;
+    transition: all 0.3s ease;
+}
+
+.explorar-preview-media-container.trim-mode-active {
+    align-items: center;
+    padding-top: 0;
+    justify-content: center;
+}
+
+.explorar-preview-media-container.trim-mode-active video {
+    height: 100%;
+    max-height: none;
+    object-fit: cover;
+    border-radius: 0;
+}
+
+/* UI Cleanup in Trim Mode */
+.explorar-post-modal-card.trim-mode-active .explorar-post-actions,
+.explorar-post-modal-card.trim-mode-active .explorar-post-close,
+.explorar-post-modal-card.trim-mode-active .explorar-post-send,
+.explorar-post-modal-card.trim-mode-active .explorar-card-desc,
+.explorar-post-modal-card.trim-mode-active .explorar-post-comments-container,
+.explorar-post-modal-card.trim-mode-active .explorar-post-header,
+.explorar-post-modal-card.trim-mode-active .explorar-post-info-container {
+    display: none !important;
 }
 
 .explorar-preview-media-container video,
@@ -13270,6 +13614,44 @@ body.explorar-open header.search-open .header-actions {
     height: 100%;
     object-fit: contain;
     max-height: 780px;
+}
+
+
+
+/* Color Palette styles merged above */
+
+
+.color-btn {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    border: 2px solid white;
+    cursor: pointer;
+    transition: transform 0.2s;
+    padding: 0;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+
+.color-btn:hover, .color-btn.active {
+    transform: scale(1.3);
+    border-color: #FFD700;
+    box-shadow: 0 0 8px #FFD700;
+}
+
+/* Hide Done button if present, we toggle with pencil */
+.draw-done-btn {
+    display: none;
+}
+
+/* UI Cleanup in Drawing Mode */
+.explorar-post-modal-card.drawing-mode-active .explorar-post-actions,
+.explorar-post-modal-card.drawing-mode-active .explorar-post-close,
+.explorar-post-modal-card.drawing-mode-active .explorar-post-send,
+.explorar-post-modal-card.drawing-mode-active .explorar-card-desc,
+.explorar-post-modal-card.drawing-mode-active .explorar-post-comments-container,
+.explorar-post-modal-card.drawing-mode-active .explorar-post-header,
+.explorar-post-modal-card.drawing-mode-active .explorar-post-info-container {
+    display: none !important;
 }
 
 @media (max-width: 767px) {

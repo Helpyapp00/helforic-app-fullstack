@@ -722,6 +722,10 @@ const postagemSchema = new mongoose.Schema({
     category_tag: { type: String },
     gender_tag: { type: String },
     expiresAt: { type: Date },
+    videoMuted: { type: Boolean, default: false },
+    trimStart: { type: Number, default: 0 },
+    trimEnd: { type: Number, default: 0 },
+    drawingUrl: { type: String },
     likes: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
     comments: [{ type: Object }]
 }, { timestamps: true, strict: false });
@@ -1101,31 +1105,35 @@ app.get('/api/anuncios-feed', authMiddleware, async (req, res) => {
     }
 });
 
-app.post('/api/explorar-posts', authMiddleware, upload.single('media'), async (req, res) => {
+app.post('/api/explorar-posts', authMiddleware, upload.fields([{ name: 'media', maxCount: 1 }, { name: 'drawing', maxCount: 1 }]), async (req, res) => {
     try {
         const userId = req.user.id;
         const content = String(req.body?.content || '').trim();
         const categoriaManual = String(req.body?.category_tag || '').trim();
         const generoManual = String(req.body?.gender_tag || '').trim();
-        const file = req.file;
+        
+        const files = req.files || {};
+        const mediaFile = files['media'] ? files['media'][0] : null;
+        const drawingFile = files['drawing'] ? files['drawing'][0] : null;
+
         let mediaUrl = String(req.body?.mediaUrl || '').trim(); // Suporte a URL enviada pelo front (S3 direto)
 
-        if (!content && !file && !mediaUrl) {
+        if (!content && !mediaFile && !mediaUrl) {
             return res.status(400).json({ success: false, message: 'Adicione texto ou mídia.' });
         }
 
         let mediaType = String(req.body?.mediaType || '').trim(); // Tipo enviado pelo front se upload direto
         
         // Se veio arquivo via Multer (fallback antigo ou imagens pequenas)
-        if (file) {
-            mediaType = file.mimetype || '';
-            let buffer = file.buffer;
+        if (mediaFile) {
+            mediaType = mediaFile.mimetype || '';
+            let buffer = mediaFile.buffer;
             const isImage = mediaType && mediaType.startsWith('image/');
             if (isImage && buffer) {
                 buffer = await convertImageToWebp(buffer, 1080);
                 mediaType = 'image/webp';
             }
-            const originalExt = path.extname(file.originalname || '').toLowerCase();
+            const originalExt = path.extname(mediaFile.originalname || '').toLowerCase();
             let ext = originalExt || (mediaType.includes('video') ? '.mp4' : (isImage ? '.webp' : '.bin'));
             if (isImage) {
                 ext = '.webp';
@@ -1157,6 +1165,39 @@ app.post('/api/explorar-posts', authMiddleware, upload.single('media'), async (r
         const category_tag = categoriaManual || detectExplorarCategoryTag(content);
         const gender_tag = generoManual || detectExplorarGenderTag(content);
         const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+        const videoMuted = req.body.videoMuted === 'true';
+        const trimStart = Number(req.body.trimStart) || 0;
+        const trimEnd = Number(req.body.trimEnd) || 0;
+        
+        let drawingUrl = String(req.body.drawingUrl || '').trim();
+        
+        // Processa upload do desenho se enviado como arquivo
+        if (!drawingUrl && drawingFile) {
+             const drawingExt = '.png'; // Desenhos são PNG
+             const drawingFilename = `drawing_${Date.now()}_${crypto.randomBytes(4).toString('hex')}${drawingExt}`;
+             const drawingBuffer = drawingFile.buffer;
+
+             if (s3Client && bucketName && process.env.AWS_REGION) {
+                const key = `explorar/${userId}/${drawingFilename}`;
+                const uploadCommand = new PutObjectCommand({
+                    Bucket: bucketName,
+                    Key: key,
+                    Body: drawingBuffer,
+                    ContentType: 'image/png'
+                });
+                await s3Client.send(uploadCommand);
+                drawingUrl = `https://${bucketName}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`;
+            } else {
+                const uploadsDir = path.join(__dirname, '../public/uploads/explorar');
+                try {
+                    fs.mkdirSync(uploadsDir, { recursive: true });
+                } catch (e) {}
+
+                const filePath = path.join(uploadsDir, drawingFilename);
+                fs.writeFileSync(filePath, drawingBuffer);
+                drawingUrl = `/uploads/explorar/${drawingFilename}`;
+            }
+        }
 
         const newPost = new Postagem({
             userId,
@@ -1166,6 +1207,10 @@ app.post('/api/explorar-posts', authMiddleware, upload.single('media'), async (r
             category_tag,
             gender_tag,
             expiresAt,
+            videoMuted,
+            trimStart,
+            trimEnd,
+            drawingUrl,
             likes: [],
             comments: []
         });
@@ -1247,7 +1292,11 @@ app.get('/api/explorar-feed', authMiddleware, async (req, res) => {
                 perfilUrl: post?.userId?._id ? `/perfil.html?id=${post.userId._id}` : '',
                 whatsappUrl,
                 likesCount,
-                isLikedByMe
+                isLikedByMe,
+                videoMuted: !!post.videoMuted,
+                trimStart: post.trimStart || 0,
+                trimEnd: post.trimEnd || 0,
+                drawingUrl: post.drawingUrl || ''
             };
         });
 

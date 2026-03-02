@@ -280,12 +280,20 @@ document.addEventListener('DOMContentLoaded', () => {
     const trimApplyBtn = document.getElementById('trim-apply');
     const trimCancelBtn = document.getElementById('trim-cancel');
     const musicFileInput = document.getElementById('music-file-input');
+    const videoTrimHeader = document.getElementById('video-trim-header');
+    const trimCancelHeader = document.getElementById('trim-cancel-header');
+    const trimApplyHeader = document.getElementById('trim-apply-header');
+    const videoDrawingPalette = document.getElementById('video-drawing-palette');
+    const drawDoneBtn = document.getElementById('draw-done-btn');
+    const videoDrawingHeader = document.getElementById('video-drawing-header');
+    const drawingBackBtn = document.getElementById('drawing-back-btn');
 
     const explorarPostDesc = document.getElementById('explorar-post-desc');
     const explorarPostSend = document.getElementById('explorar-post-send');
     const explorarVideoOverlay = document.getElementById('explorar-video-overlay');
     const explorarVideoFull = document.getElementById('explorar-video-full');
     const explorarImageFull = document.getElementById('explorar-image-full');
+    const explorarVideoDrawing = document.getElementById('explorar-video-drawing');
     const explorarVideoBack = document.getElementById('explorar-video-back');
     const explorarVideoDelete = document.getElementById('explorar-video-delete');
     const explorarVideoInfo = document.getElementById('explorar-video-info');
@@ -593,9 +601,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function updateExplorarStoryIndicator() {
         if (explorarUserAvatar) {
-            const hasStory = !!explorarUserStory?.mediaUrl;
+            const hasStory = explorarStoryQueue.length > 0;
+            const hasUnviewed = explorarStoryQueue.some(story => !isExplorarStoryViewed(story.id));
+            
             explorarUserAvatar.classList.toggle('has-story', hasStory);
-            explorarUserAvatar.classList.toggle('is-viewed', hasStory && isExplorarStoryViewed(explorarUserStory?.id));
+            explorarUserAvatar.classList.toggle('is-viewed', hasStory && !hasUnviewed);
         }
         updateExplorarCardsStoryIndicators();
     }
@@ -755,7 +765,11 @@ document.addEventListener('DOMContentLoaded', () => {
             perfilUrl: '#',
             postId: story?.id,
             ownerId: story?.ownerId,
-            isStory: true
+            isStory: true,
+            videoMuted: story.videoMuted,
+            trimStart: story.trimStart,
+            trimEnd: story.trimEnd,
+            drawingUrl: story.drawingUrl
         };
         if (story?.isVideo) {
             openExplorarVideo(story.mediaUrl, info);
@@ -776,7 +790,10 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!explorarStoryQueue.length) return;
             explorarStoryPaused = false;
             explorarStoryElapsed = 0;
-            goToExplorarStory(0);
+            // Encontra o índice do primeiro story não visualizado
+            const firstUnviewedIndex = explorarStoryQueue.findIndex(story => !isExplorarStoryViewed(story.id));
+            const startIndex = firstUnviewedIndex !== -1 ? firstUnviewedIndex : 0;
+            goToExplorarStory(startIndex);
         });
     }
 
@@ -984,11 +1001,46 @@ document.addEventListener('DOMContentLoaded', () => {
         explorarVideoFull.src = src;
         explorarVideoFull.controls = false;
         try { explorarVideoFull.removeAttribute('controls'); } catch {}
-        explorarVideoFull.muted = false;
+        
+        // Aplica o estado salvo de mute
+        explorarVideoFull.muted = !!info?.videoMuted;
+        
         explorarVideoFull.playsInline = true;
         try { explorarVideoFull.setAttribute('controlsList', 'nofullscreen noplaybackrate nodownload'); } catch {}
         try { explorarVideoFull.style.pointerEvents = 'none'; } catch {}
-        explorarVideoFull.currentTime = 0;
+
+        // Lógica de Trim e Desenho
+        if (explorarVideoDrawing) {
+            if (info?.drawingUrl) {
+                explorarVideoDrawing.src = info.drawingUrl;
+                explorarVideoDrawing.classList.remove('hidden');
+            } else {
+                explorarVideoDrawing.src = '';
+                explorarVideoDrawing.classList.add('hidden');
+            }
+        }
+
+        const trimStart = Number(info?.trimStart) || 0;
+        const trimEnd = Number(info?.trimEnd) || 0;
+        
+        // Remove handler de loop anterior
+        if (explorarVideoFull._trimHandler) {
+            explorarVideoFull.removeEventListener('timeupdate', explorarVideoFull._trimHandler);
+            explorarVideoFull._trimHandler = null;
+        }
+
+        explorarVideoFull.currentTime = trimStart;
+
+        if (trimEnd > trimStart) {
+            explorarVideoFull._trimHandler = () => {
+                if (explorarVideoFull.currentTime >= trimEnd) {
+                    explorarVideoFull.currentTime = trimStart;
+                    explorarVideoFull.play().catch(() => {});
+                }
+            };
+            explorarVideoFull.addEventListener('timeupdate', explorarVideoFull._trimHandler);
+        }
+
         explorarVideoOverlay.classList.remove('hidden');
         explorarVideoOverlay.setAttribute('aria-hidden', 'false');
         document.body.classList.add('explorar-video-open');
@@ -1010,7 +1062,11 @@ document.addEventListener('DOMContentLoaded', () => {
                             isVideo: String(story.mediaType || '').includes('video'),
                             nome: story?.titulo || story?.nome || info?.nome || 'Status',
                             desc: story?.descricao || story?.content || info?.desc || '',
-                            cidade: [story?.cidade, story?.estado].filter(Boolean).join(' - ') || (info?.cidade || '')
+                            cidade: [story?.cidade, story?.estado].filter(Boolean).join(' - ') || (info?.cidade || ''),
+                            videoMuted: story.videoMuted,
+                            trimStart: story.trimStart,
+                            trimEnd: story.trimEnd,
+                            drawingUrl: story.drawingUrl
                         }));
                         let index = mapped.findIndex((s) => String(s.id) === currentPostId);
                         // Se a lista não contém o post atual, insere-o mantendo ordem estável (no início).
@@ -1022,7 +1078,11 @@ document.addEventListener('DOMContentLoaded', () => {
                                 isVideo: true,
                                 nome: info?.nome || 'Status',
                                 desc: info?.desc || '',
-                                cidade: info?.cidade || ''
+                                cidade: info?.cidade || '',
+                                videoMuted: info?.videoMuted,
+                                trimStart: info?.trimStart,
+                                trimEnd: info?.trimEnd,
+                                drawingUrl: info?.drawingUrl
                             });
                             index = 0;
                         }
@@ -1628,6 +1688,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Estado do editor de vídeo
     let editorState = {
         isMuted: false,
+        videoMuted: false, // Novo estado para controlar apenas o áudio do vídeo
         trimStart: 0,
         trimEnd: 100, // Porcentagem
         hasDrawing: false,
@@ -1635,6 +1696,7 @@ document.addEventListener('DOMContentLoaded', () => {
         originalDuration: 0,
         audioPlayer: null,
         isDrawingMode: false,
+        isTrimMode: false,
         isDraggingTrim: null // 'start' ou 'end'
     };
 
@@ -1647,6 +1709,15 @@ document.addEventListener('DOMContentLoaded', () => {
         // Reset Editor
         if (videoEditorSidebar) videoEditorSidebar.classList.add('hidden');
         if (videoTrimUi) videoTrimUi.classList.add('hidden');
+        if (videoTrimHeader) videoTrimHeader.classList.add('hidden');
+        if (videoDrawingPalette) videoDrawingPalette.classList.add('hidden');
+        if (explorarPostClose) explorarPostClose.classList.remove('hidden'); // Garante X visível
+        if (explorarPreviewMediaContainer) explorarPreviewMediaContainer.classList.remove('trim-mode-active');
+
+        // Limpa filmstrip
+        const filmstripContainer = document.querySelector('.trim-preview-container');
+        if (filmstripContainer) filmstripContainer.innerHTML = '';
+
         if (videoDrawingCanvas) {
             videoDrawingCanvas.classList.add('hidden');
             videoDrawingCanvas.classList.remove('drawing-active');
@@ -1660,6 +1731,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         editorState = {
             isMuted: false,
+            videoMuted: false,
             trimStart: 0,
             trimEnd: 100,
             hasDrawing: false,
@@ -1667,10 +1739,85 @@ document.addEventListener('DOMContentLoaded', () => {
             originalDuration: 0,
             audioPlayer: null,
             isDrawingMode: false,
-            isDraggingTrim: null
+            isTrimMode: false,
+            isDraggingTrim: null,
+            drawingSnapshot: null,
+            isDrawingDirty: false,
+            drawingColor: '#FF0000' // Default red color
         };
+        if (videoDrawingHeader) videoDrawingHeader.classList.add('hidden');
         // Reset botões
-        document.querySelectorAll('.editor-tool-btn').forEach(btn => btn.classList.remove('active'));
+        document.querySelectorAll('.editor-tool-btn').forEach(btn => {
+            btn.classList.remove('active');
+            btn.style.border = '';
+        });
+        if (videoEditorSidebar) videoEditorSidebar.classList.remove('drawing-mode');
+
+        // Garante que o botão de mudo mostre "Som Ativo" (volume-up) e estado correto
+        if (toolMute) {
+            toolMute.innerHTML = '<i class="fas fa-volume-up"></i>';
+            toolMute.classList.remove('active');
+        }
+    };
+
+    const generateFilmstrip = async (file) => {
+        const container = document.querySelector('.trim-preview-container');
+        if (!container) return;
+        container.innerHTML = '<div class="loading-strip">Gerando prévia...</div>';
+        
+        const video = document.createElement('video');
+        video.src = URL.createObjectURL(file);
+        video.preload = 'auto';
+        video.muted = true;
+        video.playsInline = true;
+
+        await new Promise((resolve) => {
+            video.onloadedmetadata = () => resolve();
+            video.onerror = () => resolve();
+        });
+
+        const duration = video.duration;
+        if (!duration) {
+             container.innerHTML = '';
+             return;
+        }
+
+        const numThumbs = 8; // Quantidade de thumbnails
+        const interval = duration / numThumbs;
+        const thumbs = [];
+
+        container.innerHTML = '';
+        
+                const captureFrame = async (time) => {
+            return new Promise((resolve) => {
+                video.currentTime = time;
+                video.onseeked = () => {
+                    const canvas = document.createElement('canvas');
+                    // Melhor qualidade
+                    const scale = 1.0; // Melhor qualidade (não embaçado)
+                    canvas.width = video.videoWidth * scale;
+                    canvas.height = video.videoHeight * scale;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                    const img = document.createElement('img');
+                    img.src = canvas.toDataURL('image/jpeg', 0.9); // 90% quality
+                    img.className = 'filmstrip-thumb';
+                    resolve(img);
+                };
+                video.onerror = () => resolve(null);
+            });
+        };
+
+        // Sequencial para garantir ordem e performance
+        for (let i = 0; i < numThumbs; i++) {
+            const time = Math.min(i * interval, duration - 0.1);
+            const img = await captureFrame(time);
+            if (img) container.appendChild(img);
+        }
+        
+        // Libera memória
+        video.removeAttribute('src');
+        video.load();
     };
 
     const openExplorarModal = (file) => {
@@ -1699,6 +1846,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 const videoEl = document.createElement('video');
                 videoEl.src = url;
                 videoEl.playsInline = true;
+                videoEl.autoplay = true; // Auto-play requested by user
+                videoEl.loop = true;     // Loop requested by user
                 videoEl.controls = false; // Usaremos controles customizados ou nativos sem UI de trim nativa
                 videoEl.preload = 'metadata';
                 videoEl.style.width = '100%';
@@ -1720,20 +1869,45 @@ document.addEventListener('DOMContentLoaded', () => {
                         videoDrawingCanvas.width = videoEl.clientWidth;
                         videoDrawingCanvas.height = videoEl.clientHeight;
                     }
+
+                    // Auto-play (reset state) - Fallback if autoplay attr fails or requires interaction
+                    const playPromise = videoEl.play();
+                    if (playPromise !== undefined) {
+                        playPromise.catch(error => {
+                            console.log("Autoplay blocked, attempting muted play", error);
+                            // Se falhar (autoplay policy), tenta mutado
+                            videoEl.muted = true;
+                            videoEl.play();
+                            // Atualiza botão se necessário, mas queremos som por padrão se possível
+                            if (toolMute) {
+                                toolMute.innerHTML = '<i class="fas fa-volume-mute"></i>';
+                                toolMute.classList.add('active');
+                            }
+                            editorState.isMuted = true;
+                            editorState.videoMuted = true;
+                        });
+                    }
                 });
 
-                // Loop de trim e sincronia de música
-                videoEl.addEventListener('timeupdate', () => {
+                // Loop de trim e sincronia de música usando requestAnimationFrame para maior precisão
+                let trimLoopFrameId;
+
+                const checkTrimLoop = () => {
+                    if (videoEl.paused || videoEl.ended) {
+                        cancelAnimationFrame(trimLoopFrameId);
+                        return;
+                    }
+
                     const duration = videoEl.duration || 1;
                     const startTime = (editorState.trimStart / 100) * duration;
                     const endTime = (editorState.trimEnd / 100) * duration;
-
-                    if (videoEl.currentTime < startTime) {
+                    
+                    // Margem de tolerância pequena (ex: 0.1s) para evitar loops prematuros,
+                    // mas garantindo que não passe muito do ponto.
+                    if (videoEl.currentTime >= endTime) {
                         videoEl.currentTime = startTime;
-                    }
-                    if (videoEl.currentTime > endTime) {
-                        videoEl.currentTime = startTime;
-                        if (!videoEl.paused) videoEl.play();
+                        // video.play() já deve estar ativo, mas reforçamos se necessário
+                        if (videoEl.paused) videoEl.play().catch(() => {});
                     }
 
                     // Sincroniza música extra
@@ -1741,13 +1915,27 @@ document.addEventListener('DOMContentLoaded', () => {
                         const diff = Math.abs(editorState.audioPlayer.currentTime - videoEl.currentTime);
                         if (diff > 0.5) editorState.audioPlayer.currentTime = videoEl.currentTime;
                     }
-                });
+
+                    trimLoopFrameId = requestAnimationFrame(checkTrimLoop);
+                };
 
                 videoEl.addEventListener('play', () => {
+                    cancelAnimationFrame(trimLoopFrameId);
+                    trimLoopFrameId = requestAnimationFrame(checkTrimLoop);
                     if (editorState.audioPlayer) editorState.audioPlayer.play().catch(() => {});
                 });
+
                 videoEl.addEventListener('pause', () => {
+                    cancelAnimationFrame(trimLoopFrameId);
                     if (editorState.audioPlayer) editorState.audioPlayer.pause();
+                });
+
+                // Garante loop ao terminar o vídeo (caso endTime seja 100%)
+                videoEl.addEventListener('ended', () => {
+                     const duration = videoEl.duration || 1;
+                     const startTime = (editorState.trimStart / 100) * duration;
+                     videoEl.currentTime = startTime;
+                     videoEl.play();
                 });
                 videoEl.addEventListener('volumechange', () => {
                     // Sincroniza mudo (se user mutar pelo controle nativo, embora tenhamos tirado controls)
@@ -1755,9 +1943,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 // Clique no vídeo para play/pause
                 videoEl.addEventListener('click', () => {
-                    if (editorState.isDrawingMode) return; // Se desenhando, não pausa
+                    if (editorState.isDrawingMode || editorState.isTrimMode) return; // Se desenhando ou recortando, não pausa
                     videoEl.paused ? videoEl.play() : videoEl.pause();
                 });
+
+                // Gera filmstrip em background
+                generateFilmstrip(file);
 
             } else {
                 explorarPreviewMediaContainer.innerHTML = `<img src="${url}" alt="Prévia">`;
@@ -1778,34 +1969,150 @@ document.addEventListener('DOMContentLoaded', () => {
         toolMute.addEventListener('click', () => {
             const video = exploringGetVideo();
             if (!video) return;
-            video.muted = !video.muted;
-            editorState.isMuted = video.muted;
             
-            toolMute.innerHTML = video.muted ? '<i class="fas fa-volume-mute"></i>' : '<i class="fas fa-volume-up"></i>';
-            toolMute.classList.toggle('active', video.muted);
+            // Toggle estado
+            editorState.videoMuted = !editorState.videoMuted;
+            
+            // Aplica ao elemento de vídeo (preview)
+            // Se tiver música tocando (editorState.audioPlayer), o vídeo fica mudo mas a música continua.
+            // Isso atende ao pedido: "posta sem o audio do video , porem so do video"
+            video.muted = editorState.videoMuted;
+            
+            // Atualiza UI
+            toolMute.innerHTML = editorState.videoMuted 
+                ? '<i class="fas fa-volume-mute"></i>' 
+                : '<i class="fas fa-volume-up"></i>';
+            
+            if (editorState.videoMuted) {
+                toolMute.classList.add('active'); // Opcional: indicar visualmente que está ativo (mudo)
+            } else {
+                toolMute.classList.remove('active');
+            }
         });
     }
 
     // 2. Trim
     if (toolTrim) {
         toolTrim.addEventListener('click', () => {
-            if (!videoTrimUi) return;
-            const isHidden = videoTrimUi.classList.contains('hidden');
-            if (isHidden) {
-                videoTrimUi.classList.remove('hidden');
-                toolTrim.classList.add('active');
-            } else {
-                videoTrimUi.classList.add('hidden');
-                toolTrim.classList.remove('active');
-            }
+            if (!videoTrimUi || !videoTrimHeader) return;
+            
+            // Entrar no modo Trim
+            editorState.isTrimMode = true;
+            videoTrimUi.classList.remove('hidden');
+            videoTrimHeader.classList.remove('hidden');
+            if (explorarPreviewMediaContainer) explorarPreviewMediaContainer.classList.add('trim-mode-active');
+            
+            // Adicionar classe ao card para esconder outros elementos via CSS
+            const modalCard = document.querySelector('.explorar-post-modal-card');
+            if (modalCard) modalCard.classList.add('trim-mode-active');
+
+            // Esconder Sidebar e Close
+            if (videoEditorSidebar) videoEditorSidebar.classList.add('hidden');
+            if (explorarPostClose) explorarPostClose.classList.add('hidden');
+
+            // Force update UI
+            updateTrimUI();
         });
     }
 
-    // Atualização dos Sliders de Trim
+    // Trim Header Actions
+    if (trimCancelHeader) {
+        trimCancelHeader.addEventListener('click', (e) => {
+            e.stopPropagation();
+            // Cancelar Trim: Reverte valores
+            editorState.trimStart = 0;
+            editorState.trimEnd = 100;
+            if (trimStartInput) trimStartInput.value = 0;
+            if (trimEndInput) trimEndInput.value = 100;
+            updateTrimUI();
+            seekVideoTo(0, false);
+            const video = exploringGetVideo();
+            if (video) video.play();
+
+            // Sair do modo
+            editorState.isTrimMode = false;
+            videoTrimUi.classList.add('hidden');
+            videoTrimHeader.classList.add('hidden');
+            if (explorarPreviewMediaContainer) explorarPreviewMediaContainer.classList.remove('trim-mode-active');
+            
+            const modalCard = document.querySelector('.explorar-post-modal-card');
+            if (modalCard) modalCard.classList.remove('trim-mode-active');
+
+            if (videoEditorSidebar) videoEditorSidebar.classList.remove('hidden');
+            if (explorarPostClose) explorarPostClose.classList.remove('hidden');
+        });
+    }
+
+    if (trimApplyHeader) {
+        trimApplyHeader.addEventListener('click', (e) => {
+            e.stopPropagation();
+            // Aplicar Trim: Mantém valores atuais
+            // Sair do modo
+            editorState.isTrimMode = false;
+            videoTrimUi.classList.add('hidden');
+            videoTrimHeader.classList.add('hidden');
+            if (explorarPreviewMediaContainer) explorarPreviewMediaContainer.classList.remove('trim-mode-active');
+            
+            const modalCard = document.querySelector('.explorar-post-modal-card');
+            if (modalCard) modalCard.classList.remove('trim-mode-active');
+
+            if (videoEditorSidebar) videoEditorSidebar.classList.remove('hidden');
+            if (explorarPostClose) explorarPostClose.classList.remove('hidden');
+            
+            // Retorna ao início do corte
+            seekVideoTo(editorState.trimStart, false);
+            const video = exploringGetVideo();
+            if (video) video.play();
+        });
+    }
+
+
+
+    // Done Drawing
+    if (drawDoneBtn) {
+        drawDoneBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation(); // Stop propagation
+            
+            editorState.isDrawingMode = false;
+            
+            videoDrawingPalette.classList.add('hidden');
+            videoDrawingPalette.style.display = 'none'; // Force hide
+            
+            if (videoDrawingCanvas) videoDrawingCanvas.classList.remove('drawing-active');
+            
+            // Restore UI
+            if (videoEditorSidebar) {
+                videoEditorSidebar.classList.remove('hidden');
+                videoEditorSidebar.classList.remove('drawing-mode');
+            }
+            if (explorarPostClose) explorarPostClose.classList.remove('hidden');
+            
+            const modalCard = document.querySelector('.explorar-post-modal-card');
+            if (modalCard) modalCard.classList.remove('drawing-mode-active');
+
+            // Reset Pencil Border
+            if (toolDraw) toolDraw.style.border = '';
+        });
+    }
+
+
+
     const updateTrimUI = () => {
         if (!trimRangeHighlight) return;
         trimRangeHighlight.style.left = `${editorState.trimStart}%`;
         trimRangeHighlight.style.width = `${editorState.trimEnd - editorState.trimStart}%`;
+        
+        // Update overlays
+        const overlayLeft = document.getElementById('trim-overlay-left');
+        const overlayRight = document.getElementById('trim-overlay-right');
+        
+        if (overlayLeft) {
+            overlayLeft.style.width = `${editorState.trimStart}%`;
+        }
+        if (overlayRight) {
+            overlayRight.style.width = `${100 - editorState.trimEnd}%`;
+        }
         
         const video = exploringGetVideo();
         if (video && trimTimeDisplay) {
@@ -1816,85 +2123,410 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    const MAX_TRIM_DURATION = 30; // segundos
+
+    const getSafeTrimValues = (newStart, newEnd) => {
+        const duration = editorState.originalDuration || 1;
+        const maxPct = (MAX_TRIM_DURATION / duration) * 100;
+        
+        let start = newStart;
+        let end = newEnd;
+
+        // Garante intervalo mínimo de 1s (aprox)
+        const minPct = (1 / duration) * 100;
+        
+        if (end - start < minPct) {
+            // Ajuste colisão
+            if (start === editorState.trimStart) {
+                end = start + minPct;
+            } else {
+                start = end - minPct;
+            }
+        }
+        
+        // Garante máximo de 30s
+        if (duration > MAX_TRIM_DURATION) {
+            if (end - start > maxPct) {
+                // Se esticou demais, puxa a outra ponta (efeito slide window)
+                if (start !== editorState.trimStart) {
+                    // Moveu start para esquerda -> Puxa end para esquerda
+                    end = start + maxPct;
+                } else {
+                    // Moveu end para direita -> Puxa start para direita
+                    start = end - maxPct;
+                }
+            }
+        }
+        
+        // Garante limites [0, 100]
+        start = Math.max(0, Math.min(100, start));
+        end = Math.max(0, Math.min(100, end));
+        
+        return { start, end };
+    };
+
     if (trimStartInput && trimEndInput) {
         trimStartInput.addEventListener('input', (e) => {
             const val = parseFloat(e.target.value);
-            if (val >= editorState.trimEnd - 5) { // Mínimo 5% de intervalo
-                trimStartInput.value = editorState.trimEnd - 5;
-                editorState.trimStart = editorState.trimEnd - 5;
-            } else {
-                editorState.trimStart = val;
-            }
+            const { start, end } = getSafeTrimValues(val, editorState.trimEnd);
+            
+            editorState.trimStart = start;
+            editorState.trimEnd = end;
+            
+            trimStartInput.value = start;
+            trimEndInput.value = end;
+            
             updateTrimUI();
             seekVideoTo(editorState.trimStart);
         });
 
         trimEndInput.addEventListener('input', (e) => {
             const val = parseFloat(e.target.value);
-            if (val <= editorState.trimStart + 5) {
-                trimEndInput.value = editorState.trimStart + 5;
-                editorState.trimEnd = editorState.trimStart + 5;
-            } else {
-                editorState.trimEnd = val;
-            }
+            const { start, end } = getSafeTrimValues(editorState.trimStart, val);
+            
+            editorState.trimStart = start;
+            editorState.trimEnd = end;
+            
+            trimStartInput.value = start;
+            trimEndInput.value = end;
+            
             updateTrimUI();
             seekVideoTo(editorState.trimEnd); // Preview do fim
         });
     }
 
-    if (trimApplyBtn) {
-        trimApplyBtn.addEventListener('click', () => {
-            // Apenas fecha a UI, o estado já está salvo em editorState
-            videoTrimUi.classList.add('hidden');
-            toolTrim.classList.remove('active');
-            // Retorna vídeo ao início do corte
-            seekVideoTo(editorState.trimStart);
-        });
-    }
-    
-    if (trimCancelBtn) {
-        trimCancelBtn.addEventListener('click', () => {
-            // Reseta trim
-            editorState.trimStart = 0;
-            editorState.trimEnd = 100;
-            if (trimStartInput) trimStartInput.value = 0;
-            if (trimEndInput) trimEndInput.value = 100;
+    // Lógica de Arrasto das Alças (Touch/Mouse) - Estilo Instagram
+    const trimHandleStart = document.querySelector('.trim-handle-start');
+    const trimHandleEnd = document.querySelector('.trim-handle-end');
+    const trimSliderContainer = document.getElementById('trim-slider-container');
+
+    if (trimHandleStart && trimHandleEnd && trimSliderContainer) {
+        const handleDrag = (isStartHandle, clientX) => {
+            const rect = trimSliderContainer.getBoundingClientRect();
+            const relativeX = clientX - rect.left;
+            let pct = (relativeX / rect.width) * 100;
+            pct = Math.max(0, Math.min(100, pct));
+            
+            let newStart = editorState.trimStart;
+            let newEnd = editorState.trimEnd;
+            
+            if (isStartHandle) {
+                newStart = pct;
+            } else {
+                newEnd = pct;
+            }
+            
+            const { start, end } = getSafeTrimValues(newStart, newEnd);
+            
+            // Atualiza estado
+            editorState.trimStart = start;
+            editorState.trimEnd = end;
+            
+            // Atualiza inputs escondidos (para consistência)
+            if (trimStartInput) trimStartInput.value = start;
+            if (trimEndInput) trimEndInput.value = end;
+
             updateTrimUI();
-            videoTrimUi.classList.add('hidden');
-            toolTrim.classList.remove('active');
+            
+            // Scrubbing: Atualiza o vídeo para o ponto que está sendo mexido
+            // Se mexeu no Start, mostra o Start. Se mexeu no End, mostra o End.
+            seekVideoTo(isStartHandle ? start : end);
+        };
+
+        const playTrimmedClip = () => {
+             const video = exploringGetVideo();
+             if (video) {
+                 video.currentTime = (editorState.trimStart / 100) * video.duration;
+                 video.play();
+             }
+        };
+
+        // Touch Support
+        trimHandleStart.addEventListener('touchmove', (e) => {
+            e.preventDefault(); // Evita scroll
+            e.stopPropagation();
+            if (e.touches.length > 0) handleDrag(true, e.touches[0].clientX);
+        }, { passive: false });
+
+        trimHandleStart.addEventListener('touchend', playTrimmedClip);
+
+        trimHandleEnd.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (e.touches.length > 0) handleDrag(false, e.touches[0].clientX);
+        }, { passive: false });
+
+        trimHandleEnd.addEventListener('touchend', playTrimmedClip);
+        
+        // Mouse Support (Desktop)
+        let isDraggingStart = false;
+        let isDraggingEnd = false;
+
+        trimHandleStart.addEventListener('mousedown', (e) => { isDraggingStart = true; e.preventDefault(); e.stopPropagation(); });
+        trimHandleEnd.addEventListener('mousedown', (e) => { isDraggingEnd = true; e.preventDefault(); e.stopPropagation(); });
+        
+        document.addEventListener('mousemove', (e) => {
+            if (isDraggingStart) {
+                e.preventDefault();
+                handleDrag(true, e.clientX);
+            }
+            if (isDraggingEnd) {
+                e.preventDefault();
+                handleDrag(false, e.clientX);
+            }
+        });
+        
+        document.addEventListener('mouseup', () => {
+            if (isDraggingStart || isDraggingEnd) {
+                playTrimmedClip();
+            }
+            isDraggingStart = false;
+            isDraggingEnd = false;
         });
     }
 
     // 3. Draw (Canvas)
     if (toolDraw) {
-        toolDraw.addEventListener('click', () => {
-            if (!videoDrawingCanvas) return;
+        toolDraw.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+
+            if (!videoDrawingCanvas || !videoDrawingPalette) return;
             const video = exploringGetVideo();
             if (!video) return;
 
-            editorState.isDrawingMode = !editorState.isDrawingMode;
-            
+            // Toggle Drawing Mode
             if (editorState.isDrawingMode) {
-                videoDrawingCanvas.classList.remove('hidden');
-                videoDrawingCanvas.classList.add('drawing-active');
-                toolDraw.classList.add('active');
-                
-                // Garante tamanho correto
-                videoDrawingCanvas.width = video.clientWidth;
-                videoDrawingCanvas.height = video.clientHeight;
-                
-                // Configura contexto
-                const ctx = videoDrawingCanvas.getContext('2d');
-                ctx.strokeStyle = '#e11d48'; // Cor padrão (rosa/vermelho)
-                ctx.lineWidth = 4;
-                ctx.lineCap = 'round';
+                 // Se já estiver no modo desenho:
+                 // 1. Se paleta estiver oculta -> Mostrar Paleta
+                 // 2. Se paleta estiver visível -> Sair do modo desenho
+                 
+                 if (videoDrawingPalette && (videoDrawingPalette.classList.contains('hidden') || videoDrawingPalette.style.display === 'none')) {
+                     videoDrawingPalette.classList.remove('hidden');
+                     videoDrawingPalette.style.display = 'flex';
+                 } else {
+                     exitDrawingMode();
+                 }
             } else {
-                videoDrawingCanvas.classList.remove('drawing-active');
-                // Mantém visível se tiver desenho, mas desativa pointer events?
-                // Se quiser apagar ao desligar a ferramenta, use: videoDrawingCanvas.classList.add('hidden');
-                // Mas geralmente queremos ver o desenho. Apenas tiramos o modo edição.
-                toolDraw.classList.remove('active');
+                enterDrawingMode();
             }
+        });
+    }
+
+    const enterDrawingMode = () => {
+        if (!videoDrawingCanvas || !videoDrawingPalette) return;
+        const video = exploringGetVideo();
+        
+        editorState.isDrawingMode = true;
+        editorState.isDrawingDirty = false;
+
+        // Configura Canvas (só redimensiona se necessário para preservar desenho existente)
+        if (videoDrawingCanvas.width !== video.clientWidth || videoDrawingCanvas.height !== video.clientHeight) {
+            videoDrawingCanvas.width = video.clientWidth;
+            videoDrawingCanvas.height = video.clientHeight;
+        }
+
+        videoDrawingCanvas.classList.remove('hidden');
+        videoDrawingCanvas.classList.add('drawing-active');
+        
+        // Save snapshot for Undo/Cancel
+        const ctx = videoDrawingCanvas.getContext('2d');
+        try {
+            editorState.drawingSnapshot = ctx.getImageData(0, 0, videoDrawingCanvas.width, videoDrawingCanvas.height);
+        } catch (e) {
+            console.error("Error saving canvas snapshot", e);
+        }
+        
+        // Mostra Paleta
+        videoDrawingPalette.classList.remove('hidden');
+        videoDrawingPalette.style.display = 'flex';
+
+        // Mostra Header de Desenho
+        if (videoDrawingHeader) {
+            videoDrawingHeader.classList.remove('hidden');
+            const saveModal = document.getElementById('drawing-save-modal');
+            if (saveModal) {
+                saveModal.classList.add('hidden');
+                saveModal.style.display = 'none';
+            }
+        }
+
+        // Atualiza UI do Sidebar
+        if (videoEditorSidebar) {
+            videoEditorSidebar.classList.remove('hidden'); // Garante que sidebar está visível
+            videoEditorSidebar.classList.add('drawing-mode'); // CSS oculta outros ícones
+        }
+        
+        // Oculta botão de fechar do modal principal e outros elementos
+        const modalCard = document.querySelector('.explorar-post-modal-card');
+        if (modalCard) modalCard.classList.add('drawing-mode-active');
+
+        // Configura Contexto
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.lineWidth = 5;
+        
+        // Recupera cor do estado ou define default (Vermelho)
+        const color = editorState.drawingColor || '#FF0000';
+        ctx.strokeStyle = color;
+        updatePencilIcon(color);
+        
+        // Atualiza seleção na paleta
+        videoDrawingPalette.querySelectorAll('.color-btn').forEach(btn => {
+            if (btn.dataset.color === color) btn.classList.add('active');
+            else btn.classList.remove('active');
+        });
+    };
+
+    const exitDrawingMode = (shouldSave = true) => {
+        editorState.isDrawingMode = false;
+        
+        if (videoDrawingCanvas) {
+            videoDrawingCanvas.classList.remove('drawing-active');
+            
+            const ctx = videoDrawingCanvas.getContext('2d');
+            if (!shouldSave && editorState.drawingSnapshot) {
+                // Restore snapshot (Discard changes)
+                ctx.putImageData(editorState.drawingSnapshot, 0, 0);
+            }
+            // Não escondemos o canvas se salvarmos, para o desenho ficar visível
+            // Se descartar, o snapshot restaura o estado anterior (que pode ser vazio ou ter desenhos)
+        }
+        
+        if (videoDrawingPalette) {
+            videoDrawingPalette.classList.add('hidden');
+            videoDrawingPalette.style.display = 'none';
+        }
+
+        if (videoDrawingHeader) {
+            videoDrawingHeader.classList.add('hidden');
+        }
+
+        if (videoEditorSidebar) {
+            videoEditorSidebar.classList.remove('drawing-mode');
+        }
+
+        const modalCard = document.querySelector('.explorar-post-modal-card');
+        if (modalCard) modalCard.classList.remove('drawing-mode-active');
+        
+        // Reset Lápis
+        updatePencilIcon(null);
+    };
+
+    const updatePencilIcon = (color) => {
+        if (!toolDraw) return;
+        if (color) {
+            toolDraw.style.border = `2px solid ${color}`;
+            toolDraw.querySelector('i').style.color = color;
+        } else {
+            toolDraw.style.border = '';
+            toolDraw.querySelector('i').style.color = '';
+        }
+    };
+
+    // Palette Actions
+    if (videoDrawingPalette) {
+        videoDrawingPalette.querySelectorAll('.color-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                const color = btn.dataset.color;
+                editorState.drawingColor = color; // Salva no estado
+                
+                const ctx = videoDrawingCanvas.getContext('2d');
+                ctx.strokeStyle = color;
+                
+                updatePencilIcon(color);
+                
+                // UI Feedback
+                videoDrawingPalette.querySelectorAll('.color-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                
+                // Fecha paleta após seleção?
+                // User: "clica fora do modal fecha as cores". 
+                // User também reclamou: "modal nao oculta quando seleciono outra cor".
+                // Vamos fechar a paleta ao selecionar, mantendo o modo desenho ativo.
+                videoDrawingPalette.classList.add('hidden');
+                videoDrawingPalette.style.display = 'none';
+            });
+        });
+    }
+
+    // Fechar paleta ao clicar fora (no canvas ou no modal, exceto lápis e paleta)
+    document.addEventListener('click', (e) => {
+        if (!editorState.isDrawingMode) return;
+        
+        // Se clicar no canvas, a lógica de desenho lida com isso (startDraw esconde paleta)
+        // Se clicar fora da paleta e fora do lápis, deve fechar a paleta (se estiver aberta)
+        // Mas se clicar no canvas para desenhar, é um mousedown/touchstart.
+        
+        // Aqui tratamos cliques "perdidos" que não são desenho.
+        if (videoDrawingPalette && !videoDrawingPalette.classList.contains('hidden')) {
+             if (!videoDrawingPalette.contains(e.target) && e.target !== toolDraw && !toolDraw.contains(e.target)) {
+                 videoDrawingPalette.classList.add('hidden');
+                 videoDrawingPalette.style.display = 'none';
+             }
+        }
+    });
+
+    if (drawDoneBtn) {
+        drawDoneBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            exitDrawingMode();
+        });
+    }
+
+    const drawingSaveModal = document.getElementById('drawing-save-modal');
+    const drawingSaveConfirm = document.getElementById('drawing-save-confirm');
+    const drawingSaveCancel = document.getElementById('drawing-save-cancel');
+    const drawingDoneBtn = document.getElementById('drawing-done-btn');
+
+    if (drawingBackBtn) {
+        drawingBackBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            // Se houver desenho e estiver "sujo", pergunta.
+            // Mas o usuário disse: "o botao de volta que tem a caixa de confirma alteraçao so vai aparece se ele risca, se nao risca ai so volta msm"
+            // Isso implica que a verificação de "dirty" é crucial.
+            if (editorState.isDrawingDirty && editorState.hasDrawing) {
+                // Show Custom Modal
+                if (drawingSaveModal) {
+                    drawingSaveModal.classList.remove('hidden');
+                    drawingSaveModal.style.display = 'flex';
+                }
+            } else {
+                exitDrawingMode(false);
+            }
+        });
+    }
+
+    if (drawingDoneBtn) {
+        drawingDoneBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            // Salva diretamente (exitDrawingMode com save=true)
+            exitDrawingMode(true);
+        });
+    }
+
+    if (drawingSaveConfirm) {
+        drawingSaveConfirm.addEventListener('click', (e) => {
+             e.stopPropagation();
+             if (drawingSaveModal) {
+                 drawingSaveModal.classList.add('hidden');
+                 drawingSaveModal.style.display = 'none';
+             }
+             exitDrawingMode(true); // Save
+        });
+    }
+
+    if (drawingSaveCancel) {
+        drawingSaveCancel.addEventListener('click', (e) => {
+             e.stopPropagation();
+             if (drawingSaveModal) {
+                 drawingSaveModal.classList.add('hidden');
+                 drawingSaveModal.style.display = 'none';
+             }
+             exitDrawingMode(false); // Discard
         });
     }
 
@@ -1906,8 +2538,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const getPos = (e) => {
             const rect = videoDrawingCanvas.getBoundingClientRect();
-            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            // Suporte a mouse e touch
+            const clientX = e.touches && e.touches.length > 0 ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches && e.touches.length > 0 ? e.touches[0].clientY : e.clientY;
+            
             return {
                 x: clientX - rect.left,
                 y: clientY - rect.top
@@ -1916,17 +2550,42 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const startDraw = (e) => {
             if (!editorState.isDrawingMode) return;
+            // Se for touch, evita scroll
+            if (e.type === 'touchstart') {
+                 // e.preventDefault(); // Comentado pois pode bloquear cliques? Não, no canvas é ok.
+            }
+            
             isDrawing = true;
+            editorState.isDrawingDirty = true; // Mark as dirty
             const pos = getPos(e);
             lastX = pos.x;
             lastY = pos.y;
             editorState.hasDrawing = true;
+
+            // Oculta UI (Paleta e Lápis) ao desenhar
+            if (videoDrawingPalette) {
+                videoDrawingPalette.classList.add('hidden');
+                videoDrawingPalette.style.display = 'none';
+            }
+            // User: "enquanto eu tive escrevendo as opçaos oculta e deixa so o video"
+            // O lápis também deve sumir? "deixando somente o lapis...".
+            // User disse "deixando somente o lapis enquanto abri o modal... e enquanto eu tive escrevendo as opçaos oculta e deixa so o video".
+            // Então ao DESENHAR, oculta tudo (inclusive lápis). Ao PARAR, mostra lápis (e paleta?).
+            if (videoEditorSidebar) videoEditorSidebar.classList.add('hidden');
         };
 
         const draw = (e) => {
             if (!isDrawing || !editorState.isDrawingMode) return;
-            e.preventDefault(); // Evita scroll em touch
+            e.preventDefault(); // Importante para evitar scroll no mobile
+            e.stopPropagation();
+
             const ctx = videoDrawingCanvas.getContext('2d');
+            // Garantir que a cor está correta antes de desenhar
+            ctx.strokeStyle = editorState.drawingColor || '#FF0000';
+            ctx.lineWidth = 5;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+
             const pos = getPos(e);
             
             ctx.beginPath();
@@ -1939,9 +2598,22 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         const stopDraw = () => {
+            if (!isDrawing) return;
             isDrawing = false;
+            
+            // Restaura UI
+            if (videoEditorSidebar) {
+                videoEditorSidebar.classList.remove('hidden');
+                videoEditorSidebar.classList.add('drawing-mode'); // Garante que volta no modo certo
+            }
+            
+            // Reabre paleta? User: "clica fora do modal fecha as cores".
+            // Se ele acabou de desenhar, talvez queira continuar desenhando. Não reabrir paleta.
+            // A paleta só abre ao clicar no lápis.
+            // Mas o lápis deve voltar.
         };
 
+        // Adiciona Listeners de Eventos (CRÍTICO: Faltavam estes listeners)
         videoDrawingCanvas.addEventListener('mousedown', startDraw);
         videoDrawingCanvas.addEventListener('mousemove', draw);
         videoDrawingCanvas.addEventListener('mouseup', stopDraw);
@@ -1986,11 +2658,16 @@ document.addEventListener('DOMContentLoaded', () => {
         return explorarPreviewMediaContainer ? explorarPreviewMediaContainer.querySelector('video') : null;
     };
 
-    const seekVideoTo = (pct) => {
+    const seekVideoTo = (pct, autoPause = true) => {
         const video = exploringGetVideo();
         if (video) {
             const time = (pct / 100) * video.duration;
             video.currentTime = time;
+            
+            // Pausa se estiver tocando para focar no scrubbing
+            if (autoPause && !video.paused) {
+                 video.pause();
+            }
         }
     };
 
@@ -2079,6 +2756,20 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+
+
+    // User requested to keep sidebar visible while typing
+    // if (explorarPostDesc) {
+    //     explorarPostDesc.addEventListener('focus', () => {
+    //         if (videoEditorSidebar) videoEditorSidebar.classList.add('hidden');
+    //     });
+    //     explorarPostDesc.addEventListener('blur', () => {
+    //          if (videoEditorSidebar && !editorState.isDrawingMode) {
+    //              videoEditorSidebar.classList.remove('hidden');
+    //          }
+    //     });
+    // }
+
     if (explorarPostSend) {
         explorarPostSend.addEventListener('click', async () => {
             if (!token) return;
@@ -2106,42 +2797,72 @@ document.addEventListener('DOMContentLoaded', () => {
             const originalBtnText = explorarPostSend.innerHTML;
             explorarPostSend.innerHTML = '<div class="spinner-border spinner-border-sm" role="status"></div> Enviando...';
 
+            // ========================================================================
+            // 1. CAPTURA DADOS ANTES DE FECHAR O MODAL (para evitar perda no reset)
+            // ========================================================================
+            const fileToUpload = explorarSelectedFile; // Captura arquivo selecionado
+            const currentEditorState = { ...editorState }; // Captura estado do editor
+            const categoriaAtual = explorarCategoriaCurrent?.textContent?.trim();
+            
+            // Captura duração do vídeo (necessária para trim)
+            const videoEl = explorarPostPreview ? explorarPostPreview.querySelector('video') : null;
+            const duration = videoEl ? (videoEl.duration || 0) : 0;
+
+            // Captura blob do desenho (se houver) - precisa ser feito ANTES de limpar o canvas
+            let drawingBlob = null;
+            if (currentEditorState.hasDrawing && typeof videoDrawingCanvas !== 'undefined' && videoDrawingCanvas) {
+                 try {
+                     drawingBlob = await new Promise(r => videoDrawingCanvas.toBlob(r, 'image/png'));
+                 } catch (e) {
+                     console.warn('Erro ao capturar desenho:', e);
+                 }
+            }
+
+            // ========================================================================
+            // 2. FECHA O MODAL IMEDIATAMENTE (UI/UX)
+            // ========================================================================
+            closeExplorarModal();
+
+            // Adiciona efeito visual de carregamento no avatar
+            if (explorarUserAvatar) {
+                explorarUserAvatar.classList.add('uploading-status');
+            }
+
+            // ========================================================================
+            // 3. PREPARA DADOS E INICIA UPLOAD EM BACKGROUND
+            // ========================================================================
             const formData = new FormData();
             formData.append('content', content);
-            const categoriaAtual = explorarCategoriaCurrent?.textContent?.trim();
+            
             if (categoriaAtual && categoriaAtual !== 'Todas') {
                 formData.append('category_tag', categoriaAtual);
+            }
+            // Envia o estado do áudio do vídeo (true = sem som original)
+            formData.append('videoMuted', currentEditorState.videoMuted || false);
+            
+            // Usa dados capturados para Trim
+            if (typeof currentEditorState.trimStart === 'number' && duration > 0) {
+                const startSec = (currentEditorState.trimStart / 100) * duration;
+                formData.append('trimStart', startSec);
+            } else {
+                formData.append('trimStart', 0);
+            }
+
+            if (typeof currentEditorState.trimEnd === 'number' && duration > 0) {
+                const endSec = (currentEditorState.trimEnd / 100) * duration;
+                formData.append('trimEnd', endSec);
+            } else {
+                formData.append('trimEnd', 0);
             }
             
             // Lógica de Upload
             try {
                 let mediaUrl = '';
                 let mediaType = '';
+                let drawingUrl = '';
 
-                // Prepara barra de progresso
-                let uploadBar = null;
-                let uploadWrapper = null;
-                if (explorarPostPreview) {
-                    uploadWrapper = explorarPostPreview.querySelector('.explorar-upload-progress');
-                    if (!uploadWrapper) {
-                        uploadWrapper = document.createElement('div');
-                        uploadWrapper.className = 'explorar-upload-progress';
-                        const bar = document.createElement('div');
-                        bar.className = 'explorar-upload-progress-bar';
-                        uploadWrapper.appendChild(bar);
-                        explorarPostPreview.appendChild(uploadWrapper);
-                        uploadBar = bar;
-                    } else {
-                        uploadBar = uploadWrapper.querySelector('.explorar-upload-progress-bar');
-                    }
-                }
-                if (uploadWrapper && uploadBar) {
-                    uploadWrapper.style.display = 'block';
-                    uploadBar.style.width = '0%';
-                }
-
-                // Se tiver arquivo, faz upload direto pro S3
-                if (explorarSelectedFile) {
+                // Helper de Upload S3
+                const uploadToS3 = async (file, progressCallback) => {
                     // 1. Pede URL assinada
                     const presignResp = await fetch('/api/upload-url', {
                         method: 'POST',
@@ -2150,8 +2871,8 @@ document.addEventListener('DOMContentLoaded', () => {
                             'Authorization': `Bearer ${token}`
                         },
                         body: JSON.stringify({
-                            fileName: explorarSelectedFile.name,
-                            fileType: explorarSelectedFile.type
+                            fileName: file.name,
+                            fileType: file.type
                         })
                     });
                     
@@ -2160,23 +2881,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (!presignData.success) throw new Error(presignData.message || 'Erro ao obter URL de upload.');
 
                     const { signedUrl, publicUrl } = presignData;
-                    mediaUrl = publicUrl;
-                    mediaType = explorarSelectedFile.type;
 
                     // 2. Upload para S3 (PUT)
                     const xhrS3 = new XMLHttpRequest();
                     await new Promise((resolve, reject) => {
                         xhrS3.open('PUT', signedUrl, true);
-                        xhrS3.setRequestHeader('Content-Type', explorarSelectedFile.type);
+                        xhrS3.setRequestHeader('Content-Type', file.type);
                         
-                        xhrS3.upload.onprogress = (e) => {
-                            if (!uploadBar || !uploadWrapper) return;
-                            if (e.lengthComputable && e.total > 0) {
-                                const raw = (e.loaded / e.total) * 90; // Vai até 90% no upload S3
-                                const pct = Math.max(0, Math.min(90, Math.floor(raw)));
-                                uploadBar.style.width = `${pct}%`;
-                            }
-                        };
+                        // Callback de progresso opcional (agora oculto)
+                        if (progressCallback) {
+                            xhrS3.upload.onprogress = progressCallback;
+                        }
 
                         xhrS3.onload = () => {
                             if (xhrS3.status >= 200 && xhrS3.status < 300) {
@@ -2186,8 +2901,31 @@ document.addEventListener('DOMContentLoaded', () => {
                             }
                         };
                         xhrS3.onerror = () => reject(new Error('Erro de rede no upload S3.'));
-                        xhrS3.send(explorarSelectedFile);
+                        xhrS3.send(file);
                     });
+                    return publicUrl;
+                };
+
+                // Se tiver arquivo de vídeo (usando a variável capturada fileToUpload)
+                if (fileToUpload) {
+                    mediaUrl = await uploadToS3(fileToUpload);
+                    mediaType = fileToUpload.type;
+                }
+
+                // Se tiver desenho (Canvas) (usando o blob capturado drawingBlob)
+                if (drawingBlob) {
+                     const drawingFile = new File([drawingBlob], `drawing_${Date.now()}.png`, { type: 'image/png' });
+                     try {
+                         drawingUrl = await uploadToS3(drawingFile);
+                     } catch (e) {
+                         console.warn('Upload direto do desenho falhou, enviando via backend', e);
+                         drawingUrl = '';
+                     }
+                     
+                     // Se falhou upload direto, envia arquivo para o backend processar
+                     if (!drawingUrl) {
+                        formData.append('drawing', drawingBlob, 'drawing.png');
+                     }
                 }
 
                 // 3. Salva o post no backend (com URL já pronta ou apenas texto)
@@ -2195,45 +2933,62 @@ document.addEventListener('DOMContentLoaded', () => {
                     formData.append('mediaUrl', mediaUrl);
                     formData.append('mediaType', mediaType);
                 }
+                if (drawingUrl) {
+                    formData.append('drawingUrl', drawingUrl);
+                }
                 // Se não teve arquivo, formData só tem content/category (já adicionados acima)
 
                 const xhr = new XMLHttpRequest();
                 xhr.open('POST', '/api/explorar-posts', true);
                 xhr.setRequestHeader('Authorization', `Bearer ${token}`);
                 
-                // Monitora progresso do post final (rápido se for só JSON/URL)
-                xhr.upload.onprogress = (e) => {
-                    if (!uploadBar || !uploadWrapper) return;
-                    // Completa os 10% restantes
-                    if (e.lengthComputable && e.total > 0) {
-                        const raw = 90 + ((e.loaded / e.total) * 10);
-                        const pct = Math.max(90, Math.min(100, Math.floor(raw)));
-                        uploadBar.style.width = `${pct}%`;
-                    }
-                };
-                
                 xhr.onreadystatechange = () => {
                     if (xhr.readyState !== 4) return;
                     
-                    if (uploadWrapper && uploadBar) {
-                        uploadBar.style.width = '100%';
-                    }
-
                     try {
                         const data = JSON.parse(xhr.responseText || '{}');
                         if (xhr.status < 200 || xhr.status >= 300 || data?.success === false) {
                             throw new Error(data?.message || 'Erro ao publicar.');
                         }
-                        closeExplorarModal();
+                        
+                        // SUCESSO!
+
+                        // Invalida cache do status do usuário atual para garantir que o anel verde apareça
+                        if (typeof statusCacheFeed !== 'undefined' && userId) {
+                            statusCacheFeed.delete(String(userId));
+                        }
+
+                        // Atualiza o feed e, IMPORTANTE, aplica o anel verde no avatar
                         fetchExplorarFeed();
+                        
+                        if (typeof applyStatusRingToAvatarFeed === 'function' && explorarUserAvatar && userId) {
+                            // Aplica o anel verde (status postado) no avatar do usuário logado
+                            applyStatusRingToAvatarFeed(explorarUserAvatar, userId);
+                            
+                            // Opcional: Forçar refresh do avatar se necessário, mas a função acima já deve cuidar do CSS
+                            explorarUserAvatar.classList.add('has-story');
+                            explorarUserAvatar.classList.remove('is-viewed'); // Garante que não fique cinza
+                        }
+                        
+                        // Não mostramos alert de sucesso pois o fluxo é "transparente"
+                        console.log('Post publicado com sucesso em background.');
+
                     } catch (err) {
                         console.error('Erro ao salvar post:', err);
-                        alert('Erro ao salvar post: ' + err.message);
+                        // Como o modal já fechou, aqui sim mostramos um alert ou toast de erro
+                        alert('Erro ao salvar post em background: ' + err.message);
                     } finally {
-                        delete explorarPostSend.dataset.sending;
-                        explorarPostSend.disabled = false;
-                        if (originalBtnText) explorarPostSend.innerHTML = originalBtnText;
-                        if (uploadWrapper) uploadWrapper.style.display = 'none';
+                        // Remove efeito de carregamento do avatar
+                        if (explorarUserAvatar) {
+                            explorarUserAvatar.classList.remove('uploading-status');
+                        }
+
+                        // Limpa estado do botão (mesmo que oculto/resetado, bom garantir)
+                        if (explorarPostSend) {
+                            delete explorarPostSend.dataset.sending;
+                            explorarPostSend.disabled = false;
+                            if (originalBtnText) explorarPostSend.innerHTML = originalBtnText;
+                        }
                     }
                 };
                 xhr.send(formData);
@@ -2241,9 +2996,17 @@ document.addEventListener('DOMContentLoaded', () => {
             } catch (err) {
                 console.error('Erro geral no envio:', err);
                 alert('Falha no envio: ' + err.message);
-                delete explorarPostSend.dataset.sending;
-                explorarPostSend.disabled = false;
-                if (originalBtnText) explorarPostSend.innerHTML = originalBtnText;
+                
+                // Remove efeito de carregamento do avatar em caso de erro no catch principal
+                if (explorarUserAvatar) {
+                    explorarUserAvatar.classList.remove('uploading-status');
+                }
+
+                if (explorarPostSend) {
+                    delete explorarPostSend.dataset.sending;
+                    explorarPostSend.disabled = false;
+                    if (originalBtnText) explorarPostSend.innerHTML = originalBtnText;
+                }
             }
         });
     }
@@ -3460,8 +4223,14 @@ document.addEventListener('DOMContentLoaded', () => {
             const isLiked = !!item.isLikedByMe;
 
             const mediaHTML = isVideo
-                ? `<video class="explorar-video" loop muted playsinline autoplay preload="metadata" data-src="${mediaUrl}"></video>`
+                ? `<video class="explorar-video" muted playsinline autoplay preload="metadata" data-src="${mediaUrl}"></video>`
                 : `<img class="explorar-image" alt="" loading="lazy" decoding="async" data-src="${mediaUrl}">`;
+            
+            const drawingUrl = item.drawingUrl || '';
+            const drawingHTML = (isVideo && drawingUrl) 
+                ? `<img class="explorar-drawing-layer" src="${drawingUrl}" alt="" aria-hidden="true">` 
+                : '';
+
             const isOwner = ownerId && userId && String(ownerId) === String(userId);
             const deleteButtonHTML = isOwner
                 ? `<button class="explorar-card-delete" type="button" aria-label="Apagar status" data-id="${rawItemId}">
@@ -3472,6 +4241,7 @@ document.addEventListener('DOMContentLoaded', () => {
             card.innerHTML = `
                 <div class="explorar-card-media">
                     ${mediaHTML}
+                    ${drawingHTML}
                     ${badge ? `<div class="explorar-card-badge">${badge}</div>` : ''}
                     ${deleteButtonHTML}
                     ${rawItemId ? `
@@ -3511,20 +4281,28 @@ document.addEventListener('DOMContentLoaded', () => {
                     event.preventDefault();
                     event.stopPropagation();
 
-                    if (isStatus || (ownerId && items.some((it) => {
+                    // Se for vídeo ou status, tenta abrir o visualizador de stories
+                    if (isStatus || isVideo || (ownerId && items.some((it) => {
                         const rawOwner = it?.userId?._id || it?.userId || it?.dono?._id || it?.dono?.id || it?.ownerId || it?.autorId;
                         const ownerIt = rawOwner?._id || rawOwner;
-                        const itIsStatus = it?.tipo === 'post' && !!it.mediaUrl;
+                        const itIsStatus = (it?.tipo === 'post' && !!it.mediaUrl) || String(it.mediaType || '').includes('video');
                         return ownerIt && String(ownerIt) === String(ownerId) && itIsStatus;
                     }))) {
-                        const ownerStories = items.filter((it) => {
+                        let ownerStories = items.filter((it) => {
                             const rawOwner = it?.userId?._id || it?.userId || it?.dono?._id || it?.dono?.id || it?.ownerId || it?.autorId;
                             const ownerIt = rawOwner?._id || rawOwner;
-                            const isStatus = it?.tipo === 'post' && !!it.mediaUrl;
+                            const isStatus = (it?.tipo === 'post' && !!it.mediaUrl) || String(it.mediaType || '').includes('video');
                             return ownerIt && String(ownerIt) === String(ownerId) && isStatus;
                         });
 
+                        // Fallback: se por algum motivo a lista estiver vazia mas o item atual é válido, adiciona ele
+                        if (ownerStories.length === 0 && (isStatus || isVideo)) {
+                            ownerStories = [item];
+                        }
+
                         if (ownerStories.length > 0) {
+                            // Inverte a ordem para cronológica (antigo -> novo)
+                            ownerStories.reverse();
                             explorarStoryQueue = ownerStories.map((story) => ({
                                 id: String(story._id || ''),
                                 ownerId: story?.userId?._id || story?.userId || story?.ownerId || story?.autorId,
@@ -3532,11 +4310,18 @@ document.addEventListener('DOMContentLoaded', () => {
                                 isVideo: String(story.mediaType || '').includes('video'),
                                 nome: story?.titulo || story?.nome || 'Status',
                                 desc: story?.descricao || story?.content || '',
-                                cidade: [story?.cidade, story?.estado].filter(Boolean).join(' - ')
+                                cidade: [story?.cidade, story?.estado].filter(Boolean).join(' - '),
+                                videoMuted: story.videoMuted,
+                                trimStart: story.trimStart,
+                                trimEnd: story.trimEnd,
+                                drawingUrl: story.drawingUrl
                             }));
                             explorarUserStory = explorarStoryQueue[0] || null;
                             setExplorarStorySegments(explorarStoryQueue.length);
-                            goToExplorarStory(0);
+                            // Encontra o primeiro não visualizado
+                            const firstUnviewedIndex = explorarStoryQueue.findIndex(story => !isExplorarStoryViewed(story.id));
+                            const startIndex = firstUnviewedIndex !== -1 ? firstUnviewedIndex : 0;
+                            goToExplorarStory(startIndex);
                             return;
                         }
                     }
@@ -3557,13 +4342,53 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const videoEl = card.querySelector('video.explorar-video');
             if (videoEl) {
+                if (item.videoMuted) {
+                    videoEl.muted = true;
+                }
+
+                // Aplica Trim (Corte) se existir
+                const trimStart = Number(item.trimStart) || 0;
+                const trimEnd = Number(item.trimEnd) || 0;
+                
+                if (trimStart > 0) {
+                    const setStart = () => {
+                         videoEl.currentTime = trimStart;
+                    };
+                    if (videoEl.readyState >= 1) {
+                        setStart();
+                    } else {
+                        videoEl.addEventListener('loadedmetadata', setStart, { once: true });
+                    }
+                }
+                
+                // Controle de loop manual para respeitar trimStart
+                if (trimStart === 0 && trimEnd === 0) {
+                    videoEl.loop = true;
+                } else {
+                    videoEl.loop = false;
+                    
+                    // Loop ao terminar (para trimStart > 0 e sem trimEnd)
+                    videoEl.addEventListener('ended', () => {
+                        videoEl.currentTime = trimStart;
+                        videoEl.play().catch(() => {});
+                    });
+                    
+                    // Loop ao atingir trimEnd
+                    if (trimEnd > trimStart) {
+                        videoEl.addEventListener('timeupdate', () => {
+                            if (videoEl.currentTime >= trimEnd) {
+                                videoEl.currentTime = trimStart;
+                                videoEl.play().catch(() => {});
+                            }
+                        });
+                    }
+                }
+                
                 videoEl.addEventListener('click', (event) => {
                     event.preventDefault();
-                    if (ownerId) {
-                        const url = `/perfil.html?id=${encodeURIComponent(ownerId)}&statusOwnerId=${encodeURIComponent(ownerId)}`;
-                        window.location.href = url;
-                        return;
-                    }
+                    // Removido redirecionamento para perfil ao clicar no vídeo
+                    // O usuário quer ver o vídeo em fullscreen no explorar
+                    
                     const src = videoEl.getAttribute('src') || videoEl.getAttribute('data-src');
                     if (src && !videoEl.getAttribute('src')) {
                         videoEl.setAttribute('src', src);
@@ -3577,7 +4402,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         perfilUrl,
                         postId: rawItemId,
                         ownerId,
-                        isStory: false
+                        isStory: false,
+                        videoMuted: item.videoMuted,
+                        trimStart: item.trimStart,
+                        trimEnd: item.trimEnd,
+                        drawingUrl: item.drawingUrl
                     });
                 });
             }
@@ -3754,6 +4583,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     const itemUserId = item?.userId?._id || item?.userId || item?.autorId || item?.ownerId;
                     return item?.tipo === 'post' && itemUserId && String(itemUserId) === String(userId) && item?.mediaUrl;
                 });
+                // Inverte a ordem para cronológica (antigo -> novo)
+                userStories.reverse();
                 explorarStoryQueue = userStories.map((story) => ({
                     id: String(story._id || ''),
                     ownerId: story?.userId?._id || story?.userId || story?.ownerId || story?.autorId,
@@ -4777,6 +5608,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 const isVideo = String(it?.mediaType || '').includes('video');
                 return ownerVal && String(ownerVal) === String(ownerId) && isStatus && isVideo;
             });
+            // Inverte a ordem para cronológica (antigo -> novo)
+            stories.reverse();
             return stories;
         } catch {
             return [];
@@ -4827,7 +5660,10 @@ document.addEventListener('DOMContentLoaded', () => {
                             cidade: [story?.cidade, story?.estado].filter(Boolean).join(' - ')
                         }));
                         setExplorarStorySegments(explorarStoryQueue.length);
-                        goToExplorarStory(0);
+                        // Encontra o primeiro não visualizado
+                        const firstUnviewedIndex = explorarStoryQueue.findIndex(story => !isExplorarStoryViewed(story.id));
+                        const startIndex = firstUnviewedIndex !== -1 ? firstUnviewedIndex : 0;
+                        goToExplorarStory(startIndex);
                     } else {
                         const perfilUrl = `/perfil.html?id=${encodeURIComponent(ownerId)}`;
                         window.location.href = perfilUrl;
@@ -5263,8 +6099,15 @@ document.addEventListener('DOMContentLoaded', () => {
             const isVideo = media.type && media.type.includes('video');
             
             let mediaContent = '';
+            let drawingOverlay = '';
+
             if (isVideo) {
-                mediaContent = `<video src="${media.url}" class="lightbox-media" controls autoplay></video>`;
+                const mutedAttr = post.videoMuted ? 'muted' : '';
+                mediaContent = `<video src="${media.url}" class="lightbox-media" controls autoplay ${mutedAttr} playsinline></video>`;
+                
+                if (post.drawingUrl) {
+                    drawingOverlay = `<img src="${post.drawingUrl}" class="lightbox-drawing-overlay" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; object-fit: contain;">`;
+                }
             } else {
                 mediaContent = `<img src="${media.url}" class="lightbox-media">`;
             }
@@ -5285,12 +6128,35 @@ document.addEventListener('DOMContentLoaded', () => {
 
             lightbox.innerHTML = `
                 <button class="lightbox-close" onclick="fecharLightbox()">&times;</button>
-                <div class="lightbox-content" onclick="event.stopPropagation()">
+                <div class="lightbox-content" onclick="event.stopPropagation()" style="position: relative; display: flex; justify-content: center; align-items: center;">
                     ${prevBtn}
-                    ${mediaContent}
+                    <div style="position: relative; display: flex; justify-content: center; align-items: center; max-width: 100%; max-height: 100%;">
+                        ${mediaContent}
+                        ${drawingOverlay}
+                    </div>
                     ${nextBtn}
                 </div>
             `;
+
+            // Attach Trim Logic
+            if (isVideo) {
+                const videoEl = lightbox.querySelector('video');
+                if (videoEl) {
+                    const trimStart = Number(post.trimStart) || 0;
+                    const trimEnd = Number(post.trimEnd) || 0;
+                    
+                    if (trimStart > 0) videoEl.currentTime = trimStart;
+                    
+                    if (trimEnd > trimStart) {
+                        videoEl.addEventListener('timeupdate', () => {
+                            if (videoEl.currentTime >= trimEnd) {
+                                videoEl.currentTime = trimStart;
+                                videoEl.play().catch(() => {});
+                            }
+                        });
+                    }
+                }
+            }
         };
 
         window.changeLightboxImage = (direction) => {
