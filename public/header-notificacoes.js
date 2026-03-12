@@ -1351,7 +1351,7 @@
                                     window.location.href = `/perfil?${params.toString()}#secao-posts`;
                                 };
                                 
-                                // Helper: se o post for vídeo com expiração (status), abre no explorar/status
+                                // Helper: se o post for vídeo com expiração (status), abre no now/status
                                 const navegarParaStatusSeVideo = async (postId) => {
                                     try {
                                         const resp = await fetch(`/api/posts/${postId}`, {
@@ -1367,7 +1367,7 @@
                                         const notExpired = hasExpiry ? (new Date(post.expiresAt) > new Date()) : false;
                                         if (isVideo && hasExpiry && notExpired) {
                                             const params = new URLSearchParams({ statusPostId: postId });
-                                            window.location.href = `/index.html?${params.toString()}#explorar`;
+                                            window.location.href = `/index.html?${params.toString()}#now`;
                                             return true;
                                         }
                                         return false;
@@ -1381,10 +1381,10 @@
                                     algoFoiAberto = true;
                                     fecharModalNotificacoes();
                                     const postId = notif.dadosAdicionais.postId;
-                                    const isExplorar = !!notif.dadosAdicionais?.isExplorar;
-                                    if (isExplorar) {
+                                    const isnow = !!notif.dadosAdicionais?.isnow;
+                                    if (isnow) {
                                         const params = new URLSearchParams({ statusPostId: postId });
-                                        window.location.href = `/index.html?${params.toString()}#explorar`;
+                                        window.location.href = `/index.html?${params.toString()}#now`;
                                     } else {
                                         await navegarParaPost(postId);
                                     }
@@ -2136,3 +2136,4 @@
         }, 5000); // Verifica a cada 5 segundos
     }
 })();
+

@@ -1856,55 +1856,55 @@ document.addEventListener('DOMContentLoaded', () => {
         novaFoto.addEventListener('pointercancel', onPointerCancel);
     }
 
-    const explorarVideoOverlay = document.getElementById('explorar-video-overlay');
-    const explorarVideoFull = document.getElementById('explorar-video-full');
-    const explorarVideoDrawing = document.getElementById('explorar-video-drawing');
-    const explorarImageFull = document.getElementById('explorar-image-full');
-    const explorarVideoBack = document.getElementById('explorar-video-back');
-    const explorarVideoDelete = document.getElementById('explorar-video-delete');
-    const explorarStoryPrev = document.getElementById('explorar-story-prev');
-    const explorarStoryNext = document.getElementById('explorar-story-next');
-    const explorarVideoPerfil = document.getElementById('explorar-video-perfil');
-    const explorarVideoAvatar = document.getElementById('explorar-video-avatar');
-    const explorarVideoNome = document.getElementById('explorar-video-nome');
-    const explorarVideoDesc = document.getElementById('explorar-video-desc');
-    const explorarVideoCidade = document.getElementById('explorar-video-cidade');
-    const explorarVideoInfo = document.getElementById('explorar-video-info');
-    const explorarStoryProgress = document.getElementById('explorar-story-progress');
+    const nowVideoOverlay = document.getElementById('now-video-overlay');
+    const nowVideoFull = document.getElementById('now-video-full');
+    const nowVideoDrawing = document.getElementById('now-video-drawing');
+    const nowImageFull = document.getElementById('now-image-full');
+    const nowVideoBack = document.getElementById('now-video-back');
+    const nowVideoDelete = document.getElementById('now-video-delete');
+    const nowStoryPrev = document.getElementById('now-story-prev');
+    const nowStoryNext = document.getElementById('now-story-next');
+    const nowVideoPerfil = document.getElementById('now-video-perfil');
+    const nowVideoAvatar = document.getElementById('now-video-avatar');
+    const nowVideoNome = document.getElementById('now-video-nome');
+    const nowVideoDesc = document.getElementById('now-video-desc');
+    const nowVideoCidade = document.getElementById('now-video-cidade');
+    const nowVideoInfo = document.getElementById('now-video-info');
+    const nowStoryProgress = document.getElementById('now-story-progress');
     let progressTimer = null;
     function clearProgress() {
         if (progressTimer) {
             try { clearTimeout(progressTimer); } catch {}
             progressTimer = null;
         }
-        if (explorarStoryProgress) {
-            explorarStoryProgress.innerHTML = '';
-            explorarStoryProgress.setAttribute('aria-hidden', 'true');
+        if (nowStoryProgress) {
+            nowStoryProgress.innerHTML = '';
+            nowStoryProgress.setAttribute('aria-hidden', 'true');
         }
     }
     function buildProgressSegments(total, currentIndex) {
-        if (!explorarStoryProgress) return;
-        explorarStoryProgress.innerHTML = '';
-        explorarStoryProgress.setAttribute('aria-hidden', 'false');
+        if (!nowStoryProgress) return;
+        nowStoryProgress.innerHTML = '';
+        nowStoryProgress.setAttribute('aria-hidden', 'false');
         for (let i = 0; i < total; i += 1) {
             const seg = document.createElement('div');
-            seg.className = 'explorar-story-progress-segment';
+            seg.className = 'now-story-progress-segment';
             const fill = document.createElement('div');
-            fill.className = 'explorar-story-progress-fill';
+            fill.className = 'now-story-progress-fill';
             if (i < currentIndex) {
                 fill.style.transform = 'scaleX(1)';
             } else {
                 fill.style.transform = 'scaleX(0)';
             }
             seg.appendChild(fill);
-            explorarStoryProgress.appendChild(seg);
+            nowStoryProgress.appendChild(seg);
         }
     }
     function startCurrentSegmentProgress(durationMs, currentIndex) {
-        if (!explorarStoryProgress) return;
-        const seg = explorarStoryProgress.children[currentIndex];
+        if (!nowStoryProgress) return;
+        const seg = nowStoryProgress.children[currentIndex];
         if (!seg) return;
-        const fill = seg.querySelector('.explorar-story-progress-fill');
+        const fill = seg.querySelector('.now-story-progress-fill');
         if (!fill) return;
         // reset then animate
         fill.style.transition = 'none';
@@ -1920,7 +1920,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const getPerfilStoryKey = (storyId) => {
         const uid = localStorage.getItem('userId') || 'anon';
-        return `explorar_story_viewed_${uid}_${storyId}`;
+        return `now_story_viewed_${uid}_${storyId}`;
     };
     const markPerfilStoryViewed = (storyId) => {
         if (!storyId) return;
@@ -1933,7 +1933,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function carregarStoriesDoPerfil(ownerId) {
         try {
-            const resp = await fetch(`/api/explorar-feed?t=${Date.now()}`, {
+            const resp = await fetch(`/api/now-feed?t=${Date.now()}`, {
                 headers: { 'Authorization': `Bearer ${localStorage.getItem('jwtToken')}` }
             });
             const data = await resp.json();
@@ -1967,17 +1967,17 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function setupOverlayInfoWithLikes(story) {
-        if (!explorarVideoInfo) return;
-        explorarVideoInfo.style.display = 'flex';
-        const existingAvatars = explorarVideoInfo.querySelector('.explorar-like-avatars');
+        if (!nowVideoInfo) return;
+        nowVideoInfo.style.display = 'flex';
+        const existingAvatars = nowVideoInfo.querySelector('.now-like-avatars');
         if (existingAvatars) existingAvatars.remove();
-        const existingLikeBtn = explorarVideoInfo.querySelector('.explorar-video-like-btn');
+        const existingLikeBtn = nowVideoInfo.querySelector('.now-video-like-btn');
         if (existingLikeBtn) existingLikeBtn.remove();
         const postId = story.postId;
         if (!postId) return;
         const likeBtn = document.createElement('button');
         likeBtn.type = 'button';
-        likeBtn.className = 'explorar-video-like-btn btn-like';
+        likeBtn.className = 'now-video-like-btn btn-like';
         likeBtn.dataset.postId = String(postId);
         likeBtn.innerHTML = `
             <i class="fas fa-heart"></i>
@@ -1997,7 +1997,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 likeBtn.classList.toggle('liked');
             } catch {}
         });
-        explorarVideoInfo.appendChild(likeBtn);
+        nowVideoInfo.appendChild(likeBtn);
         try {
             const resp = await fetch(`/api/posts/${postId}/likes`, {
                 headers: { Authorization: `Bearer ${localStorage.getItem('jwtToken')}` }
@@ -2012,13 +2012,13 @@ document.addEventListener('DOMContentLoaded', () => {
             if (preview.length > 0) {
                 const avatarsBtn = document.createElement('button');
                 avatarsBtn.type = 'button';
-                avatarsBtn.className = 'explorar-like-avatars';
+                avatarsBtn.className = 'now-like-avatars';
                 preview.forEach((u) => {
                     if (!u || !u.foto) return;
                     const img = document.createElement('img');
                     img.src = u.foto;
                     img.alt = u.nome || '';
-                    img.className = 'explorar-like-avatar';
+                    img.className = 'now-like-avatar';
                     img.referrerPolicy = 'no-referrer';
                     avatarsBtn.appendChild(img);
                 });
@@ -2027,7 +2027,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         ev.stopPropagation();
                         openLikesModal(postId, fullLikes, avatarsBtn);
                     });
-                    explorarVideoInfo.appendChild(avatarsBtn);
+                    nowVideoInfo.appendChild(avatarsBtn);
                 }
             }
         } catch {}
@@ -2036,86 +2036,86 @@ document.addEventListener('DOMContentLoaded', () => {
     function abrirStoryIndex(idx) {
         perfilStoryIndex = Math.max(0, Math.min(idx, perfilStoryQueue.length - 1));
         const story = perfilStoryQueue[perfilStoryIndex];
-        if (!story || !explorarVideoOverlay) return;
-        explorarVideoOverlay.classList.remove('is-dragging');
-        explorarVideoOverlay.style.transform = '';
-        window.explorarOverlayMode = 'profile';
+        if (!story || !nowVideoOverlay) return;
+        nowVideoOverlay.classList.remove('is-dragging');
+        nowVideoOverlay.style.transform = '';
+        window.nowOverlayMode = 'profile';
         clearProgress();
-        explorarVideoOverlay.classList.remove('hidden');
-        explorarVideoOverlay.setAttribute('aria-hidden', 'false');
+        nowVideoOverlay.classList.remove('hidden');
+        nowVideoOverlay.setAttribute('aria-hidden', 'false');
         document.body.style.overflow = 'hidden';
-        document.body.classList.add('explorar-video-open');
-        if (explorarVideoPerfil) explorarVideoPerfil.href = story.perfilUrl || '#';
-        if (explorarVideoAvatar) explorarVideoAvatar.src = story.avatar || '/imagens/default-user.png';
-        if (explorarVideoNome) explorarVideoNome.textContent = story.nome || 'Status';
-        if (explorarVideoDesc) explorarVideoDesc.textContent = story.desc || '';
-        if (explorarVideoCidade) explorarVideoCidade.textContent = story.cidade || '';
+        document.body.classList.add('now-video-open');
+        if (nowVideoPerfil) nowVideoPerfil.href = story.perfilUrl || '#';
+        if (nowVideoAvatar) nowVideoAvatar.src = story.avatar || '/imagens/default-user.png';
+        if (nowVideoNome) nowVideoNome.textContent = story.nome || 'Status';
+        if (nowVideoDesc) nowVideoDesc.textContent = story.desc || '';
+        if (nowVideoCidade) nowVideoCidade.textContent = story.cidade || '';
         if (story.isVideo) {
-            if (explorarImageFull) {
-                explorarImageFull.removeAttribute('src');
-                explorarImageFull.classList.add('hidden');
+            if (nowImageFull) {
+                nowImageFull.removeAttribute('src');
+                nowImageFull.classList.add('hidden');
             }
             
             // Desenho
-            if (explorarVideoDrawing) {
+            if (nowVideoDrawing) {
                 if (story.drawingUrl) {
-                    explorarVideoDrawing.src = story.drawingUrl;
-                    explorarVideoDrawing.classList.remove('hidden');
+                    nowVideoDrawing.src = story.drawingUrl;
+                    nowVideoDrawing.classList.remove('hidden');
                 } else {
-                    explorarVideoDrawing.src = '';
-                    explorarVideoDrawing.classList.add('hidden');
+                    nowVideoDrawing.src = '';
+                    nowVideoDrawing.classList.add('hidden');
                 }
             }
 
-            if (explorarVideoFull) {
-                explorarVideoFull.classList.remove('hidden');
-                explorarVideoFull.src = story.mediaUrl;
-                explorarVideoFull.controls = false;
-                try { explorarVideoFull.removeAttribute('controls'); } catch {}
+            if (nowVideoFull) {
+                nowVideoFull.classList.remove('hidden');
+                nowVideoFull.src = story.mediaUrl;
+                nowVideoFull.controls = false;
+                try { nowVideoFull.removeAttribute('controls'); } catch {}
                 
                 // Mute e Trim
-                explorarVideoFull.muted = !!story.videoMuted;
-                explorarVideoFull.playsInline = true;
-                try { explorarVideoFull.preload = 'auto'; } catch {}
-                try { explorarVideoFull.autoplay = true; } catch {}
-                try { explorarVideoFull.setAttribute('controlsList', 'nofullscreen noplaybackrate nodownload'); } catch {}
-                try { explorarVideoFull.style.pointerEvents = 'none'; } catch {}
+                nowVideoFull.muted = !!story.videoMuted;
+                nowVideoFull.playsInline = true;
+                try { nowVideoFull.preload = 'auto'; } catch {}
+                try { nowVideoFull.autoplay = true; } catch {}
+                try { nowVideoFull.setAttribute('controlsList', 'nofullscreen noplaybackrate nodownload'); } catch {}
+                try { nowVideoFull.style.pointerEvents = 'none'; } catch {}
                 
                 const trimStart = Number(story.trimStart) || 0;
                 const trimEnd = Number(story.trimEnd) || 0;
 
                 // Remove handler anterior
-                if (explorarVideoFull._trimHandler) {
-                    explorarVideoFull.removeEventListener('timeupdate', explorarVideoFull._trimHandler);
-                    explorarVideoFull._trimHandler = null;
+                if (nowVideoFull._trimHandler) {
+                    nowVideoFull.removeEventListener('timeupdate', nowVideoFull._trimHandler);
+                    nowVideoFull._trimHandler = null;
                 }
 
-                explorarVideoFull.currentTime = trimStart;
+                nowVideoFull.currentTime = trimStart;
 
                 // Lógica de Trim para Story (avançar ao final do corte)
                 if (trimEnd > trimStart) {
-                    explorarVideoFull._trimHandler = () => {
-                        if (explorarVideoFull.currentTime >= trimEnd) {
+                    nowVideoFull._trimHandler = () => {
+                        if (nowVideoFull.currentTime >= trimEnd) {
                             // Chegou ao fim do corte -> próximo story
                             // Removemos o listener para não disparar múltiplas vezes
-                            explorarVideoFull.removeEventListener('timeupdate', explorarVideoFull._trimHandler);
-                            explorarVideoFull._trimHandler = null;
+                            nowVideoFull.removeEventListener('timeupdate', nowVideoFull._trimHandler);
+                            nowVideoFull._trimHandler = null;
                             if (perfilStoryQueue.length) abrirStoryIndex(perfilStoryIndex + 1);
                         }
                     };
-                    explorarVideoFull.addEventListener('timeupdate', explorarVideoFull._trimHandler);
+                    nowVideoFull.addEventListener('timeupdate', nowVideoFull._trimHandler);
                 }
 
-                explorarVideoFull.load();
+                nowVideoFull.load();
                 const tryPlay = () => {
-                    explorarVideoFull.play().catch(() => {});
+                    nowVideoFull.play().catch(() => {});
                 };
-                explorarVideoFull.addEventListener('loadeddata', tryPlay, { once: true });
+                nowVideoFull.addEventListener('loadeddata', tryPlay, { once: true });
                 setTimeout(tryPlay, 200);
 
                 const onLoadedMeta = () => {
-                    let duration = (explorarVideoFull.duration && isFinite(explorarVideoFull.duration))
-                        ? explorarVideoFull.duration * 1000
+                    let duration = (nowVideoFull.duration && isFinite(nowVideoFull.duration))
+                        ? nowVideoFull.duration * 1000
                         : 7000;
                     
                     // Ajusta duração se houver trim
@@ -2127,35 +2127,35 @@ document.addEventListener('DOMContentLoaded', () => {
                     
                     // Se NÃO tiver trim, usamos o evento ended padrão
                     if (!(trimEnd > trimStart)) {
-                        explorarVideoFull.addEventListener('ended', () => {
+                        nowVideoFull.addEventListener('ended', () => {
                             if (perfilStoryQueue.length) abrirStoryIndex(perfilStoryIndex + 1);
                         }, { once: true });
                     }
                 };
-                if (explorarVideoFull.readyState >= 1) {
+                if (nowVideoFull.readyState >= 1) {
                     onLoadedMeta();
                 } else {
-                    explorarVideoFull.addEventListener('loadedmetadata', onLoadedMeta, { once: true });
+                    nowVideoFull.addEventListener('loadedmetadata', onLoadedMeta, { once: true });
                 }
             }
         } else {
-            if (explorarVideoFull) {
-                try { explorarVideoFull.pause(); } catch {}
-                explorarVideoFull.removeAttribute('src');
-                try { explorarVideoFull.style.pointerEvents = ''; } catch {}
-                explorarVideoFull.classList.add('hidden');
-                if (explorarVideoFull._trimHandler) {
-                    explorarVideoFull.removeEventListener('timeupdate', explorarVideoFull._trimHandler);
-                    explorarVideoFull._trimHandler = null;
+            if (nowVideoFull) {
+                try { nowVideoFull.pause(); } catch {}
+                nowVideoFull.removeAttribute('src');
+                try { nowVideoFull.style.pointerEvents = ''; } catch {}
+                nowVideoFull.classList.add('hidden');
+                if (nowVideoFull._trimHandler) {
+                    nowVideoFull.removeEventListener('timeupdate', nowVideoFull._trimHandler);
+                    nowVideoFull._trimHandler = null;
                 }
             }
-            if (explorarVideoDrawing) {
-                explorarVideoDrawing.src = '';
-                explorarVideoDrawing.classList.add('hidden');
+            if (nowVideoDrawing) {
+                nowVideoDrawing.src = '';
+                nowVideoDrawing.classList.add('hidden');
             }
-            if (explorarImageFull) {
-                explorarImageFull.src = story.mediaUrl;
-                explorarImageFull.classList.remove('hidden');
+            if (nowImageFull) {
+                nowImageFull.src = story.mediaUrl;
+                nowImageFull.classList.remove('hidden');
             }
             startCurrentSegmentProgress(5000, perfilStoryIndex);
             if (progressTimer) { try { clearTimeout(progressTimer); } catch {} }
@@ -2166,12 +2166,12 @@ document.addEventListener('DOMContentLoaded', () => {
         markPerfilStoryViewed(story.id);
         atualizarIndicadorStatusPerfil();
         setupOverlayInfoWithLikes(story);
-        if (explorarVideoDelete) {
+        if (nowVideoDelete) {
             const isOwner = story.ownerId && loggedInUserId && String(story.ownerId) === String(loggedInUserId);
             const shouldShow = !!(isOwner && story.postId);
-            explorarVideoDelete.hidden = !shouldShow;
-            explorarVideoDelete.style.display = shouldShow ? 'grid' : 'none';
-            explorarVideoDelete.dataset.postId = String(story.postId || '');
+            nowVideoDelete.hidden = !shouldShow;
+            nowVideoDelete.style.display = shouldShow ? 'grid' : 'none';
+            nowVideoDelete.dataset.postId = String(story.postId || '');
         }
         if (story.ownerId) {
             statusCache.delete(String(story.ownerId));
@@ -2207,43 +2207,43 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function fecharOverlayPerfil() {
-        if (!explorarVideoOverlay) return;
-        window.explorarOverlayMode = null;
-        explorarVideoOverlay.classList.remove('is-dragging');
-        explorarVideoOverlay.style.transform = '';
-        explorarVideoOverlay.classList.add('hidden');
-        explorarVideoOverlay.setAttribute('aria-hidden', 'true');
+        if (!nowVideoOverlay) return;
+        window.nowOverlayMode = null;
+        nowVideoOverlay.classList.remove('is-dragging');
+        nowVideoOverlay.style.transform = '';
+        nowVideoOverlay.classList.add('hidden');
+        nowVideoOverlay.setAttribute('aria-hidden', 'true');
         document.body.style.overflow = '';
-        document.body.classList.remove('explorar-video-open');
-        if (explorarVideoFull) {
-            try { explorarVideoFull.pause(); } catch {}
-            explorarVideoFull.removeAttribute('src');
-            try { explorarVideoFull.style.pointerEvents = ''; } catch {}
-            explorarVideoFull.classList.add('hidden');
+        document.body.classList.remove('now-video-open');
+        if (nowVideoFull) {
+            try { nowVideoFull.pause(); } catch {}
+            nowVideoFull.removeAttribute('src');
+            try { nowVideoFull.style.pointerEvents = ''; } catch {}
+            nowVideoFull.classList.add('hidden');
         }
-        if (explorarImageFull) {
-            explorarImageFull.removeAttribute('src');
-            explorarImageFull.classList.add('hidden');
+        if (nowImageFull) {
+            nowImageFull.removeAttribute('src');
+            nowImageFull.classList.add('hidden');
         }
         clearProgress();
     }
 
-    if (explorarVideoBack) {
-        explorarVideoBack.addEventListener('click', (e) => {
+    if (nowVideoBack) {
+        nowVideoBack.addEventListener('click', (e) => {
             e.preventDefault();
             e.stopPropagation();
             fecharOverlayPerfil();
         });
     }
-    if (explorarVideoDelete) {
-        explorarVideoDelete.addEventListener('click', (event) => {
+    if (nowVideoDelete) {
+        nowVideoDelete.addEventListener('click', (event) => {
             event.preventDefault();
             event.stopPropagation();
             const story = perfilStoryQueue[perfilStoryIndex];
             const postId = story?.postId;
             if (!postId) return;
             if (typeof showDeleteConfirmPopup === 'function') {
-                showDeleteConfirmPopup(explorarVideoDelete, async () => {
+                showDeleteConfirmPopup(nowVideoDelete, async () => {
                     try {
                         const response = await fetch(`/api/posts/${postId}`, {
                             method: 'DELETE',
@@ -2270,31 +2270,31 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
         ['touchstart','pointerdown'].forEach((type) => {
-            explorarVideoDelete.addEventListener(type, (ev) => {
+            nowVideoDelete.addEventListener(type, (ev) => {
                 ev.stopPropagation();
             });
         });
     }
-    if (explorarVideoOverlay) {
+    if (nowVideoOverlay) {
         let touchStartX = null;
         let touchStartY = null;
         let dragging = false;
         let lockingDirection = null;
         const closeVerticalThreshold = 100;
 
-        explorarVideoOverlay.addEventListener('click', (event) => {
+        nowVideoOverlay.addEventListener('click', (event) => {
             const target = event.target;
             if (
-                target.closest('.explorar-video-info') ||
-                target.closest('#explorar-video-delete') ||
-                target.closest('#explorar-video-back') ||
-                target.closest('.explorar-story-nav') ||
-                target.closest('.explorar-video-controls') ||
-                target.closest('.explorar-video-whatsapp')
+                target.closest('.now-video-info') ||
+                target.closest('#now-video-delete') ||
+                target.closest('#now-video-back') ||
+                target.closest('.now-story-nav') ||
+                target.closest('.now-video-controls') ||
+                target.closest('.now-video-whatsapp')
             ) return;
             event.stopPropagation();
             if (dragging) return;
-            const rect = explorarVideoOverlay.getBoundingClientRect();
+            const rect = nowVideoOverlay.getBoundingClientRect();
             const x = event.clientX;
             const y = event.clientY;
             const leftZone = rect.left + rect.width * 0.2;
@@ -2310,15 +2310,15 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        explorarVideoOverlay.addEventListener('touchstart', (event) => {
+        nowVideoOverlay.addEventListener('touchstart', (event) => {
             const target = event.target;
             if (
-                target.closest('.explorar-video-info') ||
-                target.closest('#explorar-video-delete') ||
-                target.closest('#explorar-video-back') ||
-                target.closest('.explorar-story-nav') ||
-                target.closest('.explorar-video-controls') ||
-                target.closest('.explorar-video-whatsapp')
+                target.closest('.now-video-info') ||
+                target.closest('#now-video-delete') ||
+                target.closest('#now-video-back') ||
+                target.closest('.now-story-nav') ||
+                target.closest('.now-video-controls') ||
+                target.closest('.now-video-whatsapp')
             ) {
                 return;
             }
@@ -2328,7 +2328,7 @@ document.addEventListener('DOMContentLoaded', () => {
             lockingDirection = null;
         }, { passive: false });
 
-        explorarVideoOverlay.addEventListener('touchmove', (event) => {
+        nowVideoOverlay.addEventListener('touchmove', (event) => {
             if (touchStartY === null || touchStartX === null) return;
             const currentX = event.touches[0]?.clientX ?? touchStartX;
             const currentY = event.touches[0]?.clientY ?? touchStartY;
@@ -2340,29 +2340,29 @@ document.addEventListener('DOMContentLoaded', () => {
             event.preventDefault();
             if (!dragging && (Math.abs(deltaX) > 18 || Math.abs(deltaY) > 18)) {
                 dragging = true;
-                explorarVideoOverlay.classList.add('is-dragging');
+                nowVideoOverlay.classList.add('is-dragging');
             }
             if (!dragging) return;
             if (lockingDirection === 'vertical') {
                 const scale = 0.9;
-                explorarVideoOverlay.style.transform = `translate(${deltaX}px, ${deltaY}px) scale(${scale})`;
+                nowVideoOverlay.style.transform = `translate(${deltaX}px, ${deltaY}px) scale(${scale})`;
             }
         }, { passive: false });
 
-        explorarVideoOverlay.addEventListener('touchend', (event) => {
+        nowVideoOverlay.addEventListener('touchend', (event) => {
             const target = event.target;
             if (
-                target.closest('.explorar-video-info') ||
-                target.closest('#explorar-video-delete') ||
-                target.closest('#explorar-video-back') ||
-                target.closest('.explorar-story-nav') ||
-                target.closest('.explorar-video-controls') ||
-                target.closest('.explorar-video-whatsapp')
+                target.closest('.now-video-info') ||
+                target.closest('#now-video-delete') ||
+                target.closest('#now-video-back') ||
+                target.closest('.now-story-nav') ||
+                target.closest('.now-video-controls') ||
+                target.closest('.now-video-whatsapp')
             ) {
                 touchStartX = null;
                 touchStartY = null;
                 dragging = false;
-                explorarVideoOverlay.classList.remove('is-dragging');
+                nowVideoOverlay.classList.remove('is-dragging');
                 return;
             }
             const touch = event.changedTouches && event.changedTouches[0];
@@ -2373,11 +2373,11 @@ document.addEventListener('DOMContentLoaded', () => {
             if (dragging && Math.abs(deltaY) > closeVerticalThreshold) {
                 fecharOverlayPerfil();
             } else {
-                if (!explorarVideoOverlay.classList.contains('hidden')) {
-                    try { explorarVideoFull?.play?.(); } catch {}
-                    explorarVideoOverlay.style.transform = '';
+                if (!nowVideoOverlay.classList.contains('hidden')) {
+                    try { nowVideoFull?.play?.(); } catch {}
+                    nowVideoOverlay.style.transform = '';
                     if (!dragging && perfilStoryQueue.length) {
-                        const rect = explorarVideoOverlay.getBoundingClientRect();
+                        const rect = nowVideoOverlay.getBoundingClientRect();
                         const leftZone = rect.left + rect.width * 0.2;
                         const rightZone = rect.right - rect.width * 0.2;
                         const safeTop = rect.top + 80;
@@ -2390,7 +2390,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }
             }
-            explorarVideoOverlay.classList.remove('is-dragging');
+            nowVideoOverlay.classList.remove('is-dragging');
             touchStartX = null;
             touchStartY = null;
             dragging = false;
@@ -2405,7 +2405,7 @@ document.addEventListener('DOMContentLoaded', () => {
             perfilHoldTimer = setTimeout(() => {
                 perfilHoldActive = true;
                 try {
-                    explorarVideoFull?.pause?.();
+                    nowVideoFull?.pause?.();
                 } catch {}
             }, perfilHoldDelayMs);
         };
@@ -2413,17 +2413,17 @@ document.addEventListener('DOMContentLoaded', () => {
             clearTimeout(perfilHoldTimer);
             if (perfilHoldActive) {
                 perfilHoldActive = false;
-                try { explorarVideoFull?.play?.(); } catch {}
+                try { nowVideoFull?.play?.(); } catch {}
             } else {
                 perfilHoldActive = false;
             }
         };
-        explorarVideoOverlay.addEventListener('pointerdown', startHold);
-        explorarVideoOverlay.addEventListener('pointerup', endHold);
-        explorarVideoOverlay.addEventListener('pointercancel', endHold);
-        explorarVideoOverlay.addEventListener('touchstart', startHold, { passive: true });
-        explorarVideoOverlay.addEventListener('touchend', endHold);
-        explorarVideoOverlay.addEventListener('touchcancel', endHold);
+        nowVideoOverlay.addEventListener('pointerdown', startHold);
+        nowVideoOverlay.addEventListener('pointerup', endHold);
+        nowVideoOverlay.addEventListener('pointercancel', endHold);
+        nowVideoOverlay.addEventListener('touchstart', startHold, { passive: true });
+        nowVideoOverlay.addEventListener('touchend', endHold);
+        nowVideoOverlay.addEventListener('touchcancel', endHold);
     }
 
     // Modal de curtidas (Perfil)
@@ -2545,13 +2545,13 @@ document.addEventListener('DOMContentLoaded', () => {
             event.stopPropagation();
         });
     }
-    if (explorarStoryPrev) {
-        explorarStoryPrev.addEventListener('click', () => {
+    if (nowStoryPrev) {
+        nowStoryPrev.addEventListener('click', () => {
             if (perfilStoryQueue.length) abrirStoryIndex(perfilStoryIndex - 1);
         });
     }
-    if (explorarStoryNext) {
-        explorarStoryNext.addEventListener('click', () => {
+    if (nowStoryNext) {
+        nowStoryNext.addEventListener('click', () => {
             if (perfilStoryQueue.length) abrirStoryIndex(perfilStoryIndex + 1);
         });
     }
@@ -8330,3 +8330,4 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 });
+

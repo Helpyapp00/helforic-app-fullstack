@@ -151,7 +151,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const plano = a?.plano ? String(a.plano) : 'basico';
                 const ativo = !!a?.ativo;
                 const imagemUrl = a?.imagemUrl ? String(a.imagemUrl) : '';
-                const preco = plano === 'premium' ? 'R$ 39,90' : 'R$ 19,90';
+                const preco = plano === 'premium' ? 'R$ 39,90' : 'R$ 1,00';
                 const planoBadge = plano === 'premium' ? 'PREMIUM' : 'BÁSICO';
                 const fim = a?.fimEm ? new Date(a.fimEm) : null;
                 const createdAt = a?.createdAt ? new Date(a.createdAt) : new Date();
@@ -1030,7 +1030,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             
             // Calcula valor
-            let amount = 19.90; // Default Básico
+            let amount = 1.00; // Default Básico
             const planoAlvo = pendingAnuncioPagamento.plano || 'basico';
             // Se não tem anuncioId, é novo anúncio. Se tem, verifica se já está ativo.
             const isNovoAnuncio = !pendingAnuncioPagamento.anuncioId;
@@ -1040,14 +1040,14 @@ document.addEventListener('DOMContentLoaded', () => {
             if (planoAlvo === 'premium') {
                 if (!isNovoAnuncio && isAtivo && planoAtual === 'basico') {
                     // Upgrade: Diferença (Somente se já estiver ativo/pago)
-                    amount = 20.00; // 39.90 - 19.90
+                    amount = 38.90; // 39.90 - 1.00
                 } else {
                     // Novo Premium ou Renovação Premium ou Primeiro Pagamento Premium
                     amount = 39.90;
                 }
             } else {
                 // Básico (Novo ou Renovação)
-                amount = 19.90;
+                amount = 1.00;
             }
             
             // Inicializa Brick
@@ -1964,6 +1964,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Carrega os dados assim que a página de configurações estiver pronta
     carregarDadosPessoais();
+
+    // ============================================
+    // Botão Now (redireciona para o feed abrindo o painel)
+    // ============================================
+    const headerNowBtn = document.getElementById('header-now');
+    if (headerNowBtn) {
+        headerNowBtn.addEventListener('click', () => {
+            localStorage.setItem('feed-open-panel', 'now');
+            window.location.href = '/';
+        });
+    }
 
     // ============================================
     // Melhorar clique dos toggles (linha inteira clicável)

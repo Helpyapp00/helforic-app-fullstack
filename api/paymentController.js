@@ -88,7 +88,7 @@ function createPaymentClient() {
 const PLANOS = {
     basico: {
         title: 'Plano Básico - Anúncio Helpy',
-        price: 19.9
+        price: 1
     },
     premium: {
         title: 'Plano Premium - Anúncio Helpy',

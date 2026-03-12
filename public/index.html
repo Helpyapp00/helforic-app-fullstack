@@ -90,9 +90,19 @@
                 <button id="btn-preciso-agora" class="btn-preciso-agora-lateral">
                     <i class="fas fa-bolt"></i> Preciso agora!
                 </button>
-                <button id="header-explorar" class="header-explorar" aria-label="Abrir explorar">
-                    <i class="fas fa-play-circle"></i>
-                    <span>Explorar</span>
+                <button id="header-now" class="header-now" aria-label="Abrir Now">
+                    <span class="now-bg-effect now-bg-1"></span>
+                    <span class="now-bg-effect now-bg-2"></span>
+                    <span class="now-bg-effect now-bg-3"></span>
+                    <!-- Ícones flutuantes decorativos -->
+                    <div class="now-floating-icons">
+                        <i class="fas fa-video now-float-icon" style="--d: 0s; --x: 5%; --y: 40%"></i>
+                        <i class="fas fa-clapperboard now-float-icon" style="--d: 3s; --x: 85%; --y: 40%"></i>
+                    </div>
+                    <div class="now-content">
+                        <i class="fas fa-play-circle"></i>
+                        <span>Now</span>
+                    </div>
                 </button>
             </div>
 
@@ -124,50 +134,50 @@
 
         </aside>
 
-        <div class="feed-explorar-slider" aria-live="polite">
-            <section id="explorar-page" class="explorar-page" aria-hidden="true">
-                <div class="explorar-page-header">
-                    <div class="explorar-site-title">Helpy</div>
-                    <img id="explorar-user-avatar" class="explorar-user-avatar" src="/imagens/default-user.png" alt="Minha foto">
-                    <button id="explorar-add-media" class="explorar-add-media" type="button" aria-label="Adicionar mídia">+</button>
-                    <span id="explorar-validation-msg" class="explorar-validation-msg"></span>
-                    <input id="explorar-media-input" type="file" accept="video/*" hidden>
-                    <div class="explorar-city-row">
-                        <span class="explorar-city-label">Cidade</span>
-                        <div class="explorar-city-current">
-                            <span id="explorar-city-name">-</span>
-                            <button id="explorar-city-edit" type="button" class="explorar-city-edit" aria-label="Alterar cidade">
+        <div class="feed-now-slider" aria-live="polite">
+            <section id="now-page" class="now-page" aria-hidden="true">
+                <div class="now-page-header">
+                    <div class="now-site-title">Helpy</div>
+                    <img id="now-user-avatar" class="now-user-avatar" src="/imagens/default-user.png" alt="Minha foto">
+                    <button id="now-add-media" class="now-add-media" type="button" aria-label="Adicionar mídia">+</button>
+                    <span id="now-validation-msg" class="now-validation-msg"></span>
+                    <input id="now-media-input" type="file" accept="video/*" hidden>
+                    <div class="now-city-row">
+                        <span class="now-city-label">Cidade</span>
+                        <div class="now-city-current">
+                            <span id="now-city-name">-</span>
+                            <button id="now-city-edit" type="button" class="now-city-edit" aria-label="Alterar cidade">
                                 <i class="fas fa-pen"></i>
                             </button>
                         </div>
                     </div>
-                    <div class="explorar-city-controls" id="explorar-city-controls">
-                        <div class="explorar-city-input">
-                            <input type="text" id="explorar-cidade-input" placeholder="Digite uma cidade" list="explorar-cidades-sugestoes">
-                            <button id="explorar-cidade-add" type="button" class="explorar-cidade-add-btn" aria-label="Adicionar cidade">
+                    <div class="now-city-controls" id="now-city-controls">
+                        <div class="now-city-input">
+                            <input type="text" id="now-cidade-input" placeholder="Digite uma cidade" list="now-cidades-sugestoes">
+                            <button id="now-cidade-add" type="button" class="now-cidade-add-btn" aria-label="Adicionar cidade">
                                 <img class="icon-light" src="/imagens/enviar.tema.claro.png" alt="">
                                 <img class="icon-dark" src="/imagens/enviar.tema.escuro.png" alt="">
                             </button>
                         </div>
-                        <datalist id="explorar-cidades-sugestoes"></datalist>
-                        <div id="explorar-city-chips" class="explorar-city-chips"></div>
+                        <datalist id="now-cidades-sugestoes"></datalist>
+                        <div id="now-city-chips" class="now-city-chips"></div>
                     </div>
-                    <div class="explorar-categorias" aria-label="Categorias do explorar">
-                        <button id="explorar-categoria-current" class="explorar-categoria-pill is-active" type="button">Todas</button>
-                        <div id="explorar-categorias-modal" class="explorar-categorias-modal" aria-hidden="true">
-                            <button class="explorar-categoria-option" type="button">Todas</button>
-                            <button class="explorar-categoria-option" type="button">Moda</button>
-                            <button class="explorar-categoria-option" type="button">Comidas</button>
-                            <button class="explorar-categoria-option" type="button">Promoções</button>
+                    <div class="now-categorias" aria-label="Categorias do now">
+                        <button id="now-categoria-current" class="now-categoria-pill is-active" type="button">Todas</button>
+                        <div id="now-categorias-modal" class="now-categorias-modal" aria-hidden="true">
+                            <button class="now-categoria-option" type="button">Todas</button>
+                            <button class="now-categoria-option" type="button">Moda</button>
+                            <button class="now-categoria-option" type="button">Comidas</button>
+                            <button class="now-categoria-option" type="button">Promoções</button>
                         </div>
                     </div>
                 </div>
 
-                <div id="explorar-post-modal" class="explorar-post-modal" aria-hidden="true">
-                    <div class="explorar-post-modal-card">
-                        <button id="explorar-post-close" class="explorar-post-close" type="button" aria-label="Fechar">×</button>
-                        <div class="explorar-post-preview" id="explorar-post-preview">
-                            <div id="explorar-preview-media-container" class="explorar-preview-media-container"></div>
+                <div id="now-post-modal" class="now-post-modal" aria-hidden="true">
+                    <div class="now-post-modal-card">
+                        <button id="now-post-close" class="now-post-close" type="button" aria-label="Fechar">×</button>
+                        <div class="now-post-preview" id="now-post-preview">
+                            <div id="now-preview-media-container" class="now-preview-media-container"></div>
                             
                             <!-- Sidebar de Edição de Vídeo -->
                             <div id="video-editor-sidebar" class="video-editor-sidebar hidden">
@@ -243,17 +253,17 @@
                                         <input type="range" id="trim-end" class="trim-thumb trim-end" min="0" max="100" value="100" step="0.1" style="display: none;">
                                     </div>
                                 </div>
-                                <div id="trim-info" class="trim-info">Toque e arraste para cortar</div>
+                                <div id="trim-info" class="trim-info">Segure e arraste para cortar</div>
                             </div>
 
                             <!-- Input de Música (Oculto) -->
                             <input type="file" id="music-file-input" accept="audio/*" hidden>
                         </div>
-                        <div class="explorar-post-actions">
-                            <textarea id="explorar-post-desc" class="explorar-card-desc" placeholder="Descreva sua postagem..."></textarea>
-                            <button id="explorar-post-send" class="explorar-post-send" type="button" aria-label="Enviar postagem">
+                        <div class="now-post-actions">
+                            <textarea id="now-post-desc" class="now-card-desc" placeholder="Descreva sua postagem..."></textarea>
+                            <button id="now-post-send" class="now-post-send" type="button" aria-label="Enviar postagem">
                                 <img
-                                    class="explorar-post-send-icon publish-icon"
+                                    class="now-post-send-icon publish-icon"
                                     alt=""
                                     src="/imagens/enviar.tema.claro.png"
                                     data-src-light="/imagens/enviar.tema.claro.png"
@@ -264,9 +274,9 @@
                     </div>
                 </div>
 
-                <div class="explorar-feed">
-                    <div id="explorar-feed-status" class="explorar-feed-status">Carregando novidades...</div>
-                    <div id="explorar-feed-list" class="explorar-feed-list"></div>
+                <div class="now-feed">
+                    <div id="now-feed-status" class="now-feed-status">Carregando novidades...</div>
+                    <div id="now-feed-list" class="now-feed-list"></div>
                 </div>
             </section>
 
@@ -319,32 +329,36 @@
                     <!-- Postagens serão carregadas aqui -->
                 </section>
             </main>
+            
+            <aside class="anuncios-sidebar">
+                <!-- Anúncios nativos serão movidos para cá em telas grandes -->
+            </aside>
         </div>
 
     </div>
 
-    <div id="explorar-video-overlay" class="explorar-video-overlay hidden" aria-hidden="true">
-        <div id="explorar-story-progress" class="explorar-story-progress" aria-hidden="true">
-            <div id="explorar-story-progress-bar" class="explorar-story-progress-bar"></div>
+    <div id="now-video-overlay" class="now-video-overlay hidden" aria-hidden="true">
+        <div id="now-story-progress" class="now-story-progress" aria-hidden="true">
+            <div id="now-story-progress-bar" class="now-story-progress-bar"></div>
         </div>
-        <button id="explorar-video-back" class="explorar-video-back" aria-label="Voltar">
+        <button id="now-video-back" class="now-video-back" aria-label="Voltar">
             <i class="fas fa-arrow-left"></i>
         </button>
-        <button id="explorar-video-delete" class="explorar-video-delete" type="button" aria-label="Apagar status" hidden>
+        <button id="now-video-delete" class="now-video-delete" type="button" aria-label="Apagar status" hidden>
             <i class="fas fa-trash"></i>
         </button>
-        <button id="explorar-story-prev" class="explorar-story-nav explorar-story-prev" type="button" aria-label="Anterior">‹</button>
-        <button id="explorar-story-next" class="explorar-story-nav explorar-story-next" type="button" aria-label="Próximo">›</button>
-        <video id="explorar-video-full" class="explorar-video-full" playsinline loop muted controls></video>
-        <img id="explorar-image-full" class="explorar-image-full" alt="">
-        <img id="explorar-video-drawing" class="explorar-video-drawing hidden" alt="" aria-hidden="true">
-        <div id="explorar-video-info" class="explorar-video-info">
-            <a id="explorar-video-perfil" class="explorar-video-perfil" href="#">
-                <img id="explorar-video-avatar" class="explorar-video-avatar" src="imagens/default-user.png" alt="">
-                <span id="explorar-video-nome" class="explorar-video-nome"></span>
+        <button id="now-story-prev" class="now-story-nav now-story-prev" type="button" aria-label="Anterior">‹</button>
+        <button id="now-story-next" class="now-story-nav now-story-next" type="button" aria-label="Próximo">›</button>
+        <video id="now-video-full" class="now-video-full" playsinline loop muted controls></video>
+        <img id="now-image-full" class="now-image-full" alt="">
+        <img id="now-video-drawing" class="now-video-drawing hidden" alt="" aria-hidden="true">
+        <div id="now-video-info" class="now-video-info">
+            <a id="now-video-perfil" class="now-video-perfil" href="#">
+                <img id="now-video-avatar" class="now-video-avatar" src="imagens/default-user.png" alt="">
+                <span id="now-video-nome" class="now-video-nome"></span>
             </a>
-            <p id="explorar-video-desc" class="explorar-video-desc"></p>
-            <span id="explorar-video-cidade" class="explorar-video-cidade"></span>
+            <p id="now-video-desc" class="now-video-desc"></p>
+            <span id="now-video-cidade" class="now-video-cidade"></span>
         </div>
     </div>
 

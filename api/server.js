@@ -186,7 +186,7 @@ app.use((req, res, next) => {
 });
 
 const publicDir = path.join(__dirname, '../public');
-app.use('/uploads/explorar', express.static(path.join(publicDir, 'uploads/explorar'), { maxAge: 24 * 60 * 60 * 1000 }));
+app.use('/uploads/now', express.static(path.join(publicDir, 'uploads/now'), { maxAge: 24 * 60 * 60 * 1000 }));
 app.use('/uploads/posts', express.static(path.join(publicDir, 'uploads/posts'), { maxAge: 7 * 24 * 60 * 60 * 1000 }));
 app.use('/uploads/avatars', express.static(path.join(publicDir, 'uploads/avatars'), { maxAge: 7 * 24 * 60 * 60 * 1000 }));
 app.use(express.static(publicDir));
@@ -740,23 +740,23 @@ const normalizeKeywordText = (text) => String(text || '')
     .toLowerCase()
     .trim();
 
-const explorarKeywordSets = {
+const nowKeywordSets = {
     Moda: ['moda', 'roupa', 'loja', 'estilo', 'look', 'camisa', 'vestido', 'saia', 'sapato', 'tenis', 'tênis', 'salto', 'bolsa', 'bermuda', 'jaqueta'],
     Comidas: ['comida', 'restaurante', 'lanche', 'pizza', 'hamburguer', 'hambúrguer', 'bolo', 'doce', 'salgado', 'delivery', 'churrasco', 'almoço', 'jantar'],
     Promocoes: ['promocao', 'promoção', 'desconto', 'oferta', 'cupom', 'queima', 'liquidacao', 'liquidação']
 };
 
-const explorarGenderKeywords = {
+const nowGenderKeywords = {
     Masculino: ['tenis', 'tênis', 'camisa', 'sapato', 'bermuda', 'barba', 'masculino'],
     Feminino: ['batom', 'saia', 'vestido', 'maquiagem', 'salto', 'bolsa', 'feminino'],
     Ambos: ['unissex', 'ambos']
 };
 
-const detectExplorarCategoryTag = (content) => {
+const detectnowCategoryTag = (content) => {
     const normalized = normalizeKeywordText(content);
     if (!normalized) return '';
     const tokens = normalized.split(' ');
-    for (const [tag, keywords] of Object.entries(explorarKeywordSets)) {
+    for (const [tag, keywords] of Object.entries(nowKeywordSets)) {
         if (keywords.some((keyword) => tokens.includes(normalizeKeywordText(keyword)))) {
             return tag === 'Promocoes' ? 'Promoções' : tag;
         }
@@ -764,13 +764,13 @@ const detectExplorarCategoryTag = (content) => {
     return '';
 };
 
-const detectExplorarGenderTag = (content) => {
+const detectnowGenderTag = (content) => {
     const normalized = normalizeKeywordText(content);
     if (!normalized) return '';
     const tokens = normalized.split(' ');
-    const hasMasculino = explorarGenderKeywords.Masculino.some((keyword) => tokens.includes(normalizeKeywordText(keyword)));
-    const hasFeminino = explorarGenderKeywords.Feminino.some((keyword) => tokens.includes(normalizeKeywordText(keyword)));
-    const hasAmbos = explorarGenderKeywords.Ambos.some((keyword) => tokens.includes(normalizeKeywordText(keyword)));
+    const hasMasculino = nowGenderKeywords.Masculino.some((keyword) => tokens.includes(normalizeKeywordText(keyword)));
+    const hasFeminino = nowGenderKeywords.Feminino.some((keyword) => tokens.includes(normalizeKeywordText(keyword)));
+    const hasAmbos = nowGenderKeywords.Ambos.some((keyword) => tokens.includes(normalizeKeywordText(keyword)));
 
     if (hasAmbos || (hasMasculino && hasFeminino)) return 'Ambos';
     if (hasMasculino) return 'Masculino';
@@ -891,6 +891,70 @@ app.get('/api/config/mp-public-key', (req, res) => {
     return res.json({ success: true, key: (process.env.MERCADOPAGO_PUBLIC_KEY || '').trim() });
 });
 
+app.get('/api/youtube/search', async (req, res) => {
+    try {
+        const apiKey = (process.env.YOUTUBE_API_KEY || process.env.GOOGLE_API_KEY || '').trim();
+        if (!apiKey) {
+            return res.status(503).json({ success: false, message: 'YouTube API Key não configurada.' });
+        }
+
+        const q = String(req.query.q || '').trim();
+        if (!q) {
+            return res.status(400).json({ success: false, message: 'Termo de busca obrigatório.' });
+        }
+
+        const url = new URL('https://www.googleapis.com/youtube/v3/search');
+        url.searchParams.set('part', 'snippet');
+        url.searchParams.set('type', 'video');
+        url.searchParams.set('videoCategoryId', '10');
+        url.searchParams.set('maxResults', '10');
+        url.searchParams.set('q', q);
+        url.searchParams.set('key', apiKey);
+        url.searchParams.set('fields', 'items(id(videoId),snippet(title,thumbnails))');
+
+        const resp = await fetch(url.toString(), { method: 'GET' });
+        const json = await resp.json().catch(() => ({}));
+
+        if (!resp.ok) {
+            const status = resp.status || 500;
+            const reason = json?.error?.errors?.[0]?.reason ? String(json.error.errors[0].reason) : '';
+            let message = json?.error?.message || 'Erro ao buscar músicas no YouTube.';
+            if (reason === 'quotaExceeded' || reason === 'dailyLimitExceeded' || reason === 'userRateLimitExceeded') {
+                message = 'Limite de uso da API do YouTube atingido (quota). Tente novamente mais tarde.';
+            } else if (reason === 'accessNotConfigured') {
+                message = 'YouTube Data API v3 não está habilitada no projeto do Google Cloud.';
+            } else if (reason === 'keyInvalid') {
+                message = 'Chave da API do YouTube inválida.';
+            } else if (reason === 'forbidden') {
+                message = message || 'Acesso negado pela API do YouTube.';
+            }
+            return res.status(status).json({
+                success: false,
+                message,
+                reason
+            });
+        }
+
+        const items = Array.isArray(json?.items) ? json.items : [];
+        const results = items
+            .map((item) => {
+                const videoId = item?.id?.videoId ? String(item.id.videoId) : '';
+                const title = item?.snippet?.title ? String(item.snippet.title) : '';
+                const thumbs = item?.snippet?.thumbnails || {};
+                const thumbnailUrl = thumbs?.medium?.url || thumbs?.high?.url || thumbs?.default?.url || '';
+                if (!videoId || !title || !thumbnailUrl) return null;
+                return { title, videoId, thumbnailUrl };
+            })
+            .filter(Boolean)
+            .slice(0, 10);
+
+        return res.json({ success: true, items: results });
+    } catch (error) {
+        console.error('Erro na busca do YouTube:', error);
+        return res.status(500).json({ success: false, message: 'Erro interno ao buscar músicas.' });
+    }
+});
+
 // --- Rota para Presigned URL (Upload Direto S3) ---
 app.post('/api/upload-url', authMiddleware, async (req, res) => {
     try {
@@ -907,7 +971,7 @@ app.post('/api/upload-url', authMiddleware, async (req, res) => {
         // Gera um nome único mantendo a extensão original
         const ext = path.extname(fileName) || '';
         const uniqueName = `${Date.now()}_${crypto.randomBytes(8).toString('hex')}${ext}`;
-        const key = `explorar/${userId}/${uniqueName}`;
+        const key = `now/${userId}/${uniqueName}`;
 
         const command = new PutObjectCommand({
             Bucket: bucketName,
@@ -1105,7 +1169,7 @@ app.get('/api/anuncios-feed', authMiddleware, async (req, res) => {
     }
 });
 
-app.post('/api/explorar-posts', authMiddleware, upload.fields([{ name: 'media', maxCount: 1 }, { name: 'drawing', maxCount: 1 }]), async (req, res) => {
+app.post('/api/now-posts', authMiddleware, upload.fields([{ name: 'media', maxCount: 1 }, { name: 'drawing', maxCount: 1 }]), async (req, res) => {
     try {
         const userId = req.user.id;
         const content = String(req.body?.content || '').trim();
@@ -1141,7 +1205,7 @@ app.post('/api/explorar-posts', authMiddleware, upload.fields([{ name: 'media', 
             const filename = `${Date.now()}_${crypto.randomBytes(8).toString('hex')}${ext}`;
 
             if (s3Client && bucketName && process.env.AWS_REGION) {
-                const key = `explorar/${userId}/${filename}`;
+                const key = `now/${userId}/${filename}`;
                 const uploadCommand = new PutObjectCommand({
                     Bucket: bucketName,
                     Key: key,
@@ -1151,23 +1215,39 @@ app.post('/api/explorar-posts', authMiddleware, upload.fields([{ name: 'media', 
                 await s3Client.send(uploadCommand);
                 mediaUrl = `https://${bucketName}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`;
             } else {
-                const uploadsDir = path.join(__dirname, '../public/uploads/explorar');
+                const uploadsDir = path.join(__dirname, '../public/uploads/now');
                 try {
                     fs.mkdirSync(uploadsDir, { recursive: true });
                 } catch (e) {}
 
                 const filePath = path.join(uploadsDir, filename);
                 fs.writeFileSync(filePath, buffer);
-                mediaUrl = `/uploads/explorar/${filename}`;
+                mediaUrl = `/uploads/now/${filename}`;
             }
         }
 
-        const category_tag = categoriaManual || detectExplorarCategoryTag(content);
-        const gender_tag = generoManual || detectExplorarGenderTag(content);
+        const category_tag = categoriaManual || detectnowCategoryTag(content);
+        const gender_tag = generoManual || detectnowGenderTag(content);
         const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
         const videoMuted = req.body.videoMuted === 'true';
         const trimStart = Number(req.body.trimStart) || 0;
         const trimEnd = Number(req.body.trimEnd) || 0;
+        let youtubeMusic = null;
+        let musicUrl = String(req.body.musicUrl || '').trim();
+        let musicType = String(req.body.musicType || '').trim();
+        const musicStartSec = Number(req.body.musicStartSec) || 0;
+        const musicDurationSec = Number(req.body.musicDurationSec) || 0;
+        const musicTrackDurationSec = Number(req.body.musicTrackDurationSec) || 0;
+        const musicSource = String(req.body.musicSource || '').trim();
+        if (req.body.youtubeMusic) {
+            try {
+                youtubeMusic = typeof req.body.youtubeMusic === 'string'
+                    ? JSON.parse(req.body.youtubeMusic)
+                    : req.body.youtubeMusic;
+            } catch {
+                youtubeMusic = null;
+            }
+        }
         
         let drawingUrl = String(req.body.drawingUrl || '').trim();
         
@@ -1178,7 +1258,7 @@ app.post('/api/explorar-posts', authMiddleware, upload.fields([{ name: 'media', 
              const drawingBuffer = drawingFile.buffer;
 
              if (s3Client && bucketName && process.env.AWS_REGION) {
-                const key = `explorar/${userId}/${drawingFilename}`;
+                const key = `now/${userId}/${drawingFilename}`;
                 const uploadCommand = new PutObjectCommand({
                     Bucket: bucketName,
                     Key: key,
@@ -1188,14 +1268,14 @@ app.post('/api/explorar-posts', authMiddleware, upload.fields([{ name: 'media', 
                 await s3Client.send(uploadCommand);
                 drawingUrl = `https://${bucketName}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`;
             } else {
-                const uploadsDir = path.join(__dirname, '../public/uploads/explorar');
+                const uploadsDir = path.join(__dirname, '../public/uploads/now');
                 try {
                     fs.mkdirSync(uploadsDir, { recursive: true });
                 } catch (e) {}
 
                 const filePath = path.join(uploadsDir, drawingFilename);
                 fs.writeFileSync(filePath, drawingBuffer);
-                drawingUrl = `/uploads/explorar/${drawingFilename}`;
+                drawingUrl = `/uploads/now/${drawingFilename}`;
             }
         }
 
@@ -1211,6 +1291,13 @@ app.post('/api/explorar-posts', authMiddleware, upload.fields([{ name: 'media', 
             trimStart,
             trimEnd,
             drawingUrl,
+            youtubeMusic,
+            musicUrl,
+            musicType,
+            musicStartSec,
+            musicDurationSec,
+            musicTrackDurationSec,
+            musicSource,
             likes: [],
             comments: []
         });
@@ -1218,12 +1305,12 @@ app.post('/api/explorar-posts', authMiddleware, upload.fields([{ name: 'media', 
         const savedPost = await newPost.save();
         res.status(201).json({ success: true, post: savedPost });
     } catch (error) {
-        console.error('Erro ao criar postagem do explorar:', error);
+        console.error('Erro ao criar postagem do now:', error);
         res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
     }
 });
 
-app.get('/api/explorar-feed', authMiddleware, async (req, res) => {
+app.get('/api/now-feed', authMiddleware, async (req, res) => {
     try {
         const agoraCleanup = new Date();
         await Postagem.deleteMany({
@@ -1296,7 +1383,14 @@ app.get('/api/explorar-feed', authMiddleware, async (req, res) => {
                 videoMuted: !!post.videoMuted,
                 trimStart: post.trimStart || 0,
                 trimEnd: post.trimEnd || 0,
-                drawingUrl: post.drawingUrl || ''
+                drawingUrl: post.drawingUrl || '',
+                youtubeMusic: post.youtubeMusic || null,
+                musicUrl: post.musicUrl || '',
+                musicType: post.musicType || '',
+                musicStartSec: post.musicStartSec || 0,
+                musicDurationSec: post.musicDurationSec || 0,
+                musicTrackDurationSec: post.musicTrackDurationSec || 0,
+                musicSource: post.musicSource || ''
             };
         });
 
@@ -1359,7 +1453,7 @@ app.get('/api/explorar-feed', authMiddleware, async (req, res) => {
 
         res.json({ success: true, items });
     } catch (error) {
-        console.error('Erro ao buscar explorar feed:', error);
+        console.error('Erro ao buscar now feed:', error);
         res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
     }
 });
@@ -1977,12 +2071,12 @@ app.post('/api/posts/:id/like', authMiddleware, async (req, res) => {
                     const nomeUsuario = usuarioQueCurtiu?.nome || 'Alguém';
 
                     const agora = new Date();
-                    const isExplorar = !!post.expiresAt;
+                    const isnow = !!post.expiresAt;
                     let tituloNotificacao;
                     let mensagemNotificacao;
-                    if (isExplorar) {
-                        tituloNotificacao = 'Você teve uma curtida no seu vídeo ou imagem do Explorar';
-                        mensagemNotificacao = `${nomeUsuario} curtiu seu vídeo/imagem do Explorar`;
+                    if (isnow) {
+                        tituloNotificacao = 'Você teve uma curtida no seu vídeo ou imagem do now';
+                        mensagemNotificacao = `${nomeUsuario} curtiu seu vídeo/imagem do now`;
                     } else {
                         tituloNotificacao = 'Você teve uma curtida no seu post do feed';
                         mensagemNotificacao = `${nomeUsuario} curtiu seu post do feed`;
@@ -2002,18 +2096,18 @@ app.post('/api/posts/:id/like', authMiddleware, async (req, res) => {
                     await criarNotificacao(
                         post.userId,
                         'post_curtido',
-                        isExplorar
-                            ? (isVideoMidia ? 'Você teve uma curtida no seu vídeo do Explorar' : 'Você teve uma curtida na sua imagem do Explorar')
+                        isnow
+                            ? (isVideoMidia ? 'Você teve uma curtida no seu vídeo do now' : 'Você teve uma curtida na sua imagem do now')
                             : 'Você teve uma curtida no seu post do feed',
-                        isExplorar
-                            ? (isVideoMidia ? `${nomeUsuario} curtiu seu vídeo do Explorar` : `${nomeUsuario} curtiu sua imagem do Explorar`)
+                        isnow
+                            ? (isVideoMidia ? `${nomeUsuario} curtiu seu vídeo do now` : `${nomeUsuario} curtiu sua imagem do now`)
                             : `${nomeUsuario} curtiu seu post do feed`,
                         {
                             postId: post._id,
                             usuarioId: userId,
                             mediaUrl,
                             mediaType,
-                            isExplorar,
+                            isnow,
                             createdAtPost: post.createdAt || agora
                         },
                         null
@@ -2755,7 +2849,7 @@ app.delete('/api/admin/posts/:postId', authMiddleware, adminOnly, async (req, re
 app.post('/api/denuncias', authMiddleware, async (req, res) => {
     try {
         const userId = req.user.id;
-        const alvoTipo = String(req.body?.alvoTipo || '').trim(); // 'post' | 'explorar' | 'perfil' etc.
+        const alvoTipo = String(req.body?.alvoTipo || '').trim(); // 'post' | 'now' | 'perfil' etc.
         const alvoId = String(req.body?.alvoId || '').trim();
         const motivo = String(req.body?.motivo || '').trim() || 'Conteúdo inadequado';
         const detalhe = String(req.body?.detalhe || '').trim() || '';
@@ -6310,3 +6404,4 @@ if (require.main === module) {
     process.exit(1);
   });
 }
+

@@ -181,12 +181,12 @@ document.addEventListener('DOMContentLoaded', () => {
         overlay.classList.remove('hidden');
     }
     const profileReturnKey = 'helpy:profile-return';
-    let shouldRestoreExplorar = false;
-    let pendingExplorarOpen = false;
+    let shouldRestorenow = false;
+    let pendingnowOpen = false;
     let pendingProfileReturn = null;
     let pendingProfileReturnTries = 0;
     let pendingProfileReturnUIApplied = false;
-    window.explorarOverlayMode = window.explorarOverlayMode || 'feed';
+    window.nowOverlayMode = window.nowOverlayMode || 'feed';
 
     // Tratamento especial para /login: garantir que mostre sempre a página de login real
     if (path === '/login' || path === '/login/') {
@@ -237,35 +237,35 @@ document.addEventListener('DOMContentLoaded', () => {
     const postMediaInput = document.getElementById('post-media-input');
     const postFormMessage = document.getElementById('post-form-message');
     const postsContainer = document.getElementById('posts-container');
-    const feedExplorarSlider = document.querySelector('.feed-explorar-slider');
+    const feednowSlider = document.querySelector('.feed-now-slider');
     const leftoverMobileBackdrop = document.getElementById('mobile-sidebar-backdrop');
     if (leftoverMobileBackdrop) {
         leftoverMobileBackdrop.remove();
     }
 
-    // --- Explorar ---
-    const explorarPage = document.getElementById('explorar-page');
-    const explorarFeedList = document.getElementById('explorar-feed-list');
-    const explorarFeedStatus = document.getElementById('explorar-feed-status');
-    const explorarCidadeInput = document.getElementById('explorar-cidade-input');
-    const explorarCidadeAddBtn = document.getElementById('explorar-cidade-add');
-    const explorarCidadeChips = document.getElementById('explorar-city-chips');
-    const explorarCidadesDatalist = document.getElementById('explorar-cidades-sugestoes');
-    const explorarCityEditBtn = document.getElementById('explorar-city-edit');
-    const explorarCityControls = document.getElementById('explorar-city-controls');
-    const explorarCityName = document.getElementById('explorar-city-name');
-    const explorarCityRow = document.querySelector('.explorar-city-row');
-    const explorarUserAvatar = document.getElementById('explorar-user-avatar');
-    const explorarCategoriaCurrent = document.getElementById('explorar-categoria-current');
-    const explorarCategoriasModal = document.getElementById('explorar-categorias-modal');
-    const explorarAddMediaBtn = document.getElementById('explorar-add-media');
-    const explorarValidationMsg = document.getElementById('explorar-validation-msg');
-    const explorarMediaInput = document.getElementById('explorar-media-input');
-    const explorarPostModal = document.getElementById('explorar-post-modal');
-    const explorarPostClose = document.getElementById('explorar-post-close');
-    const explorarPostPreview = document.getElementById('explorar-post-preview');
+    // --- now ---
+    const nowPage = document.getElementById('now-page');
+    const nowFeedList = document.getElementById('now-feed-list');
+    const nowFeedStatus = document.getElementById('now-feed-status');
+    const nowCidadeInput = document.getElementById('now-cidade-input');
+    const nowCidadeAddBtn = document.getElementById('now-cidade-add');
+    const nowCidadeChips = document.getElementById('now-city-chips');
+    const nowCidadesDatalist = document.getElementById('now-cidades-sugestoes');
+    const nowCityEditBtn = document.getElementById('now-city-edit');
+    const nowCityControls = document.getElementById('now-city-controls');
+    const nowCityName = document.getElementById('now-city-name');
+    const nowCityRow = document.querySelector('.now-city-row');
+    const nowUserAvatar = document.getElementById('now-user-avatar');
+    const nowCategoriaCurrent = document.getElementById('now-categoria-current');
+    const nowCategoriasModal = document.getElementById('now-categorias-modal');
+    const nowAddMediaBtn = document.getElementById('now-add-media');
+    const nowValidationMsg = document.getElementById('now-validation-msg');
+    const nowMediaInput = document.getElementById('now-media-input');
+    const nowPostModal = document.getElementById('now-post-modal');
+    const nowPostClose = document.getElementById('now-post-close');
+    const nowPostPreview = document.getElementById('now-post-preview');
     // Novos elementos do editor de vídeo
-    const explorarPreviewMediaContainer = document.getElementById('explorar-preview-media-container');
+    const nowPreviewMediaContainer = document.getElementById('now-preview-media-container');
     const videoEditorSidebar = document.getElementById('video-editor-sidebar');
     const toolMute = document.getElementById('tool-mute');
     const toolTrim = document.getElementById('tool-trim');
@@ -288,29 +288,29 @@ document.addEventListener('DOMContentLoaded', () => {
     const videoDrawingHeader = document.getElementById('video-drawing-header');
     const drawingBackBtn = document.getElementById('drawing-back-btn');
 
-    const explorarPostDesc = document.getElementById('explorar-post-desc');
-    const explorarPostSend = document.getElementById('explorar-post-send');
-    const explorarVideoOverlay = document.getElementById('explorar-video-overlay');
-    const explorarVideoFull = document.getElementById('explorar-video-full');
-    const explorarImageFull = document.getElementById('explorar-image-full');
-    const explorarVideoDrawing = document.getElementById('explorar-video-drawing');
-    const explorarVideoBack = document.getElementById('explorar-video-back');
-    const explorarVideoDelete = document.getElementById('explorar-video-delete');
-    const explorarVideoInfo = document.getElementById('explorar-video-info');
-    const explorarVideoPerfil = document.getElementById('explorar-video-perfil');
-    const explorarVideoAvatar = document.getElementById('explorar-video-avatar');
-    const explorarVideoNome = document.getElementById('explorar-video-nome');
-    const explorarVideoDesc = document.getElementById('explorar-video-desc');
-    const explorarVideoCidade = document.getElementById('explorar-video-cidade');
+    const nowPostDesc = document.getElementById('now-post-desc');
+    const nowPostSend = document.getElementById('now-post-send');
+    const nowVideoOverlay = document.getElementById('now-video-overlay');
+    const nowVideoFull = document.getElementById('now-video-full');
+    const nowImageFull = document.getElementById('now-image-full');
+    const nowVideoDrawing = document.getElementById('now-video-drawing');
+    const nowVideoBack = document.getElementById('now-video-back');
+    const nowVideoDelete = document.getElementById('now-video-delete');
+    const nowVideoInfo = document.getElementById('now-video-info');
+    const nowVideoPerfil = document.getElementById('now-video-perfil');
+    const nowVideoAvatar = document.getElementById('now-video-avatar');
+    const nowVideoNome = document.getElementById('now-video-nome');
+    const nowVideoDesc = document.getElementById('now-video-desc');
+    const nowVideoCidade = document.getElementById('now-video-cidade');
     const likesModalOverlay = document.getElementById('likes-modal-overlay');
     const likesModalList = document.getElementById('likes-modal-list');
     const likesModalClose = document.getElementById('likes-modal-close');
 
     const saveProfileReturnState = () => {
         const mainScroll = document.scrollingElement?.scrollTop ?? window.scrollY ?? 0;
-        const feedScroll = feedExplorarSlider?.querySelector('main')?.scrollTop ?? null;
-        const explorarScroll = explorarPage?.scrollTop ?? null;
-        const explorarOpen = document.documentElement.classList.contains('explorar-open');
+        const feedScroll = feednowSlider?.querySelector('main')?.scrollTop ?? null;
+        const nowScroll = nowPage?.scrollTop ?? null;
+        const nowOpen = document.documentElement.classList.contains('now-open');
         const openComments = Array.from(document.querySelectorAll('.post .post-comments.visible'))
             .map((section) => section.closest('.post')?.dataset.postId)
             .filter(Boolean);
@@ -337,8 +337,8 @@ document.addEventListener('DOMContentLoaded', () => {
             url: `${window.location.pathname}${window.location.search}${window.location.hash}`,
             mainScroll,
             feedScroll,
-            explorarScroll,
-            explorarOpen,
+            nowScroll,
+            nowOpen,
             openComments,
             openReplyLists,
             openReplyForms,
@@ -475,16 +475,16 @@ document.addEventListener('DOMContentLoaded', () => {
         const data = pendingProfileReturn;
         const desiredMain = typeof data?.mainScroll === 'number' ? data.mainScroll : null;
         const desiredFeed = typeof data?.feedScroll === 'number' ? data.feedScroll : null;
-        const desiredExplorar = typeof data?.explorarScroll === 'number' ? data.explorarScroll : null;
+        const desirednow = typeof data?.nowScroll === 'number' ? data.nowScroll : null;
         if (desiredMain !== null) {
             window.scrollTo(0, desiredMain);
         }
-        const feedMain = feedExplorarSlider?.querySelector('main');
+        const feedMain = feednowSlider?.querySelector('main');
         if (feedMain && desiredFeed !== null) {
             feedMain.scrollTop = desiredFeed;
         }
-        if (explorarPage && desiredExplorar !== null) {
-            explorarPage.scrollTop = desiredExplorar;
+        if (nowPage && desirednow !== null) {
+            nowPage.scrollTop = desirednow;
         }
 
         const mainEl = document.scrollingElement;
@@ -501,16 +501,16 @@ document.addEventListener('DOMContentLoaded', () => {
             Math.abs(feedMain.scrollTop - desiredFeed) < 8 ||
             feedMax <= 0;
 
-        const explorarMax = explorarPage ? (explorarPage.scrollHeight - explorarPage.clientHeight) : 0;
-        const explorarReady = desiredExplorar === null || (explorarPage && explorarMax >= desiredExplorar - 4);
-        const explorarOk = desiredExplorar === null ||
-            !explorarPage ||
-            Math.abs(explorarPage.scrollTop - desiredExplorar) < 8 ||
-            explorarMax <= 0;
+        const nowMax = nowPage ? (nowPage.scrollHeight - nowPage.clientHeight) : 0;
+        const nowReady = desirednow === null || (nowPage && nowMax >= desirednow - 4);
+        const nowOk = desirednow === null ||
+            !nowPage ||
+            Math.abs(nowPage.scrollTop - desirednow) < 8 ||
+            nowMax <= 0;
 
         const uiOk = applyProfileReturnUIState();
 
-        if (mainOk && feedOk && explorarOk && mainReady && feedReady && explorarReady && uiOk) {
+        if (mainOk && feedOk && nowOk && mainReady && feedReady && nowReady && uiOk) {
             sessionStorage.removeItem(profileReturnKey);
             pendingProfileReturn = null;
             pendingProfileReturnTries = 0;
@@ -536,8 +536,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = JSON.parse(raw);
             const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
             if (data?.url && data.url !== currentUrl) return;
-            shouldRestoreExplorar = !!data?.explorarOpen;
-            pendingExplorarOpen = shouldRestoreExplorar;
+            shouldRestorenow = !!data?.nowOpen;
+            pendingnowOpen = shouldRestorenow;
             pendingProfileReturn = data;
             pendingProfileReturnTries = 0;
             pendingProfileReturnUIApplied = false;
@@ -566,70 +566,70 @@ document.addEventListener('DOMContentLoaded', () => {
 
     restoreProfileReturnState();
 
-    let explorarUserStory = null;
-    let explorarStoryQueue = [];
-    let explorarStoryIndex = 0;
-    let explorarStoryTimer = null;
-    let explorarStoryStartAt = 0;
-    let explorarStoryElapsed = 0;
-    let explorarStoryPaused = false;
-    let explorarStoryMode = false;
-    let explorarCurrentPostId = null;
-    let explorarCurrentOwnerId = null;
-    let explorarCurrentIsStory = false;
-    const explorarStoryDuration = 10000;
-    const explorarStoryProgress = document.getElementById('explorar-story-progress');
-    const explorarStoryPrev = document.getElementById('explorar-story-prev');
-    const explorarStoryNext = document.getElementById('explorar-story-next');
-    const getExplorarStoryKey = (storyId) => `explorar_story_viewed_${userId || 'anon'}_${storyId}`;
+    let nowUserStory = null;
+    let nowStoryQueue = [];
+    let nowStoryIndex = 0;
+    let nowStoryTimer = null;
+    let nowStoryStartAt = 0;
+    let nowStoryElapsed = 0;
+    let nowStoryPaused = false;
+    let nowStoryMode = false;
+    let nowCurrentPostId = null;
+    let nowCurrentOwnerId = null;
+    let nowCurrentIsStory = false;
+    const nowStoryDuration = 10000;
+    const nowStoryProgress = document.getElementById('now-story-progress');
+    const nowStoryPrev = document.getElementById('now-story-prev');
+    const nowStoryNext = document.getElementById('now-story-next');
+    const getnowStoryKey = (storyId) => `now_story_viewed_${userId || 'anon'}_${storyId}`;
 
-    function markExplorarStoryViewed(storyId) {
+    function marknowStoryViewed(storyId) {
         if (!storyId) return;
         try {
-            localStorage.setItem(getExplorarStoryKey(storyId), '1');
+            localStorage.setItem(getnowStoryKey(storyId), '1');
         } catch (e) {}
     }
 
-    function isExplorarStoryViewed(storyId) {
+    function isnowStoryViewed(storyId) {
         if (!storyId) return false;
         try {
-            return localStorage.getItem(getExplorarStoryKey(storyId)) === '1';
+            return localStorage.getItem(getnowStoryKey(storyId)) === '1';
         } catch (e) {
             return false;
         }
     }
 
-    function updateExplorarStoryIndicator() {
-        if (explorarUserAvatar) {
-            const hasStory = explorarStoryQueue.length > 0;
-            const hasUnviewed = explorarStoryQueue.some(story => !isExplorarStoryViewed(story.id));
+    function updatenowStoryIndicator() {
+        if (nowUserAvatar) {
+            const hasStory = nowStoryQueue.length > 0;
+            const hasUnviewed = nowStoryQueue.some(story => !isnowStoryViewed(story.id));
             
-            explorarUserAvatar.classList.toggle('has-story', hasStory);
-            explorarUserAvatar.classList.toggle('is-viewed', hasStory && !hasUnviewed);
+            nowUserAvatar.classList.toggle('has-story', hasStory);
+            nowUserAvatar.classList.toggle('is-viewed', hasStory && !hasUnviewed);
         }
-        updateExplorarCardsStoryIndicators();
+        updatenowCardsStoryIndicators();
     }
 
-    function updateExplorarCardsStoryIndicators() {
-        const cards = document.querySelectorAll('.explorar-card[data-explorar-owner-id]');
+    function updatenowCardsStoryIndicators() {
+        const cards = document.querySelectorAll('.now-card[data-now-owner-id]');
         if (!cards.length) return;
         const ownerMap = {};
         cards.forEach((card) => {
-            const ownerId = card.dataset.explorarOwnerId;
-            const isStatus = card.dataset.explorarIsStatus === '1';
-            const storyId = card.dataset.explorarId;
+            const ownerId = card.dataset.nowOwnerId;
+            const isStatus = card.dataset.nowIsStatus === '1';
+            const storyId = card.dataset.nowId;
             if (!ownerId || !isStatus || !storyId) return;
             const key = String(ownerId);
             const info = ownerMap[key] || { total: 0, unviewed: 0 };
             info.total += 1;
-            if (!isExplorarStoryViewed(storyId)) {
+            if (!isnowStoryViewed(storyId)) {
                 info.unviewed += 1;
             }
             ownerMap[key] = info;
         });
         cards.forEach((card) => {
-            const ownerId = card.dataset.explorarOwnerId;
-            const avatar = card.querySelector('.explorar-card-avatar');
+            const ownerId = card.dataset.nowOwnerId;
+            const avatar = card.querySelector('.now-card-avatar');
             if (!avatar || !ownerId) return;
             const info = ownerMap[String(ownerId)];
             const hasStatus = !!info && info.total > 0;
@@ -639,83 +639,83 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function updateExplorarStoryNav() {
-        if (!explorarStoryPrev || !explorarStoryNext) return;
-        if (!explorarStoryMode) {
-            explorarStoryPrev.hidden = true;
-            explorarStoryNext.hidden = true;
+    function updatenowStoryNav() {
+        if (!nowStoryPrev || !nowStoryNext) return;
+        if (!nowStoryMode) {
+            nowStoryPrev.hidden = true;
+            nowStoryNext.hidden = true;
             return;
         }
-        const total = explorarStoryQueue.length;
+        const total = nowStoryQueue.length;
         if (total <= 1) {
-            explorarStoryPrev.hidden = true;
-            explorarStoryNext.hidden = true;
+            nowStoryPrev.hidden = true;
+            nowStoryNext.hidden = true;
             return;
         }
-        explorarStoryPrev.hidden = explorarStoryIndex <= 0;
-        explorarStoryNext.hidden = explorarStoryIndex >= total - 1;
+        nowStoryPrev.hidden = nowStoryIndex <= 0;
+        nowStoryNext.hidden = nowStoryIndex >= total - 1;
     }
 
-    function updateExplorarDeleteVisibility() {
-        if (!explorarVideoDelete) return;
-        const isOwner = explorarCurrentOwnerId && userId && String(explorarCurrentOwnerId) === String(userId);
-        const shouldShow = !!(isOwner && explorarCurrentPostId);
-        explorarVideoDelete.hidden = !shouldShow;
-        explorarVideoDelete.style.display = shouldShow ? 'grid' : 'none';
+    function updatenowDeleteVisibility() {
+        if (!nowVideoDelete) return;
+        const isOwner = nowCurrentOwnerId && userId && String(nowCurrentOwnerId) === String(userId);
+        const shouldShow = !!(isOwner && nowCurrentPostId);
+        nowVideoDelete.hidden = !shouldShow;
+        nowVideoDelete.style.display = shouldShow ? 'grid' : 'none';
     }
 
-    function setExplorarOverlayMeta({ postId, ownerId, isStory = false } = {}) {
-        explorarCurrentPostId = postId || null;
-        explorarCurrentOwnerId = ownerId || null;
-        explorarCurrentIsStory = !!isStory;
-        updateExplorarDeleteVisibility();
+    function setnowOverlayMeta({ postId, ownerId, isStory = false } = {}) {
+        nowCurrentPostId = postId || null;
+        nowCurrentOwnerId = ownerId || null;
+        nowCurrentIsStory = !!isStory;
+        updatenowDeleteVisibility();
     }
 
-    function stopExplorarStoryTimer() {
-        if (explorarStoryTimer) {
-            cancelAnimationFrame(explorarStoryTimer);
-            explorarStoryTimer = null;
+    function stopnowStoryTimer() {
+        if (nowStoryTimer) {
+            cancelAnimationFrame(nowStoryTimer);
+            nowStoryTimer = null;
         }
     }
 
-    function setExplorarStorySegments(count) {
-        if (!explorarStoryProgress) return;
-        explorarStoryProgress.innerHTML = '';
+    function setnowStorySegments(count) {
+        if (!nowStoryProgress) return;
+        nowStoryProgress.innerHTML = '';
         for (let i = 0; i < count; i += 1) {
             const segment = document.createElement('div');
-            segment.className = 'explorar-story-progress-segment';
+            segment.className = 'now-story-progress-segment';
             const fill = document.createElement('div');
-            fill.className = 'explorar-story-progress-fill';
+            fill.className = 'now-story-progress-fill';
             segment.appendChild(fill);
-            explorarStoryProgress.appendChild(segment);
+            nowStoryProgress.appendChild(segment);
         }
     }
 
-    function resetExplorarStoryTimer() {
-        stopExplorarStoryTimer();
-        explorarStoryStartAt = performance.now();
-        explorarStoryElapsed = 0;
-        if (explorarStoryProgress) {
-            explorarStoryProgress.querySelectorAll('.explorar-story-progress-fill').forEach((fill) => {
+    function resetnowStoryTimer() {
+        stopnowStoryTimer();
+        nowStoryStartAt = performance.now();
+        nowStoryElapsed = 0;
+        if (nowStoryProgress) {
+            nowStoryProgress.querySelectorAll('.now-story-progress-fill').forEach((fill) => {
                 fill.style.transform = 'scaleX(0)';
             });
         }
     }
 
-    function updateExplorarStoryProgress() {
-        if (explorarStoryPaused) {
-            explorarStoryTimer = requestAnimationFrame(updateExplorarStoryProgress);
+    function updatenowStoryProgress() {
+        if (nowStoryPaused) {
+            nowStoryTimer = requestAnimationFrame(updatenowStoryProgress);
             return;
         }
         const now = performance.now();
-        const elapsed = explorarStoryElapsed + (now - explorarStoryStartAt);
-        const pct = Math.min(1, elapsed / explorarStoryDuration);
-        if (explorarStoryProgress) {
-            const fills = explorarStoryProgress.querySelectorAll('.explorar-story-progress-fill');
+        const elapsed = nowStoryElapsed + (now - nowStoryStartAt);
+        const pct = Math.min(1, elapsed / nowStoryDuration);
+        if (nowStoryProgress) {
+            const fills = nowStoryProgress.querySelectorAll('.now-story-progress-fill');
             fills.forEach((fill, idx) => {
-                if (idx < explorarStoryIndex) {
+                if (idx < nowStoryIndex) {
                     fill.style.transform = 'scaleX(1)';
-                } else if (idx === explorarStoryIndex) {
+                } else if (idx === nowStoryIndex) {
                     fill.style.transform = `scaleX(${pct})`;
                 } else {
                     fill.style.transform = 'scaleX(0)';
@@ -723,100 +723,333 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
         if (pct >= 1) {
-            goToExplorarStory(explorarStoryIndex + 1);
+            goTonowStory(nowStoryIndex + 1);
             return;
         }
-        explorarStoryTimer = requestAnimationFrame(updateExplorarStoryProgress);
+        nowStoryTimer = requestAnimationFrame(updatenowStoryProgress);
     }
 
-    function pauseExplorarStory() {
-        if (explorarStoryPaused) return;
-        explorarStoryPaused = true;
-        explorarStoryElapsed += performance.now() - explorarStoryStartAt;
+    function pausenowStory() {
+        if (nowStoryPaused) return;
+        nowStoryPaused = true;
+        nowStoryElapsed += performance.now() - nowStoryStartAt;
     }
 
-    function resumeExplorarStory() {
-        if (!explorarStoryPaused) return;
-        explorarStoryPaused = false;
-        explorarStoryStartAt = performance.now();
+    function resumenowStory() {
+        if (!nowStoryPaused) return;
+        nowStoryPaused = false;
+        nowStoryStartAt = performance.now();
     }
 
-    function goToExplorarStory(nextIndex) {
-        if (!explorarStoryQueue.length) return closeExplorarVideo();
-        if (nextIndex < 0 || nextIndex >= explorarStoryQueue.length) {
-            closeExplorarVideo();
+    function goTonowStory(nextIndex) {
+        if (!nowStoryQueue.length) return closenowVideo();
+        if (nextIndex < 0 || nextIndex >= nowStoryQueue.length) {
+            closenowVideo();
             return;
         }
-        explorarStoryIndex = nextIndex;
-        const story = explorarStoryQueue[explorarStoryIndex];
+        nowStoryIndex = nextIndex;
+        const story = nowStoryQueue[nowStoryIndex];
         if (!story) return;
-        explorarStoryMode = true;
-        resetExplorarStoryTimer();
-        setExplorarOverlayMeta({
+        nowStoryMode = true;
+        resetnowStoryTimer();
+        setnowOverlayMeta({
             postId: story?.id,
             ownerId: story?.ownerId,
             isStory: true
         });
+        const rawOwnerId = story?.ownerId?._id || story?.ownerId;
+        const perfilUrlFinal = story?.perfilUrl || (rawOwnerId ? `/perfil.html?id=${encodeURIComponent(String(rawOwnerId))}&statusOwnerId=${encodeURIComponent(String(rawOwnerId))}` : '#');
+        const avatarFinal = story?.avatar || story?.foto || story?.avatarUrl || nowUserAvatar?.getAttribute('src') || 'imagens/default-user.png';
         const info = {
             nome: story?.nome || 'Minha postagem',
             desc: story?.desc || '',
             cidade: story?.cidade || '',
-            avatar: explorarUserAvatar?.getAttribute('src') || 'imagens/default-user.png',
-            perfilUrl: '#',
+            avatar: avatarFinal,
+            perfilUrl: perfilUrlFinal,
             postId: story?.id,
             ownerId: story?.ownerId,
             isStory: true,
             videoMuted: story.videoMuted,
             trimStart: story.trimStart,
             trimEnd: story.trimEnd,
-            drawingUrl: story.drawingUrl
+            drawingUrl: story.drawingUrl,
+            youtubeMusic: story.youtubeMusic,
+            musicUrl: story.musicUrl,
+            musicType: story.musicType,
+            musicStartSec: story.musicStartSec,
+            musicDurationSec: story.musicDurationSec,
+            musicTrackDurationSec: story.musicTrackDurationSec,
+            musicSource: story.musicSource
         };
         if (story?.isVideo) {
-            openExplorarVideo(story.mediaUrl, info);
+            opennowVideo(story.mediaUrl, info);
         } else {
-            openExplorarImage(story.mediaUrl, info);
+            opennowImage(story.mediaUrl, info);
         }
-        markExplorarStoryViewed(story.id);
-        updateExplorarStoryIndicator();
-        if (explorarStoryProgress) {
-            explorarStoryProgress.setAttribute('aria-hidden', 'false');
+        marknowStoryViewed(story.id);
+        updatenowStoryIndicator();
+        if (nowStoryProgress) {
+            nowStoryProgress.setAttribute('aria-hidden', 'false');
         }
-        updateExplorarStoryNav();
-        updateExplorarStoryProgress();
+        updatenowStoryNav();
+        updatenowStoryProgress();
     }
 
-    if (explorarUserAvatar) {
-        explorarUserAvatar.addEventListener('click', () => {
-            if (!explorarStoryQueue.length) return;
-            explorarStoryPaused = false;
-            explorarStoryElapsed = 0;
+    if (nowUserAvatar) {
+        nowUserAvatar.addEventListener('click', () => {
+            if (!nowStoryQueue.length) return;
+            nowStoryPaused = false;
+            nowStoryElapsed = 0;
             // Encontra o índice do primeiro story não visualizado
-            const firstUnviewedIndex = explorarStoryQueue.findIndex(story => !isExplorarStoryViewed(story.id));
+            const firstUnviewedIndex = nowStoryQueue.findIndex(story => !isnowStoryViewed(story.id));
             const startIndex = firstUnviewedIndex !== -1 ? firstUnviewedIndex : 0;
-            goToExplorarStory(startIndex);
+            goTonowStory(startIndex);
         });
     }
 
-    function openExplorarVideo(src, info = {}) {
-        window.explorarOverlayMode = 'feed';
-        if (!explorarVideoOverlay || !explorarVideoFull || !src) return;
-        explorarVideoOverlay.classList.remove('is-dragging');
-        explorarVideoOverlay.style.transform = '';
-        explorarVideoOverlay.removeAttribute('inert');
+    let nowOverlayAudio = null;
+    let nowOverlayYTPlayer = null;
+    let nowOverlayYTPlayerReady = false;
+    let nowOverlayYTPlayerReadyPromise = null;
+
+    function ensureHelpyYTApi() {
+        if (window.__helpyYTApiPromise) return window.__helpyYTApiPromise;
+        window.__helpyYTApiPromise = new Promise((resolve) => {
+            const check = () => {
+                if (window.YT && window.YT.Player) {
+                    resolve();
+                    return true;
+                }
+                return false;
+            };
+            if (check()) return;
+
+            const previous = window.onYouTubeIframeAPIReady;
+            window.onYouTubeIframeAPIReady = () => {
+                try {
+                    if (typeof previous === 'function') previous();
+                } catch {}
+                check();
+                resolve();
+            };
+
+            const already = document.querySelector('script[src*="youtube.com/iframe_api"]');
+            if (!already) {
+                const s = document.createElement('script');
+                s.src = 'https://www.youtube.com/iframe_api';
+                s.async = true;
+                document.head.appendChild(s);
+            }
+        });
+        return window.__helpyYTApiPromise;
+    }
+
+    async function ensureNowOverlayYouTubePlayer() {
+        await ensureHelpyYTApi();
+        if (nowOverlayYTPlayer && nowOverlayYTPlayerReady) return nowOverlayYTPlayer;
+        if (nowOverlayYTPlayer && nowOverlayYTPlayerReadyPromise) {
+            await nowOverlayYTPlayerReadyPromise;
+            return nowOverlayYTPlayer;
+        }
+
+        let container = document.getElementById('now-overlay-youtube-audio-player');
+        if (!container) {
+            container = document.createElement('div');
+            container.id = 'now-overlay-youtube-audio-player';
+            container.style.position = 'fixed';
+            container.style.left = '-9999px';
+            container.style.top = '0';
+            container.style.width = '1px';
+            container.style.height = '1px';
+            container.style.overflow = 'hidden';
+            const inner = document.createElement('div');
+            inner.id = 'now-overlay-youtube-audio-iframe';
+            container.appendChild(inner);
+            document.body.appendChild(container);
+        }
+
+        nowOverlayYTPlayerReady = false;
+        nowOverlayYTPlayerReadyPromise = new Promise((resolve) => {
+            nowOverlayYTPlayer = new window.YT.Player('now-overlay-youtube-audio-iframe', {
+                height: '1',
+                width: '1',
+                videoId: '',
+                playerVars: {
+                    autoplay: 0,
+                    controls: 0,
+                    disablekb: 1,
+                    playsinline: 1,
+                    modestbranding: 1,
+                    rel: 0,
+                    origin: window.location.origin
+                },
+                events: {
+                    onReady: () => {
+                        nowOverlayYTPlayerReady = true;
+                        resolve();
+                    }
+                }
+            });
+        });
+        await nowOverlayYTPlayerReadyPromise;
+        return nowOverlayYTPlayer;
+    }
+
+    function stopNowOverlayMusic() {
+        if (nowOverlayAudio) {
+            try { nowOverlayAudio.pause(); } catch {}
+            try { nowOverlayAudio.src = ''; } catch {}
+            nowOverlayAudio = null;
+        }
+        if (nowOverlayYTPlayer) {
+            try {
+                nowOverlayYTPlayer.stopVideo?.();
+                nowOverlayYTPlayer.pauseVideo?.();
+            } catch {}
+        }
+    }
+
+    function cleanupNowOverlayMusicHandlers(videoEl) {
+        if (!videoEl || !videoEl._nowMusicHandlers) return;
+        const handlers = videoEl._nowMusicHandlers;
+        try { videoEl.removeEventListener('play', handlers.onPlay); } catch {}
+        try { videoEl.removeEventListener('pause', handlers.onPause); } catch {}
+        try { videoEl.removeEventListener('seeking', handlers.onSeeking); } catch {}
+        try { videoEl.removeEventListener('timeupdate', handlers.onTimeUpdate); } catch {}
+        try { videoEl.removeEventListener('ended', handlers.onEnded); } catch {}
+        videoEl._nowMusicHandlers = null;
+    }
+
+    function normalizeNowMusicData(info) {
+        if (!info) return null;
+        const youtubeMusic = info.youtubeMusic;
+        const yt = youtubeMusic && typeof youtubeMusic === 'string' ? (() => {
+            try { return JSON.parse(youtubeMusic); } catch { return null; }
+        })() : youtubeMusic;
+        const ytId = yt && (yt.videoId || yt.id) ? String(yt.videoId || yt.id) : '';
+        const musicUrl = info.musicUrl ? String(info.musicUrl) : '';
+        const musicType = info.musicType ? String(info.musicType) : '';
+        const startSec = Number(info.musicStartSec) || 0;
+        const durationSec = Number(info.musicDurationSec) || 0;
+        const trackDurationSec = Number(info.musicTrackDurationSec) || 0;
+        const source = info.musicSource ? String(info.musicSource) : (ytId ? 'youtube' : (musicUrl ? 'file' : ''));
+        if (!ytId && !musicUrl) return null;
+        return { source, ytId, musicUrl, musicType, startSec, durationSec, trackDurationSec };
+    }
+
+    function setupNowOverlayMusic(videoEl, info) {
+        cleanupNowOverlayMusicHandlers(videoEl);
+        stopNowOverlayMusic();
+
+        const music = normalizeNowMusicData(info);
+        if (!music) return;
+
+        const trimStart = Number(info?.trimStart) || 0;
+
+        const sync = async (forceSeek = false) => {
+            if (!videoEl) return;
+            const clipTime = Math.max(0, (Number(videoEl.currentTime) || 0) - trimStart);
+            const targetTime = Math.max(0, (Number(music.startSec) || 0) + clipTime);
+
+            if (music.source === 'file' && nowOverlayAudio) {
+                const audioTime = Number(nowOverlayAudio.currentTime) || 0;
+                const diff = Math.abs(audioTime - targetTime);
+                if (forceSeek || diff > 0.75) {
+                    try { nowOverlayAudio.currentTime = targetTime; } catch {}
+                }
+                return;
+            }
+
+            if (music.source === 'youtube') {
+                try {
+                    const player = await ensureNowOverlayYouTubePlayer();
+                    const ytTime = Number(player.getCurrentTime?.() || 0);
+                    const diff = Math.abs(ytTime - targetTime);
+                    if (forceSeek || diff > 0.75) {
+                        player.seekTo?.(targetTime, true);
+                    }
+                } catch {}
+            }
+        };
+
+        const onPlay = () => {
+            sync(true).then(() => {
+                if (music.source === 'file' && nowOverlayAudio) {
+                    nowOverlayAudio.play().catch(() => {});
+                } else if (music.source === 'youtube') {
+                    try { nowOverlayYTPlayer?.playVideo?.(); } catch {}
+                }
+            }).catch(() => {});
+        };
+
+        const onPause = () => {
+            if (music.source === 'file' && nowOverlayAudio) {
+                try { nowOverlayAudio.pause(); } catch {}
+            } else if (music.source === 'youtube') {
+                try { nowOverlayYTPlayer?.pauseVideo?.(); } catch {}
+            }
+        };
+
+        const onSeeking = () => {
+            sync(true).catch(() => {});
+        };
+
+        const onTimeUpdate = () => {
+            sync(false).catch(() => {});
+        };
+
+        const onEnded = () => {
+            onPause();
+        };
+
+        videoEl._nowMusicHandlers = { onPlay, onPause, onSeeking, onTimeUpdate, onEnded };
+        videoEl.addEventListener('play', onPlay);
+        videoEl.addEventListener('pause', onPause);
+        videoEl.addEventListener('seeking', onSeeking);
+        videoEl.addEventListener('timeupdate', onTimeUpdate);
+        videoEl.addEventListener('ended', onEnded);
+
+        (async () => {
+            if (music.source === 'file' && music.musicUrl) {
+                nowOverlayAudio = new Audio(music.musicUrl);
+                nowOverlayAudio.loop = false;
+                nowOverlayAudio.volume = 1;
+                await sync(true);
+                if (!videoEl.paused) nowOverlayAudio.play().catch(() => {});
+                return;
+            }
+            if (music.source === 'youtube' && music.ytId) {
+                try {
+                    const player = await ensureNowOverlayYouTubePlayer();
+                    player.loadVideoById?.(music.ytId, 0);
+                    player.setVolume?.(100);
+                    await sync(true);
+                    if (!videoEl.paused) player.playVideo?.();
+                } catch {}
+            }
+        })().catch(() => {});
+    }
+
+    function opennowVideo(src, info = {}) {
+        window.nowOverlayMode = 'feed';
+        if (!nowVideoOverlay || !nowVideoFull || !src) return;
+        nowVideoOverlay.classList.remove('is-dragging');
+        nowVideoOverlay.style.transform = '';
+        nowVideoOverlay.removeAttribute('inert');
         if (info?.postId || info?.ownerId || typeof info?.isStory === 'boolean') {
-            setExplorarOverlayMeta({
+            setnowOverlayMeta({
                 postId: info?.postId,
                 ownerId: info?.ownerId,
                 isStory: info?.isStory
             });
         } else {
-            setExplorarOverlayMeta({ postId: null, ownerId: null, isStory: false });
+            setnowOverlayMeta({ postId: null, ownerId: null, isStory: false });
         }
-        if (explorarImageFull) {
-            explorarImageFull.classList.add('hidden');
-            explorarImageFull.removeAttribute('src');
+        if (nowImageFull) {
+            nowImageFull.classList.add('hidden');
+            nowImageFull.removeAttribute('src');
         }        const isStory = !!info?.isStory;
-        if (explorarVideoInfo) {
+        if (nowVideoInfo) {
             const nome = info?.nome || '';
             const desc = info?.desc || '';
             const cidade = info?.cidade || '';
@@ -824,23 +1057,23 @@ document.addEventListener('DOMContentLoaded', () => {
             const perfilUrl = info?.perfilUrl || '#';
             const postId = info?.postId || null;
             const isOwner = info?.ownerId && userId && String(info.ownerId) === String(userId);
-            if (explorarVideoPerfil) {
-                explorarVideoPerfil.setAttribute('href', perfilUrl);
+            if (nowVideoPerfil) {
+                nowVideoPerfil.setAttribute('href', perfilUrl);
             }
-            if (explorarVideoAvatar) {
-                explorarVideoAvatar.src = avatar;
+            if (nowVideoAvatar) {
+                nowVideoAvatar.src = avatar;
             }
-            if (explorarVideoNome) {
-                explorarVideoNome.textContent = nome;
+            if (nowVideoNome) {
+                nowVideoNome.textContent = nome;
             }
             // Adiciona botão de WhatsApp ao lado do nome no fullscreen (apenas se não for dono)
-            const existingVideoWa = explorarVideoInfo.querySelector('.explorar-video-whatsapp');
+            const existingVideoWa = nowVideoInfo.querySelector('.now-video-whatsapp');
             if (existingVideoWa) existingVideoWa.remove();
             (async () => {
                 try {
                     const ownerId = info?.ownerId;
                     const postId = info?.postId;
-                    if (!ownerId || !explorarVideoNome || !postId) return;
+                    if (!ownerId || !nowVideoNome || !postId) return;
                     if (userId && String(ownerId) === String(userId)) return; // não mostra para o dono
                     const respUser = await fetch(`/api/usuario/${ownerId}`, {
                         headers: { Authorization: `Bearer ${token}` }
@@ -857,48 +1090,48 @@ document.addEventListener('DOMContentLoaded', () => {
                     waLink.href = `https://wa.me/${encodeURIComponent(numeroDigits)}?text=${encodeURIComponent(msg)}`;
                     waLink.target = '_blank';
                     waLink.rel = 'noopener noreferrer';
-                    waLink.className = 'explorar-video-whatsapp';
+                    waLink.className = 'now-video-whatsapp';
                     waLink.innerHTML = '<i class="fab fa-whatsapp"></i>';
                     ['click', 'touchstart', 'touchend', 'pointerdown', 'pointerup'].forEach((type) => {
                         waLink.addEventListener(type, (ev) => {
                             ev.stopPropagation();
                         });
                     });
-                    explorarVideoNome.insertAdjacentElement('afterend', waLink);
+                    nowVideoNome.insertAdjacentElement('afterend', waLink);
                 } catch {}
             })();
-            if (explorarVideoDesc) {
-                explorarVideoDesc.textContent = desc;
-                explorarVideoDesc.style.display = desc ? 'block' : 'none';
+            if (nowVideoDesc) {
+                nowVideoDesc.textContent = desc;
+                nowVideoDesc.style.display = desc ? 'block' : 'none';
             }
-            if (explorarVideoCidade) {
-                explorarVideoCidade.textContent = cidade;
-                explorarVideoCidade.style.display = cidade ? 'block' : 'none';
+            if (nowVideoCidade) {
+                nowVideoCidade.textContent = cidade;
+                nowVideoCidade.style.display = cidade ? 'block' : 'none';
             }
-            explorarVideoInfo.style.display = (nome || desc || cidade) ? 'flex' : 'none';
-            const existingAvatars = explorarVideoInfo.querySelector('.explorar-like-avatars');
+            nowVideoInfo.style.display = (nome || desc || cidade) ? 'flex' : 'none';
+            const existingAvatars = nowVideoInfo.querySelector('.now-like-avatars');
             if (existingAvatars) {
                 existingAvatars.remove();
             }
-            const existingLikeBtn = explorarVideoInfo.querySelector('.explorar-video-like-btn');
+            const existingLikeBtn = nowVideoInfo.querySelector('.now-video-like-btn');
             if (existingLikeBtn) {
                 existingLikeBtn.remove();
             }
-            const existingLikeList = explorarVideoInfo.querySelector('.explorar-video-like-list');
+            const existingLikeList = nowVideoInfo.querySelector('.now-video-like-list');
             if (existingLikeList) {
                 existingLikeList.remove();
             }
             if (postId) {
                 const likeBtn = document.createElement('button');
                 likeBtn.type = 'button';
-                likeBtn.className = 'explorar-video-like-btn btn-like';
+                likeBtn.className = 'now-video-like-btn btn-like';
                 likeBtn.dataset.postId = String(postId);
                 likeBtn.innerHTML = `
                     <i class="fas fa-heart"></i>
                     <span class="like-count">0</span>
                 `;
                 likeBtn.addEventListener('click', handleLikePost);
-                explorarVideoInfo.appendChild(likeBtn);
+                nowVideoInfo.appendChild(likeBtn);
                 (async () => {
                     try {
                         const resp = await fetch(`/api/posts/${postId}/likes`, {
@@ -916,13 +1149,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (preview.length > 0) {
                             const avatarsBtn = document.createElement('button');
                             avatarsBtn.type = 'button';
-                            avatarsBtn.className = 'explorar-like-avatars';
+                            avatarsBtn.className = 'now-like-avatars';
                             preview.forEach((u) => {
                                 if (!u || !u.foto) return;
                                 const img = document.createElement('img');
                                 img.src = u.foto;
                                 img.alt = u.nome || '';
-                                img.className = 'explorar-like-avatar';
+                                img.className = 'now-like-avatar';
                                 img.referrerPolicy = 'no-referrer';
                                 avatarsBtn.appendChild(img);
                             });
@@ -940,41 +1173,41 @@ document.addEventListener('DOMContentLoaded', () => {
                                         });
                                     });
                                 }
-                                explorarVideoInfo.appendChild(avatarsBtn);
+                                nowVideoInfo.appendChild(avatarsBtn);
                             }
                         }
                     } catch {}
                 })();
             }
-            const existingControls = explorarVideoInfo.querySelector('.explorar-video-controls');
+            const existingControls = nowVideoInfo.querySelector('.now-video-controls');
             if (existingControls) {
                 existingControls.remove();
             }
             if (!isStory) {
                 const controls = document.createElement('div');
-                controls.className = 'explorar-video-controls';
+                controls.className = 'now-video-controls';
                 const progress = document.createElement('input');
                 progress.type = 'range';
                 progress.min = '0';
                 progress.max = '100';
                 progress.value = '0';
-                progress.className = 'explorar-video-progress';
+                progress.className = 'now-video-progress';
                 controls.appendChild(progress);
-                explorarVideoInfo.appendChild(controls);
-                explorarVideoProgress = progress;
+                nowVideoInfo.appendChild(controls);
+                nowVideoProgress = progress;
                 let scrubbing = false;
                 const setFromProgress = () => {
-                    if (!explorarVideoFull || !isFinite(explorarVideoFull.duration) || explorarVideoFull.duration <= 0) return;
+                    if (!nowVideoFull || !isFinite(nowVideoFull.duration) || nowVideoFull.duration <= 0) return;
                     const pct = Number(progress.value) / 100;
-                    explorarVideoFull.currentTime = Math.max(0, Math.min(explorarVideoFull.duration * pct, explorarVideoFull.duration));
+                    nowVideoFull.currentTime = Math.max(0, Math.min(nowVideoFull.duration * pct, nowVideoFull.duration));
                 };
                 const beginScrub = () => {
                     scrubbing = true;
-                    showExplorarVideoControls(0);
+                    shownowVideoControls(0);
                 };
                 const endScrub = () => {
                     scrubbing = false;
-                    showExplorarVideoControls();
+                    shownowVideoControls();
                 };
                 progress.addEventListener('input', () => {
                     setFromProgress();
@@ -985,38 +1218,38 @@ document.addEventListener('DOMContentLoaded', () => {
                 progress.addEventListener('mouseup', endScrub);
                 progress.addEventListener('touchend', endScrub);
                 const updateProgressFromVideo = () => {
-                    if (!explorarVideoProgress || scrubbing) return;
-                    if (!explorarVideoFull || !isFinite(explorarVideoFull.duration) || explorarVideoFull.duration <= 0) return;
-                    const pct = (explorarVideoFull.currentTime / explorarVideoFull.duration) * 100;
-                    explorarVideoProgress.value = String(Math.max(0, Math.min(pct, 100)));
+                    if (!nowVideoProgress || scrubbing) return;
+                    if (!nowVideoFull || !isFinite(nowVideoFull.duration) || nowVideoFull.duration <= 0) return;
+                    const pct = (nowVideoFull.currentTime / nowVideoFull.duration) * 100;
+                    nowVideoProgress.value = String(Math.max(0, Math.min(pct, 100)));
                 };
-                explorarVideoFull.addEventListener('timeupdate', updateProgressFromVideo);
-                explorarVideoFull.addEventListener('loadedmetadata', updateProgressFromVideo, { once: true });
-                showExplorarVideoControls();
+                nowVideoFull.addEventListener('timeupdate', updateProgressFromVideo);
+                nowVideoFull.addEventListener('loadedmetadata', updateProgressFromVideo, { once: true });
+                shownowVideoControls();
             } else {
-                explorarVideoProgress = null;
+                nowVideoProgress = null;
             }
         }
-        explorarVideoFull.classList.remove('hidden');
-        explorarVideoFull.src = src;
-        explorarVideoFull.controls = false;
-        try { explorarVideoFull.removeAttribute('controls'); } catch {}
+        nowVideoFull.classList.remove('hidden');
+        nowVideoFull.src = src;
+        nowVideoFull.controls = false;
+        try { nowVideoFull.removeAttribute('controls'); } catch {}
         
         // Aplica o estado salvo de mute
-        explorarVideoFull.muted = !!info?.videoMuted;
+        nowVideoFull.muted = !!info?.videoMuted;
         
-        explorarVideoFull.playsInline = true;
-        try { explorarVideoFull.setAttribute('controlsList', 'nofullscreen noplaybackrate nodownload'); } catch {}
-        try { explorarVideoFull.style.pointerEvents = 'none'; } catch {}
+        nowVideoFull.playsInline = true;
+        try { nowVideoFull.setAttribute('controlsList', 'nofullscreen noplaybackrate nodownload'); } catch {}
+        try { nowVideoFull.style.pointerEvents = 'none'; } catch {}
 
         // Lógica de Trim e Desenho
-        if (explorarVideoDrawing) {
+        if (nowVideoDrawing) {
             if (info?.drawingUrl) {
-                explorarVideoDrawing.src = info.drawingUrl;
-                explorarVideoDrawing.classList.remove('hidden');
+                nowVideoDrawing.src = info.drawingUrl;
+                nowVideoDrawing.classList.remove('hidden');
             } else {
-                explorarVideoDrawing.src = '';
-                explorarVideoDrawing.classList.add('hidden');
+                nowVideoDrawing.src = '';
+                nowVideoDrawing.classList.add('hidden');
             }
         }
 
@@ -1024,28 +1257,30 @@ document.addEventListener('DOMContentLoaded', () => {
         const trimEnd = Number(info?.trimEnd) || 0;
         
         // Remove handler de loop anterior
-        if (explorarVideoFull._trimHandler) {
-            explorarVideoFull.removeEventListener('timeupdate', explorarVideoFull._trimHandler);
-            explorarVideoFull._trimHandler = null;
+        if (nowVideoFull._trimHandler) {
+            nowVideoFull.removeEventListener('timeupdate', nowVideoFull._trimHandler);
+            nowVideoFull._trimHandler = null;
         }
 
-        explorarVideoFull.currentTime = trimStart;
+        nowVideoFull.currentTime = trimStart;
 
         if (trimEnd > trimStart) {
-            explorarVideoFull._trimHandler = () => {
-                if (explorarVideoFull.currentTime >= trimEnd) {
-                    explorarVideoFull.currentTime = trimStart;
-                    explorarVideoFull.play().catch(() => {});
+            nowVideoFull._trimHandler = () => {
+                if (nowVideoFull.currentTime >= trimEnd) {
+                    nowVideoFull.currentTime = trimStart;
+                    nowVideoFull.play().catch(() => {});
                 }
             };
-            explorarVideoFull.addEventListener('timeupdate', explorarVideoFull._trimHandler);
+            nowVideoFull.addEventListener('timeupdate', nowVideoFull._trimHandler);
         }
 
-        explorarVideoOverlay.classList.remove('hidden');
-        explorarVideoOverlay.setAttribute('aria-hidden', 'false');
-        document.body.classList.add('explorar-video-open');
-        updateExplorarStoryNav();
-        // Ao abrir um vídeo do explorar que não está em modo story,
+        setupNowOverlayMusic(nowVideoFull, info);
+
+        nowVideoOverlay.classList.remove('hidden');
+        nowVideoOverlay.setAttribute('aria-hidden', 'false');
+        document.body.classList.add('now-video-open');
+        updatenowStoryNav();
+        // Ao abrir um vídeo do now que não está em modo story,
         // carregue automaticamente a sequência de status do mesmo autor
         // para permitir continuidade (próximo/anterior) no fullscreen.
         if (!isStory && info?.ownerId && info?.postId) {
@@ -1055,19 +1290,34 @@ document.addEventListener('DOMContentLoaded', () => {
                     const currentPostId = String(info.postId);
                     const stories = await getOwnerStories(ownerId);
                     if (Array.isArray(stories) && stories.length) {
-                        const mapped = stories.map((story) => ({
-                            id: String(story._id || story.id || ''),
-                            ownerId: story?.userId?._id || story?.userId || story?.ownerId || story?.autorId || ownerId,
-                            mediaUrl: story.mediaUrl,
-                            isVideo: String(story.mediaType || '').includes('video'),
-                            nome: story?.titulo || story?.nome || info?.nome || 'Status',
-                            desc: story?.descricao || story?.content || info?.desc || '',
-                            cidade: [story?.cidade, story?.estado].filter(Boolean).join(' - ') || (info?.cidade || ''),
-                            videoMuted: story.videoMuted,
-                            trimStart: story.trimStart,
-                            trimEnd: story.trimEnd,
-                            drawingUrl: story.drawingUrl
-                        }));
+                        const mapped = stories.map((story) => {
+                            const rawOwnerId = story?.userId?._id || story?.userId || story?.ownerId || story?.autorId || ownerId;
+                            const ownerIdFinal = rawOwnerId?._id || rawOwnerId;
+                            const avatarFinal = story?.foto || story?.avatarUrl || story?.userId?.foto || story?.userId?.avatarUrl || info?.avatar || 'imagens/default-user.png';
+                            const perfilUrlFinal = story?.perfilUrl || (ownerIdFinal ? `/perfil.html?id=${encodeURIComponent(String(ownerIdFinal))}&statusOwnerId=${encodeURIComponent(String(ownerIdFinal))}` : (info?.perfilUrl || '#'));
+                            return ({
+                                id: String(story._id || story.id || ''),
+                                ownerId: ownerIdFinal,
+                                mediaUrl: story.mediaUrl,
+                                isVideo: String(story.mediaType || '').includes('video'),
+                                nome: story?.titulo || story?.nome || info?.nome || 'Status',
+                                desc: story?.descricao || story?.content || info?.desc || '',
+                                cidade: [story?.cidade, story?.estado].filter(Boolean).join(' - ') || (info?.cidade || ''),
+                                avatar: avatarFinal,
+                                perfilUrl: perfilUrlFinal,
+                                videoMuted: story.videoMuted,
+                                trimStart: story.trimStart,
+                                trimEnd: story.trimEnd,
+                                drawingUrl: story.drawingUrl,
+                                youtubeMusic: story.youtubeMusic,
+                                musicUrl: story.musicUrl,
+                                musicType: story.musicType,
+                                musicStartSec: story.musicStartSec,
+                                musicDurationSec: story.musicDurationSec,
+                                musicTrackDurationSec: story.musicTrackDurationSec,
+                                musicSource: story.musicSource
+                            });
+                        });
                         let index = mapped.findIndex((s) => String(s.id) === currentPostId);
                         // Se a lista não contém o post atual, insere-o mantendo ordem estável (no início).
                         if (index === -1) {
@@ -1079,86 +1329,97 @@ document.addEventListener('DOMContentLoaded', () => {
                                 nome: info?.nome || 'Status',
                                 desc: info?.desc || '',
                                 cidade: info?.cidade || '',
+                                avatar: info?.avatar || 'imagens/default-user.png',
+                                perfilUrl: info?.perfilUrl || '#',
                                 videoMuted: info?.videoMuted,
                                 trimStart: info?.trimStart,
                                 trimEnd: info?.trimEnd,
-                                drawingUrl: info?.drawingUrl
+                                drawingUrl: info?.drawingUrl,
+                                youtubeMusic: info?.youtubeMusic,
+                                musicUrl: info?.musicUrl,
+                                musicType: info?.musicType,
+                                musicStartSec: info?.musicStartSec,
+                                musicDurationSec: info?.musicDurationSec,
+                                musicTrackDurationSec: info?.musicTrackDurationSec,
+                                musicSource: info?.musicSource
                             });
                             index = 0;
                         }
-                        explorarStoryQueue = mapped;
-                        setExplorarStorySegments(explorarStoryQueue.length);
-                        goToExplorarStory(index);
+                        nowStoryQueue = mapped;
+                        setnowStorySegments(nowStoryQueue.length);
+                        goTonowStory(index);
                         return;
                     }
                 } catch {}
             })();
         }
-        explorarVideoFull.play().catch(() => {});
+        nowVideoFull.play().catch(() => {});
     }
 
-    function openExplorarImage(src, info = {}) {
-        window.explorarOverlayMode = 'feed';
-        if (!explorarVideoOverlay || !explorarImageFull || !src) return;
-        explorarVideoOverlay.classList.remove('is-dragging');
-        explorarVideoOverlay.style.transform = '';
+    function opennowImage(src, info = {}) {
+        window.nowOverlayMode = 'feed';
+        if (!nowVideoOverlay || !nowImageFull || !src) return;
+        cleanupNowOverlayMusicHandlers(nowVideoFull);
+        stopNowOverlayMusic();
+        nowVideoOverlay.classList.remove('is-dragging');
+        nowVideoOverlay.style.transform = '';
         if (info?.postId || info?.ownerId || typeof info?.isStory === 'boolean') {
-            setExplorarOverlayMeta({
+            setnowOverlayMeta({
                 postId: info?.postId,
                 ownerId: info?.ownerId,
                 isStory: info?.isStory
             });
         } else {
-            setExplorarOverlayMeta({ postId: null, ownerId: null, isStory: false });
+            setnowOverlayMeta({ postId: null, ownerId: null, isStory: false });
         }
-        explorarVideoFull?.pause();
-        explorarVideoFull?.removeAttribute('src');
-        explorarVideoFull?.classList.add('hidden');
-        if (explorarVideoInfo) {
+        nowVideoFull?.pause();
+        nowVideoFull?.removeAttribute('src');
+        nowVideoFull?.classList.add('hidden');
+        if (nowVideoInfo) {
             const nome = info?.nome || '';
             const desc = info?.desc || '';
             const cidade = info?.cidade || '';
             const avatar = info?.avatar || 'imagens/default-user.png';
             const postId = info?.postId || null;
             const isOwner = info?.ownerId && userId && String(info.ownerId) === String(userId);
-            if (explorarVideoAvatar) {
-                explorarVideoAvatar.src = avatar;
+            if (nowVideoAvatar) {
+                nowVideoAvatar.src = avatar;
             }
-            if (explorarVideoNome) {
-                explorarVideoNome.textContent = nome;
+            if (nowVideoNome) {
+                nowVideoNome.textContent = nome;
             }
-            if (explorarVideoDesc) {
-                explorarVideoDesc.textContent = desc;
-                explorarVideoDesc.style.display = desc ? 'block' : 'none';
+            if (nowVideoDesc) {
+                nowVideoDesc.textContent = desc;
+                nowVideoDesc.style.display = desc ? 'block' : 'none';
             }
-            if (explorarVideoCidade) {
-                explorarVideoCidade.textContent = cidade;
-                explorarVideoCidade.style.display = cidade ? 'block' : 'none';
+            if (nowVideoCidade) {
+                nowVideoCidade.textContent = cidade;
+                nowVideoCidade.style.display = cidade ? 'block' : 'none';
             }
-            explorarVideoInfo.style.display = (nome || desc || cidade) ? 'flex' : 'none';
-            const existingAvatars = explorarVideoInfo.querySelector('.explorar-like-avatars');
+            nowVideoInfo.style.display = (nome || desc || cidade) ? 'flex' : 'none';
+            const existingAvatars = nowVideoInfo.querySelector('.now-like-avatars');
             if (existingAvatars) {
                 existingAvatars.remove();
             }
-            const existingLikeBtn = explorarVideoInfo.querySelector('.explorar-video-like-btn');
+            const existingLikeBtn = nowVideoInfo.querySelector('.now-video-like-btn');
             if (existingLikeBtn) {
                 existingLikeBtn.remove();
             }
-            const existingLikeList = explorarVideoInfo.querySelector('.explorar-video-like-list');
+            const existingLikeList = nowVideoInfo.querySelector('.now-video-like-list');
             if (existingLikeList) {
                 existingLikeList.remove();
             }
             if (postId) {
                 const likeBtn = document.createElement('button');
                 likeBtn.type = 'button';
-                likeBtn.className = 'explorar-video-like-btn btn-like';
+                likeBtn.className = 'now-video-like-btn btn-like';
                 likeBtn.dataset.postId = String(postId);
                 likeBtn.innerHTML = `
                     <i class="fas fa-heart"></i>
                     <span class="like-count">0</span>
                 `;
                 likeBtn.addEventListener('click', handleLikePost);
-                explorarVideoInfo.appendChild(likeBtn);
+                nowVideoInfo.appendChild(likeBtn);
                 (async () => {
                     try {
                         const resp = await fetch(`/api/posts/${postId}/likes`, {
@@ -1176,13 +1437,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (preview.length > 0) {
                             const avatarsBtn = document.createElement('button');
                             avatarsBtn.type = 'button';
-                            avatarsBtn.className = 'explorar-like-avatars';
+                            avatarsBtn.className = 'now-like-avatars';
                             preview.forEach((u) => {
                                 if (!u || !u.foto) return;
                                 const img = document.createElement('img');
                                 img.src = u.foto;
                                 img.alt = u.nome || '';
-                                img.className = 'explorar-like-avatar';
+                                img.className = 'now-like-avatar';
                                 img.referrerPolicy = 'no-referrer';
                                 avatarsBtn.appendChild(img);
                             });
@@ -1192,152 +1453,154 @@ document.addEventListener('DOMContentLoaded', () => {
                                         openLikesModal(postId, data.likes, avatarsBtn);
                                     });
                                 }
-                                explorarVideoInfo.appendChild(avatarsBtn);
+                                nowVideoInfo.appendChild(avatarsBtn);
                             }
                         }
                     } catch {}
                 })();
             }
         }
-        explorarImageFull.src = src;
-        explorarImageFull.classList.remove('hidden');
-        explorarVideoOverlay.classList.remove('hidden');
-        explorarVideoOverlay.setAttribute('aria-hidden', 'false');
-        document.body.classList.add('explorar-video-open');
-        updateExplorarStoryNav();
+        nowImageFull.src = src;
+        nowImageFull.classList.remove('hidden');
+        nowVideoOverlay.classList.remove('hidden');
+        nowVideoOverlay.setAttribute('aria-hidden', 'false');
+        document.body.classList.add('now-video-open');
+        updatenowStoryNav();
     }
 
-    function closeExplorarVideo() {
-        if (window.explorarOverlayMode === 'profile') return;
-        if (!explorarVideoOverlay || !explorarVideoFull) return;
-        explorarVideoOverlay.classList.add('hidden');
-        explorarVideoOverlay.setAttribute('aria-hidden', 'true');
+    function closenowVideo() {
+        if (window.nowOverlayMode === 'profile') return;
+        if (!nowVideoOverlay || !nowVideoFull) return;
+        nowVideoOverlay.classList.add('hidden');
+        nowVideoOverlay.setAttribute('aria-hidden', 'true');
         // Evita foco em elementos dentro de um container aria-hidden
         try {
-            if (explorarVideoOverlay.contains(document.activeElement)) {
+            if (nowVideoOverlay.contains(document.activeElement)) {
                 /** @type {HTMLElement} */(document.activeElement)?.blur?.();
             }
-            explorarVideoOverlay.setAttribute('inert', '');
+            nowVideoOverlay.setAttribute('inert', '');
         } catch {}
-        explorarVideoFull.pause();
-        explorarVideoFull.removeAttribute('src');
-        explorarVideoFull.load();
-        try { explorarVideoFull.style.pointerEvents = ''; } catch {}
-        explorarVideoOverlay.classList.remove('is-dragging');
-        explorarVideoOverlay.style.transform = '';
-        document.body.classList.remove('explorar-video-open');
-        stopExplorarStoryTimer();
-        explorarStoryPaused = false;
-        explorarStoryMode = false;
-        explorarStoryElapsed = 0;
-        explorarStoryIndex = 0;
-        setExplorarOverlayMeta({ postId: null, ownerId: null, isStory: false });
-        if (explorarStoryProgress) {
-            explorarStoryProgress.setAttribute('aria-hidden', 'true');
+        cleanupNowOverlayMusicHandlers(nowVideoFull);
+        stopNowOverlayMusic();
+        nowVideoFull.pause();
+        nowVideoFull.removeAttribute('src');
+        nowVideoFull.load();
+        try { nowVideoFull.style.pointerEvents = ''; } catch {}
+        nowVideoOverlay.classList.remove('is-dragging');
+        nowVideoOverlay.style.transform = '';
+        document.body.classList.remove('now-video-open');
+        stopnowStoryTimer();
+        nowStoryPaused = false;
+        nowStoryMode = false;
+        nowStoryElapsed = 0;
+        nowStoryIndex = 0;
+        setnowOverlayMeta({ postId: null, ownerId: null, isStory: false });
+        if (nowStoryProgress) {
+            nowStoryProgress.setAttribute('aria-hidden', 'true');
         }
-        updateExplorarStoryNav();
-        if (explorarImageFull) {
-            explorarImageFull.removeAttribute('src');
-            explorarImageFull.classList.add('hidden');
+        updatenowStoryNav();
+        if (nowImageFull) {
+            nowImageFull.removeAttribute('src');
+            nowImageFull.classList.add('hidden');
         }
     }
 
-    if (explorarStoryPrev) {
-        explorarStoryPrev.addEventListener('click', (e) => {
+    if (nowStoryPrev) {
+        nowStoryPrev.addEventListener('click', (e) => {
             e.preventDefault();
             e.stopPropagation();
-            goToExplorarStory(explorarStoryIndex - 1);
+            goTonowStory(nowStoryIndex - 1);
         });
     }
 
-    if (explorarStoryNext) {
-        explorarStoryNext.addEventListener('click', (e) => {
+    if (nowStoryNext) {
+        nowStoryNext.addEventListener('click', (e) => {
             e.preventDefault();
             e.stopPropagation();
-            goToExplorarStory(explorarStoryIndex + 1);
+            goTonowStory(nowStoryIndex + 1);
         });
     }
 
-    let explorarHoldTimer = null;
-    let explorarHoldActive = false;
-    const explorarHoldDelayMs = 500;
-    if (explorarVideoOverlay) {
+    let nowHoldTimer = null;
+    let nowHoldActive = false;
+    const nowHoldDelayMs = 500;
+    if (nowVideoOverlay) {
         const startHold = () => {
-            if (window.explorarOverlayMode === 'profile') return;
-            clearTimeout(explorarHoldTimer);
-            explorarHoldActive = false;
-            explorarHoldTimer = setTimeout(() => {
-                explorarHoldActive = true;
+            if (window.nowOverlayMode === 'profile') return;
+            clearTimeout(nowHoldTimer);
+            nowHoldActive = false;
+            nowHoldTimer = setTimeout(() => {
+                nowHoldActive = true;
                 try {
-                    if (typeof pauseExplorarStory === 'function' && explorarStoryMode) {
-                        pauseExplorarStory();
+                    if (typeof pausenowStory === 'function' && nowStoryMode) {
+                        pausenowStory();
                     }
-                    explorarVideoFull?.pause?.();
+                    nowVideoFull?.pause?.();
                 } catch {}
-            }, explorarHoldDelayMs);
+            }, nowHoldDelayMs);
         };
         const endHold = () => {
-            if (window.explorarOverlayMode === 'profile') return;
-            clearTimeout(explorarHoldTimer);
-            if (explorarStoryMode && explorarHoldActive) {
-                explorarHoldActive = false;
-                resumeExplorarStory();
+            if (window.nowOverlayMode === 'profile') return;
+            clearTimeout(nowHoldTimer);
+            if (nowStoryMode && nowHoldActive) {
+                nowHoldActive = false;
+                resumenowStory();
             } else {
-                explorarHoldActive = false;
+                nowHoldActive = false;
             }
-            try { explorarVideoFull?.play?.(); } catch {}
+            try { nowVideoFull?.play?.(); } catch {}
         };
-        explorarVideoOverlay.addEventListener('pointerdown', startHold);
-        explorarVideoOverlay.addEventListener('pointerup', endHold);
-        explorarVideoOverlay.addEventListener('pointercancel', endHold);
-        explorarVideoOverlay.addEventListener('touchstart', startHold, { passive: true });
-        explorarVideoOverlay.addEventListener('touchend', endHold);
-        explorarVideoOverlay.addEventListener('touchcancel', endHold);
+        nowVideoOverlay.addEventListener('pointerdown', startHold);
+        nowVideoOverlay.addEventListener('pointerup', endHold);
+        nowVideoOverlay.addEventListener('pointercancel', endHold);
+        nowVideoOverlay.addEventListener('touchstart', startHold, { passive: true });
+        nowVideoOverlay.addEventListener('touchend', endHold);
+        nowVideoOverlay.addEventListener('touchcancel', endHold);
     }
 
-    if (explorarVideoOverlay) {
-        explorarVideoOverlay.addEventListener('contextmenu', (event) => {
+    if (nowVideoOverlay) {
+        nowVideoOverlay.addEventListener('contextmenu', (event) => {
             event.preventDefault();
         });
     }
-    if (explorarImageFull) {
-        explorarImageFull.addEventListener('contextmenu', (event) => {
+    if (nowImageFull) {
+        nowImageFull.addEventListener('contextmenu', (event) => {
             event.preventDefault();
         });
     }
-    if (explorarVideoFull) {
-        explorarVideoFull.addEventListener('contextmenu', (event) => {
+    if (nowVideoFull) {
+        nowVideoFull.addEventListener('contextmenu', (event) => {
             event.preventDefault();
         });
     }
 
-    let explorarLastTapTime = 0;
-    const explorarDoubleTapDelay = 350;
-    let explorarNavigationBlockUntil = 0;
-    let explorarDoubleTapWindowUntil = 0;
-    let explorarVideoProgress = null;
-    let explorarControlsHideTimer = null;
+    let nowLastTapTime = 0;
+    const nowDoubleTapDelay = 350;
+    let nowNavigationBlockUntil = 0;
+    let nowDoubleTapWindowUntil = 0;
+    let nowVideoProgress = null;
+    let nowControlsHideTimer = null;
 
-    function showExplorarVideoControls(autoHideMs = 2000) {
-        if (!explorarVideoOverlay) return;
-        explorarVideoOverlay.classList.add('show-controls');
-        if (explorarControlsHideTimer) clearTimeout(explorarControlsHideTimer);
+    function shownowVideoControls(autoHideMs = 2000) {
+        if (!nowVideoOverlay) return;
+        nowVideoOverlay.classList.add('show-controls');
+        if (nowControlsHideTimer) clearTimeout(nowControlsHideTimer);
         if (autoHideMs > 0) {
-            explorarControlsHideTimer = setTimeout(() => {
-                if (explorarVideoOverlay) {
-                    explorarVideoOverlay.classList.remove('show-controls');
+            nowControlsHideTimer = setTimeout(() => {
+                if (nowVideoOverlay) {
+                    nowVideoOverlay.classList.remove('show-controls');
                 }
             }, autoHideMs);
         }
     }
 
-    function handleExplorarMediaDoubleLike(event) {
-        const postId = explorarCurrentPostId;
+    function handlenowMediaDoubleLike(event) {
+        const postId = nowCurrentPostId;
         if (!postId) return;
         if (event && event.type === 'dblclick') {
             if (event.preventDefault) event.preventDefault();
-            explorarNavigationBlockUntil = Date.now() + 700;
-            explorarDoubleTapWindowUntil = explorarNavigationBlockUntil;
+            nowNavigationBlockUntil = Date.now() + 700;
+            nowDoubleTapWindowUntil = nowNavigationBlockUntil;
             const anyBtn = document.querySelector(`.btn-like[data-post-id="${postId}"]`);
             const alreadyLiked = !!(anyBtn && anyBtn.classList.contains('liked'));
             if (alreadyLiked) {
@@ -1348,10 +1611,10 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         const now = Date.now();
-        if (now - explorarLastTapTime < explorarDoubleTapDelay) {
-            explorarLastTapTime = 0;
-            explorarNavigationBlockUntil = Date.now() + 700;
-            explorarDoubleTapWindowUntil = explorarNavigationBlockUntil;
+        if (now - nowLastTapTime < nowDoubleTapDelay) {
+            nowLastTapTime = 0;
+            nowNavigationBlockUntil = Date.now() + 700;
+            nowDoubleTapWindowUntil = nowNavigationBlockUntil;
             const anyBtn = document.querySelector(`.btn-like[data-post-id="${postId}"]`);
             const alreadyLiked = !!(anyBtn && anyBtn.classList.contains('liked'));
             if (alreadyLiked) {
@@ -1360,7 +1623,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 ensureLikeForPost(postId);
             }
         } else {
-            explorarLastTapTime = now;
+            nowLastTapTime = now;
         }
     }
 
@@ -1385,11 +1648,11 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    if (explorarImageFull) {
-        explorarImageFull.addEventListener('touchstart', (event) => {
+    if (nowImageFull) {
+        nowImageFull.addEventListener('touchstart', (event) => {
             event.preventDefault();
         }, { passive: false });
-        explorarImageFull.addEventListener('touchend', handleExplorarMediaDoubleLike);
+        nowImageFull.addEventListener('touchend', handlenowMediaDoubleLike);
     }
 
     function closeLikesModal() {
@@ -1521,12 +1784,12 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function handleExplorarDelete(btn, clickEvent = null) {
-        if (!explorarCurrentPostId) return;
+    function handlenowDelete(btn, clickEvent = null) {
+        if (!nowCurrentPostId) return;
         if (typeof showDeleteConfirmPopup !== 'function') return;
         showDeleteConfirmPopup(btn, async () => {
             try {
-                const response = await fetch(`/api/posts/${explorarCurrentPostId}`, {
+                const response = await fetch(`/api/posts/${nowCurrentPostId}`, {
                     method: 'DELETE',
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
@@ -1534,23 +1797,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!response.ok || data?.success === false) {
                     throw new Error(data?.message || 'Erro ao apagar status.');
                 }
-                const cardToRemove = document.querySelector(`.explorar-card[data-explorar-id="${explorarCurrentPostId}"]`);
+                const cardToRemove = document.querySelector(`.now-card[data-now-id="${nowCurrentPostId}"]`);
                 if (cardToRemove) cardToRemove.remove();
-                if (explorarStoryMode) {
-                    explorarStoryQueue = explorarStoryQueue.filter((item) => String(item.id) !== String(explorarCurrentPostId));
-                    setExplorarStorySegments(explorarStoryQueue.length);
-                    if (!explorarStoryQueue.length) {
-                        closeExplorarVideo();
+                if (nowStoryMode) {
+                    nowStoryQueue = nowStoryQueue.filter((item) => String(item.id) !== String(nowCurrentPostId));
+                    setnowStorySegments(nowStoryQueue.length);
+                    if (!nowStoryQueue.length) {
+                        closenowVideo();
                     } else {
-                        const nextIndex = Math.min(explorarStoryIndex, explorarStoryQueue.length - 1);
-                        goToExplorarStory(nextIndex);
+                        const nextIndex = Math.min(nowStoryIndex, nowStoryQueue.length - 1);
+                        goTonowStory(nextIndex);
                     }
                 } else {
-                    closeExplorarVideo();
+                    closenowVideo();
                 }
-                if (explorarCurrentIsStory) {
-                    explorarUserStory = explorarStoryQueue[0] || null;
-                    updateExplorarStoryIndicator();
+                if (nowCurrentIsStory) {
+                    nowUserStory = nowStoryQueue[0] || null;
+                    updatenowStoryIndicator();
                 }
             } catch (error) {
                 console.error('Erro ao apagar status:', error);
@@ -1559,55 +1822,55 @@ document.addEventListener('DOMContentLoaded', () => {
         }, clickEvent);
     }
 
-    if (explorarVideoDelete) {
-        explorarVideoDelete.addEventListener('click', (event) => {
+    if (nowVideoDelete) {
+        nowVideoDelete.addEventListener('click', (event) => {
             event.preventDefault();
             event.stopPropagation();
-            handleExplorarDelete(explorarVideoDelete, event);
+            handlenowDelete(nowVideoDelete, event);
         });
     }
 
-    if (explorarVideoBack) {
-        explorarVideoBack.addEventListener('click', closeExplorarVideo);
+    if (nowVideoBack) {
+        nowVideoBack.addEventListener('click', closenowVideo);
     }
 
-    if (explorarVideoOverlay) {
+    if (nowVideoOverlay) {
         let touchStartX = null;
         let touchStartY = null;
         let dragging = false;
         let lockingDirection = null;
 
-        explorarVideoOverlay.addEventListener('click', (event) => {
-            if (window.explorarOverlayMode === 'profile') return;
+        nowVideoOverlay.addEventListener('click', (event) => {
+            if (window.nowOverlayMode === 'profile') return;
             const target = event.target;
-            if (target.closest('.explorar-video-info') || target.closest('.explorar-video-controls') || target.closest('.explorar-video-whatsapp') || target.closest('#explorar-video-delete') || target.closest('#explorar-video-back') || target.closest('.explorar-story-nav')) {
+            if (target.closest('.now-video-info') || target.closest('.now-video-controls') || target.closest('.now-video-whatsapp') || target.closest('#now-video-delete') || target.closest('#now-video-back') || target.closest('.now-story-nav')) {
                 return;
             }
             event.stopPropagation();
-            showExplorarVideoControls();
+            shownowVideoControls();
             const nowClick = Date.now();
-            if (nowClick - explorarLastTapTime < explorarDoubleTapDelay) {
-                explorarLastTapTime = 0;
-                handleExplorarMediaDoubleLike({ type: 'dblclick' });
+            if (nowClick - nowLastTapTime < nowDoubleTapDelay) {
+                nowLastTapTime = 0;
+                handlenowMediaDoubleLike({ type: 'dblclick' });
             } else {
-                explorarLastTapTime = nowClick;
+                nowLastTapTime = nowClick;
             }
         });
-        explorarVideoOverlay.addEventListener('touchstart', (event) => {
-            if (window.explorarOverlayMode === 'profile') return;
+        nowVideoOverlay.addEventListener('touchstart', (event) => {
+            if (window.nowOverlayMode === 'profile') return;
             const target = event.target;
-            if (target.closest('.explorar-video-info') || target.closest('.explorar-video-controls') || target.closest('.explorar-video-whatsapp') || target.closest('#explorar-video-delete') || target.closest('#explorar-video-back') || target.closest('.explorar-story-nav')) {
+            if (target.closest('.now-video-info') || target.closest('.now-video-controls') || target.closest('.now-video-whatsapp') || target.closest('#now-video-delete') || target.closest('#now-video-back') || target.closest('.now-story-nav')) {
                 return;
             }
             touchStartX = event.touches[0]?.clientX ?? null;
             touchStartY = event.touches[0]?.clientY ?? null;
             dragging = false;
             lockingDirection = null;
-            showExplorarVideoControls();
+            shownowVideoControls();
         }, { passive: false });
 
-        explorarVideoOverlay.addEventListener('touchmove', (event) => {
-            if (window.explorarOverlayMode === 'profile') return;
+        nowVideoOverlay.addEventListener('touchmove', (event) => {
+            if (window.nowOverlayMode === 'profile') return;
             if (touchStartY === null || touchStartX === null) return;
             const currentX = event.touches[0]?.clientX ?? touchStartX;
             const currentY = event.touches[0]?.clientY ?? touchStartY;
@@ -1620,20 +1883,20 @@ document.addEventListener('DOMContentLoaded', () => {
             event.preventDefault();
             if (!dragging && (Math.abs(deltaX) > 18 || Math.abs(deltaY) > 18)) {
                 dragging = true;
-                explorarVideoOverlay.classList.add('is-dragging');
+                nowVideoOverlay.classList.add('is-dragging');
             }
             if (!dragging) return;
             // Só aplica transformação visual em arraste vertical (gesto de fechar)
             if (lockingDirection === 'vertical') {
                 const scale = 0.9;
-                explorarVideoOverlay.style.transform = `translate(${deltaX}px, ${deltaY}px) scale(${scale})`;
+                nowVideoOverlay.style.transform = `translate(${deltaX}px, ${deltaY}px) scale(${scale})`;
             }
         }, { passive: false });
 
-        explorarVideoOverlay.addEventListener('touchend', (event) => {
-            if (window.explorarOverlayMode === 'profile') return;
+        nowVideoOverlay.addEventListener('touchend', (event) => {
+            if (window.nowOverlayMode === 'profile') return;
             const target = event.target;
-            if (target.closest('.explorar-video-info') || target.closest('.explorar-video-controls') || target.closest('.explorar-video-whatsapp') || target.closest('#explorar-video-delete') || target.closest('#explorar-video-back') || target.closest('.explorar-story-nav')) {
+            if (target.closest('.now-video-info') || target.closest('.now-video-controls') || target.closest('.now-video-whatsapp') || target.closest('#now-video-delete') || target.closest('#now-video-back') || target.closest('.now-story-nav')) {
                 touchStartX = null;
                 touchStartY = null;
                 dragging = false;
@@ -1642,37 +1905,37 @@ document.addEventListener('DOMContentLoaded', () => {
             // Detecção de double tap para curtida
             if (!dragging) {
                 const nowTap = Date.now();
-                if (nowTap - explorarLastTapTime < explorarDoubleTapDelay) {
-                    explorarLastTapTime = 0;
-                    handleExplorarMediaDoubleLike(event);
-                    explorarVideoOverlay.classList.remove('is-dragging');
+                if (nowTap - nowLastTapTime < nowDoubleTapDelay) {
+                    nowLastTapTime = 0;
+                    handlenowMediaDoubleLike(event);
+                    nowVideoOverlay.classList.remove('is-dragging');
                     touchStartX = null;
                     touchStartY = null;
                     dragging = false;
                     return;
                 } else {
-                    explorarLastTapTime = nowTap;
+                    nowLastTapTime = nowTap;
                 }
             }
             const touch = event.changedTouches && event.changedTouches[0];
             const endX = touch?.clientX ?? 0;
             const endY = touch?.clientY ?? 0;
-            const overlayRect = explorarVideoOverlay.getBoundingClientRect();
+            const overlayRect = nowVideoOverlay.getBoundingClientRect();
             const deltaX = (endX - (touchStartX ?? endX));
             const deltaY = (endY - (touchStartY ?? endY));
             const closeVerticalThreshold = 100;
             if (dragging && Math.abs(deltaY) > closeVerticalThreshold) {
                 // Arraste forte para cima/baixo: fecha
-                closeExplorarVideo();
+                closenowVideo();
             } else {
                 // Não fechou: volta para o lugar original
-                if (!explorarVideoOverlay.classList.contains('hidden')) {
-                    if (typeof resumeExplorarStory === 'function' && explorarStoryMode) resumeExplorarStory();
-                    try { explorarVideoFull?.play?.(); } catch {}
-                    explorarVideoOverlay.style.transform = '';
+                if (!nowVideoOverlay.classList.contains('hidden')) {
+                    if (typeof resumenowStory === 'function' && nowStoryMode) resumenowStory();
+                    try { nowVideoFull?.play?.(); } catch {}
+                    nowVideoOverlay.style.transform = '';
                 }
             }
-            explorarVideoOverlay.classList.remove('is-dragging');
+            nowVideoOverlay.classList.remove('is-dragging');
             touchStartX = null;
             touchStartY = null;
             dragging = false;
@@ -1683,7 +1946,7 @@ document.addEventListener('DOMContentLoaded', () => {
         history.pushState(null, document.title, location.href);
     });
 
-    let explorarSelectedFile = null;
+    let nowSelectedFile = null;
 
     // Estado do editor de vídeo
     let editorState = {
@@ -1693,6 +1956,13 @@ document.addEventListener('DOMContentLoaded', () => {
         trimEnd: 100, // Porcentagem
         hasDrawing: false,
         musicFile: null,
+        youtubeMusic: null,
+        musicStartSec: 0,
+        musicDurationSec: 30,
+        musicTrackDurationSec: 0,
+        youtubePlayer: null,
+        youtubePlayerReady: false,
+        youtubePlayerReadyPromise: null,
         originalDuration: 0,
         audioPlayer: null,
         isDrawingMode: false,
@@ -1700,19 +1970,77 @@ document.addEventListener('DOMContentLoaded', () => {
         isDraggingTrim: null // 'start' ou 'end'
     };
 
-    const resetExplorarModal = () => {
-        explorarSelectedFile = null;
-        if (explorarPostDesc) explorarPostDesc.value = '';
-        if (explorarPreviewMediaContainer) explorarPreviewMediaContainer.innerHTML = '';
-        if (explorarMediaInput) explorarMediaInput.value = '';
+    let nowTrimPauseIndicator = null;
+    const getNowTrimPauseIndicator = () => {
+        if (!nowPreviewMediaContainer) return null;
+        if (nowTrimPauseIndicator && nowPreviewMediaContainer.contains(nowTrimPauseIndicator)) {
+            return nowTrimPauseIndicator;
+        }
+        nowTrimPauseIndicator = document.createElement('div');
+        nowTrimPauseIndicator.className = 'now-trim-pause-indicator';
+        nowTrimPauseIndicator.innerHTML = '<i class="fas fa-play"></i>';
+        nowTrimPauseIndicator.style.position = 'absolute';
+        nowTrimPauseIndicator.style.left = '50%';
+        nowTrimPauseIndicator.style.top = '50%';
+        nowTrimPauseIndicator.style.transform = 'translate(-50%, -50%)';
+        nowTrimPauseIndicator.style.width = '64px';
+        nowTrimPauseIndicator.style.height = '64px';
+        nowTrimPauseIndicator.style.borderRadius = '999px';
+        nowTrimPauseIndicator.style.background = 'rgba(0,0,0,0.45)';
+        nowTrimPauseIndicator.style.display = 'none';
+        nowTrimPauseIndicator.style.alignItems = 'center';
+        nowTrimPauseIndicator.style.justifyContent = 'center';
+        nowTrimPauseIndicator.style.color = '#fff';
+        nowTrimPauseIndicator.style.fontSize = '26px';
+        nowTrimPauseIndicator.style.zIndex = '5';
+        nowTrimPauseIndicator.style.pointerEvents = 'none';
+        nowTrimPauseIndicator.style.backdropFilter = 'blur(2px)';
+        nowPreviewMediaContainer.appendChild(nowTrimPauseIndicator);
+        return nowTrimPauseIndicator;
+    };
+
+    const updateNowTrimPauseIndicator = () => {
+        const indicator = getNowTrimPauseIndicator();
+        if (!indicator) return;
+        const video = nowPreviewMediaContainer ? nowPreviewMediaContainer.querySelector('video') : null;
+        const shouldShow = !!(video && video.paused && !editorState.isDrawingMode && nowPostModal?.classList?.contains('is-open'));
+        indicator.style.display = shouldShow ? 'flex' : 'none';
+    };
+
+    if (nowPreviewMediaContainer) {
+        nowPreviewMediaContainer.addEventListener('click', (e) => {
+            if (!editorState.isTrimMode) return;
+            if (videoTrimUi && videoTrimUi.contains(e.target)) return;
+            if (videoTrimHeader && videoTrimHeader.contains(e.target)) return;
+            const video = nowPreviewMediaContainer.querySelector('video');
+            if (!video) return;
+            if (video.paused) {
+                video.play().catch(() => {});
+            } else {
+                video.pause();
+            }
+            updateNowTrimPauseIndicator();
+        });
+    }
+
+    const resetnowModal = () => {
+        nowSelectedFile = null;
+        if (nowPostDesc) nowPostDesc.value = '';
+        if (nowPreviewMediaContainer) nowPreviewMediaContainer.innerHTML = '';
+        if (nowMediaInput) nowMediaInput.value = '';
+        if (nowTrimPauseIndicator) nowTrimPauseIndicator.style.display = 'none';
+        const musicSeg = document.getElementById('now-music-segment-editor');
+        if (musicSeg) musicSeg.remove();
+        const musicSegOverlay = document.getElementById('now-music-segment-overlay');
+        if (musicSegOverlay) musicSegOverlay.remove();
         
         // Reset Editor
         if (videoEditorSidebar) videoEditorSidebar.classList.add('hidden');
         if (videoTrimUi) videoTrimUi.classList.add('hidden');
         if (videoTrimHeader) videoTrimHeader.classList.add('hidden');
         if (videoDrawingPalette) videoDrawingPalette.classList.add('hidden');
-        if (explorarPostClose) explorarPostClose.classList.remove('hidden'); // Garante X visível
-        if (explorarPreviewMediaContainer) explorarPreviewMediaContainer.classList.remove('trim-mode-active');
+        if (nowPostClose) nowPostClose.classList.remove('hidden'); // Garante X visível
+        if (nowPreviewMediaContainer) nowPreviewMediaContainer.classList.remove('trim-mode-active');
 
         // Limpa filmstrip
         const filmstripContainer = document.querySelector('.trim-preview-container');
@@ -1729,6 +2057,17 @@ document.addEventListener('DOMContentLoaded', () => {
             editorState.audioPlayer.pause();
             editorState.audioPlayer = null;
         }
+        if (editorState.youtubePlayer) {
+            try {
+                editorState.youtubePlayer.stopVideo?.();
+                editorState.youtubePlayer.destroy?.();
+            } catch {}
+            editorState.youtubePlayer = null;
+            editorState.youtubePlayerReady = false;
+            editorState.youtubePlayerReadyPromise = null;
+        }
+        const ytContainer = document.getElementById('now-youtube-audio-player');
+        if (ytContainer) ytContainer.remove();
         editorState = {
             isMuted: false,
             videoMuted: false,
@@ -1736,6 +2075,13 @@ document.addEventListener('DOMContentLoaded', () => {
             trimEnd: 100,
             hasDrawing: false,
             musicFile: null,
+            youtubeMusic: null,
+            musicStartSec: 0,
+            musicDurationSec: 30,
+            musicTrackDurationSec: 0,
+            youtubePlayer: null,
+            youtubePlayerReady: false,
+            youtubePlayerReadyPromise: null,
             originalDuration: 0,
             audioPlayer: null,
             isDrawingMode: false,
@@ -1820,11 +2166,11 @@ document.addEventListener('DOMContentLoaded', () => {
         video.load();
     };
 
-    const openExplorarModal = (file) => {
-        if (!explorarPostModal || !explorarPreviewMediaContainer) return;
+    const opennowModal = (file) => {
+        if (!nowPostModal || !nowPreviewMediaContainer) return;
         try {
-            if (explorarPostModal.parentElement && explorarPostModal.parentElement !== document.body) {
-                document.body.appendChild(explorarPostModal);
+            if (nowPostModal.parentElement && nowPostModal.parentElement !== document.body) {
+                document.body.appendChild(nowPostModal);
             }
         } catch {}
         try {
@@ -1833,10 +2179,10 @@ document.addEventListener('DOMContentLoaded', () => {
             document.body.scrollTop = 0;
         } catch {}
         
-        explorarSelectedFile = file || null;
-        explorarPreviewMediaContainer.innerHTML = '';
-        resetExplorarModal(); // Reseta estado anterior
-        explorarSelectedFile = file; // Restaura file após reset
+        nowSelectedFile = file || null;
+        nowPreviewMediaContainer.innerHTML = '';
+        resetnowModal(); // Reseta estado anterior
+        nowSelectedFile = file; // Restaura file após reset
 
         if (file) {
             const isVideo = file.type.startsWith('video/');
@@ -1854,7 +2200,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 videoEl.style.height = '100%';
                 // videoEl.style.objectFit = 'contain'; // Já no CSS
 
-                explorarPreviewMediaContainer.appendChild(videoEl);
+                nowPreviewMediaContainer.appendChild(videoEl);
 
                 // Mostra sidebar
                 if (videoEditorSidebar) videoEditorSidebar.classList.remove('hidden');
@@ -1891,6 +2237,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // Loop de trim e sincronia de música usando requestAnimationFrame para maior precisão
                 let trimLoopFrameId;
+                let lastYouTubeSyncAt = 0;
 
                 const checkTrimLoop = () => {
                     if (videoEl.paused || videoEl.ended) {
@@ -1908,12 +2255,43 @@ document.addEventListener('DOMContentLoaded', () => {
                         videoEl.currentTime = startTime;
                         // video.play() já deve estar ativo, mas reforçamos se necessário
                         if (videoEl.paused) videoEl.play().catch(() => {});
+                        if (editorState.youtubePlayerReady && editorState.youtubePlayer) {
+                            try {
+                                const base = Number.isFinite(editorState.musicStartSec) ? Number(editorState.musicStartSec) : 0;
+                                editorState.youtubePlayer.seekTo(base, true);
+                            } catch {}
+                        }
+                        if (editorState.audioPlayer) {
+                            try {
+                                const base = Number.isFinite(editorState.musicStartSec) ? Number(editorState.musicStartSec) : 0;
+                                editorState.audioPlayer.currentTime = base;
+                            } catch {}
+                        }
                     }
 
                     // Sincroniza música extra
                     if (editorState.audioPlayer && !editorState.audioPlayer.paused) {
-                        const diff = Math.abs(editorState.audioPlayer.currentTime - videoEl.currentTime);
-                        if (diff > 0.5) editorState.audioPlayer.currentTime = videoEl.currentTime;
+                        const base = Number.isFinite(editorState.musicStartSec) ? Number(editorState.musicStartSec) : 0;
+                        const clipTime = Math.max(0, (Number(videoEl.currentTime) || 0) - startTime);
+                        const targetTime = base + clipTime;
+                        const diff = Math.abs(editorState.audioPlayer.currentTime - targetTime);
+                        if (diff > 0.5) editorState.audioPlayer.currentTime = targetTime;
+                    }
+                    if (editorState.youtubePlayerReady && editorState.youtubePlayer) {
+                        const now = performance.now();
+                        if (now - lastYouTubeSyncAt > 600) {
+                            lastYouTubeSyncAt = now;
+                            try {
+                                const ytTime = editorState.youtubePlayer.getCurrentTime?.();
+                                if (Number.isFinite(ytTime)) {
+                                    const base = Number.isFinite(editorState.musicStartSec) ? Number(editorState.musicStartSec) : 0;
+                                    const clipTime = Math.max(0, (Number(videoEl.currentTime) || 0) - startTime);
+                                    const targetTime = base + clipTime;
+                                    const diff = Math.abs(ytTime - targetTime);
+                                    if (diff > 0.75) editorState.youtubePlayer.seekTo(targetTime, true);
+                                }
+                            } catch {}
+                        }
                     }
 
                     trimLoopFrameId = requestAnimationFrame(checkTrimLoop);
@@ -1922,12 +2300,36 @@ document.addEventListener('DOMContentLoaded', () => {
                 videoEl.addEventListener('play', () => {
                     cancelAnimationFrame(trimLoopFrameId);
                     trimLoopFrameId = requestAnimationFrame(checkTrimLoop);
-                    if (editorState.audioPlayer) editorState.audioPlayer.play().catch(() => {});
+                    if (editorState.audioPlayer) {
+                        try {
+                            const base = Number.isFinite(editorState.musicStartSec) ? Number(editorState.musicStartSec) : 0;
+                            const duration = videoEl.duration || 1;
+                            const startTime = (editorState.trimStart / 100) * duration;
+                            const clipTime = Math.max(0, (Number(videoEl.currentTime) || 0) - startTime);
+                            editorState.audioPlayer.currentTime = base + clipTime;
+                        } catch {}
+                        editorState.audioPlayer.play().catch(() => {});
+                    }
+                    if (editorState.youtubePlayerReady && editorState.youtubePlayer) {
+                        try {
+                            const base = Number.isFinite(editorState.musicStartSec) ? Number(editorState.musicStartSec) : 0;
+                            const duration = videoEl.duration || 1;
+                            const startTime = (editorState.trimStart / 100) * duration;
+                            const clipTime = Math.max(0, (Number(videoEl.currentTime) || 0) - startTime);
+                            editorState.youtubePlayer.seekTo(base + clipTime, true);
+                            editorState.youtubePlayer.playVideo?.();
+                        } catch {}
+                    }
                 });
 
                 videoEl.addEventListener('pause', () => {
                     cancelAnimationFrame(trimLoopFrameId);
                     if (editorState.audioPlayer) editorState.audioPlayer.pause();
+                    if (editorState.youtubePlayerReady && editorState.youtubePlayer) {
+                        try {
+                            editorState.youtubePlayer.pauseVideo?.();
+                        } catch {}
+                    }
                 });
 
                 // Garante loop ao terminar o vídeo (caso endTime seja 100%)
@@ -1935,7 +2337,21 @@ document.addEventListener('DOMContentLoaded', () => {
                      const duration = videoEl.duration || 1;
                      const startTime = (editorState.trimStart / 100) * duration;
                      videoEl.currentTime = startTime;
-                     videoEl.play();
+                     videoEl.play().catch(() => {});
+                     if (editorState.youtubePlayerReady && editorState.youtubePlayer) {
+                        try {
+                            const base = Number.isFinite(editorState.musicStartSec) ? Number(editorState.musicStartSec) : 0;
+                            editorState.youtubePlayer.seekTo(base, true);
+                            editorState.youtubePlayer.playVideo?.();
+                        } catch {}
+                     }
+                     if (editorState.audioPlayer) {
+                        try {
+                            const base = Number.isFinite(editorState.musicStartSec) ? Number(editorState.musicStartSec) : 0;
+                            editorState.audioPlayer.currentTime = base;
+                            editorState.audioPlayer.play().catch(() => {});
+                        } catch {}
+                     }
                 });
                 videoEl.addEventListener('volumechange', () => {
                     // Sincroniza mudo (se user mutar pelo controle nativo, embora tenhamos tirado controls)
@@ -1943,23 +2359,33 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 // Clique no vídeo para play/pause
                 videoEl.addEventListener('click', () => {
-                    if (editorState.isDrawingMode || editorState.isTrimMode) return; // Se desenhando ou recortando, não pausa
-                    videoEl.paused ? videoEl.play() : videoEl.pause();
+                    if (editorState.isDrawingMode) return;
+                    if (editorState.isTrimMode) return;
+                    if (videoEl.paused) {
+                        videoEl.play().catch(() => {});
+                    } else {
+                        videoEl.pause();
+                    }
+                    updateNowTrimPauseIndicator();
                 });
+
+                videoEl.addEventListener('play', updateNowTrimPauseIndicator);
+                videoEl.addEventListener('pause', updateNowTrimPauseIndicator);
+                videoEl.addEventListener('ended', updateNowTrimPauseIndicator);
 
                 // Gera filmstrip em background
                 generateFilmstrip(file);
 
             } else {
-                explorarPreviewMediaContainer.innerHTML = `<img src="${url}" alt="Prévia">`;
+                nowPreviewMediaContainer.innerHTML = `<img src="${url}" alt="Prévia">`;
                 if (videoEditorSidebar) videoEditorSidebar.classList.add('hidden');
             }
         }
         
-        explorarPostModal.classList.add('is-open');
-        explorarPostModal.removeAttribute('inert');
-        explorarPostModal.setAttribute('aria-hidden', 'false');
-        document.body.classList.add('explorar-post-modal-open');
+        nowPostModal.classList.add('is-open');
+        nowPostModal.removeAttribute('inert');
+        nowPostModal.setAttribute('aria-hidden', 'false');
+        document.body.classList.add('now-post-modal-open');
     };
 
     // --- Lógica das Ferramentas de Edição ---
@@ -2000,18 +2426,19 @@ document.addEventListener('DOMContentLoaded', () => {
             editorState.isTrimMode = true;
             videoTrimUi.classList.remove('hidden');
             videoTrimHeader.classList.remove('hidden');
-            if (explorarPreviewMediaContainer) explorarPreviewMediaContainer.classList.add('trim-mode-active');
+            if (nowPreviewMediaContainer) nowPreviewMediaContainer.classList.add('trim-mode-active');
             
             // Adicionar classe ao card para esconder outros elementos via CSS
-            const modalCard = document.querySelector('.explorar-post-modal-card');
+            const modalCard = document.querySelector('.now-post-modal-card');
             if (modalCard) modalCard.classList.add('trim-mode-active');
 
             // Esconder Sidebar e Close
             if (videoEditorSidebar) videoEditorSidebar.classList.add('hidden');
-            if (explorarPostClose) explorarPostClose.classList.add('hidden');
+            if (nowPostClose) nowPostClose.classList.add('hidden');
 
             // Force update UI
             updateTrimUI();
+            updateNowTrimPauseIndicator();
         });
     }
 
@@ -2019,6 +2446,12 @@ document.addEventListener('DOMContentLoaded', () => {
     if (trimCancelHeader) {
         trimCancelHeader.addEventListener('click', (e) => {
             e.stopPropagation();
+            const currentDuration = editorState.originalDuration || exploringGetVideo()?.duration || 0;
+            if (currentDuration > MAX_TRIM_DURATION && nowMediaInput) {
+                closenowModal();
+                setTimeout(() => nowMediaInput.click(), 0);
+                return;
+            }
             // Cancelar Trim: Reverte valores
             editorState.trimStart = 0;
             editorState.trimEnd = 100;
@@ -2033,13 +2466,14 @@ document.addEventListener('DOMContentLoaded', () => {
             editorState.isTrimMode = false;
             videoTrimUi.classList.add('hidden');
             videoTrimHeader.classList.add('hidden');
-            if (explorarPreviewMediaContainer) explorarPreviewMediaContainer.classList.remove('trim-mode-active');
+            if (nowPreviewMediaContainer) nowPreviewMediaContainer.classList.remove('trim-mode-active');
             
-            const modalCard = document.querySelector('.explorar-post-modal-card');
+            const modalCard = document.querySelector('.now-post-modal-card');
             if (modalCard) modalCard.classList.remove('trim-mode-active');
 
             if (videoEditorSidebar) videoEditorSidebar.classList.remove('hidden');
-            if (explorarPostClose) explorarPostClose.classList.remove('hidden');
+            if (nowPostClose) nowPostClose.classList.remove('hidden');
+            updateNowTrimPauseIndicator();
         });
     }
 
@@ -2051,18 +2485,19 @@ document.addEventListener('DOMContentLoaded', () => {
             editorState.isTrimMode = false;
             videoTrimUi.classList.add('hidden');
             videoTrimHeader.classList.add('hidden');
-            if (explorarPreviewMediaContainer) explorarPreviewMediaContainer.classList.remove('trim-mode-active');
+            if (nowPreviewMediaContainer) nowPreviewMediaContainer.classList.remove('trim-mode-active');
             
-            const modalCard = document.querySelector('.explorar-post-modal-card');
+            const modalCard = document.querySelector('.now-post-modal-card');
             if (modalCard) modalCard.classList.remove('trim-mode-active');
 
             if (videoEditorSidebar) videoEditorSidebar.classList.remove('hidden');
-            if (explorarPostClose) explorarPostClose.classList.remove('hidden');
+            if (nowPostClose) nowPostClose.classList.remove('hidden');
             
             // Retorna ao início do corte
             seekVideoTo(editorState.trimStart, false);
             const video = exploringGetVideo();
             if (video) video.play();
+            updateNowTrimPauseIndicator();
         });
     }
 
@@ -2086,9 +2521,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 videoEditorSidebar.classList.remove('hidden');
                 videoEditorSidebar.classList.remove('drawing-mode');
             }
-            if (explorarPostClose) explorarPostClose.classList.remove('hidden');
+            if (nowPostClose) nowPostClose.classList.remove('hidden');
             
-            const modalCard = document.querySelector('.explorar-post-modal-card');
+            const modalCard = document.querySelector('.now-post-modal-card');
             if (modalCard) modalCard.classList.remove('drawing-mode-active');
 
             // Reset Pencil Border
@@ -2241,6 +2676,102 @@ document.addEventListener('DOMContentLoaded', () => {
              }
         };
 
+        if (trimRangeHighlight) {
+            let isDraggingRange = false;
+            let rangeStartClientX = 0;
+            let rangeStartStart = 0;
+            let rangeStartEnd = 0;
+
+            const beginRangeDrag = (clientX) => {
+                isDraggingRange = true;
+                rangeStartClientX = clientX;
+                rangeStartStart = editorState.trimStart;
+                rangeStartEnd = editorState.trimEnd;
+            };
+
+            const isClientXInsideRange = (clientX) => {
+                const rect = trimSliderContainer.getBoundingClientRect();
+                if (rect.width <= 0) return false;
+                const pct = ((clientX - rect.left) / rect.width) * 100;
+                return pct >= editorState.trimStart && pct <= editorState.trimEnd;
+            };
+
+            const moveRangeDrag = (clientX) => {
+                if (!isDraggingRange) return;
+                const rect = trimSliderContainer.getBoundingClientRect();
+                const lengthCurrent = rangeStartEnd - rangeStartStart;
+                if (rect.width <= 0) return;
+                const deltaPct = ((clientX - rangeStartClientX) / rect.width) * 100;
+                const duration = editorState.originalDuration || 1;
+                const maxPct = duration > MAX_TRIM_DURATION ? (MAX_TRIM_DURATION / duration) * 100 : 100;
+                const length = Math.min(lengthCurrent, maxPct);
+
+                let newStart = rangeStartStart + deltaPct;
+                newStart = Math.max(0, Math.min(100 - length, newStart));
+                const newEnd = newStart + length;
+
+                editorState.trimStart = newStart;
+                editorState.trimEnd = newEnd;
+                if (trimStartInput) trimStartInput.value = newStart;
+                if (trimEndInput) trimEndInput.value = newEnd;
+                updateTrimUI();
+                seekVideoTo(editorState.trimStart);
+            };
+
+            const endRangeDrag = () => {
+                if (!isDraggingRange) return;
+                isDraggingRange = false;
+                playTrimmedClip();
+            };
+
+            const onRangeTouchStart = (e) => {
+                if (!editorState.isTrimMode) return;
+                if (e.target && e.target.classList && e.target.classList.contains('trim-handle')) return;
+                if (e.touches.length === 0) return;
+                if (!isClientXInsideRange(e.touches[0].clientX)) return;
+                e.preventDefault();
+                e.stopPropagation();
+                beginRangeDrag(e.touches[0].clientX);
+            };
+
+            trimRangeHighlight.addEventListener('touchstart', onRangeTouchStart, { passive: false });
+            trimSliderContainer.addEventListener('touchstart', onRangeTouchStart, { passive: false, capture: true });
+
+            const onRangeTouchMove = (e) => {
+                if (!isDraggingRange) return;
+                if (e.touches.length === 0) return;
+                e.preventDefault();
+                e.stopPropagation();
+                moveRangeDrag(e.touches[0].clientX);
+            };
+
+            trimRangeHighlight.addEventListener('touchmove', onRangeTouchMove, { passive: false });
+            trimSliderContainer.addEventListener('touchmove', onRangeTouchMove, { passive: false, capture: true });
+
+            trimRangeHighlight.addEventListener('touchend', endRangeDrag);
+            trimSliderContainer.addEventListener('touchend', endRangeDrag, { capture: true });
+
+            const onRangeMouseDown = (e) => {
+                if (!editorState.isTrimMode) return;
+                if (e.target && e.target.classList && e.target.classList.contains('trim-handle')) return;
+                if (!isClientXInsideRange(e.clientX)) return;
+                e.preventDefault();
+                e.stopPropagation();
+                beginRangeDrag(e.clientX);
+            };
+
+            trimRangeHighlight.addEventListener('mousedown', onRangeMouseDown);
+            trimSliderContainer.addEventListener('mousedown', onRangeMouseDown, { capture: true });
+
+            document.addEventListener('mousemove', (e) => {
+                if (!isDraggingRange) return;
+                e.preventDefault();
+                moveRangeDrag(e.clientX);
+            });
+
+            document.addEventListener('mouseup', endRangeDrag);
+        }
+
         // Touch Support
         trimHandleStart.addEventListener('touchmove', (e) => {
             e.preventDefault(); // Evita scroll
@@ -2358,7 +2889,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         // Oculta botão de fechar do modal principal e outros elementos
-        const modalCard = document.querySelector('.explorar-post-modal-card');
+        const modalCard = document.querySelector('.now-post-modal-card');
         if (modalCard) modalCard.classList.add('drawing-mode-active');
 
         // Configura Contexto
@@ -2406,7 +2937,7 @@ document.addEventListener('DOMContentLoaded', () => {
             videoEditorSidebar.classList.remove('drawing-mode');
         }
 
-        const modalCard = document.querySelector('.explorar-post-modal-card');
+        const modalCard = document.querySelector('.now-post-modal-card');
         if (modalCard) modalCard.classList.remove('drawing-mode-active');
         
         // Reset Lápis
@@ -2626,27 +3157,1503 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 4. Music
     if (toolMusic && musicFileInput) {
-        toolMusic.addEventListener('click', () => {
-            musicFileInput.click();
+        let youtubeMusicModalOverlay = null;
+        let youtubeMusicModal = null;
+        let youtubeMusicInput = null;
+        let youtubeMusicResults = null;
+        let youtubeMusicStatus = null;
+        let youtubeMusicCloseX = null;
+        let youtubeMusicTitleEl = null;
+        let youtubeMusicSavedBtn = null;
+        let youtubeMusicTrimBox = null;
+        let youtubeMusicTrimTimeline = null;
+        let youtubeMusicTrimBar = null;
+        let youtubeMusicTrimHighlight = null;
+        let youtubeMusicTrimHandle = null;
+        let youtubeMusicTrimApplyBtn = null;
+        let doSearch = null;
+        let stopSelectedMusicFn = null;
+        let renderSelectedOnlyFn = null;
+        let renderHistoryFn = null;
+        let renderSavedFn = null;
+        let setModeFn = null;
+        let liveSearchTimerId = 0;
+        let liveSearchAbortController = null;
+        let lastLiveQuery = '';
+        let youtubeMusicMode = 'search';
+
+        const MUSIC_HISTORY_KEY = 'now_youtube_music_history_v1';
+        const MUSIC_SAVED_KEY = 'now_youtube_music_saved_v1';
+
+        const safeParseArray = (raw) => {
+            try {
+                const v = JSON.parse(String(raw || ''));
+                return Array.isArray(v) ? v : [];
+            } catch {
+                return [];
+            }
+        };
+
+        const normalizeMusicItem = (item) => {
+            const videoId = String(item?.videoId || '').trim();
+            if (!videoId) return null;
+            return {
+                videoId,
+                title: String(item?.title || '').trim(),
+                thumbnailUrl: String(item?.thumbnailUrl || '').trim()
+            };
+        };
+
+        const getMusicHistory = () => {
+            return safeParseArray(localStorage.getItem(MUSIC_HISTORY_KEY))
+                .map(normalizeMusicItem)
+                .filter(Boolean)
+                .slice(0, 10);
+        };
+
+        const setMusicHistory = (items) => {
+            const next = (Array.isArray(items) ? items : [])
+                .map(normalizeMusicItem)
+                .filter(Boolean)
+                .slice(0, 10);
+            try { localStorage.setItem(MUSIC_HISTORY_KEY, JSON.stringify(next)); } catch {}
+        };
+
+        const addToMusicHistory = (item) => {
+            const normalized = normalizeMusicItem(item);
+            if (!normalized) return;
+            const current = getMusicHistory();
+            const next = [normalized, ...current.filter((it) => String(it.videoId) !== normalized.videoId)].slice(0, 10);
+            setMusicHistory(next);
+        };
+
+        const getSavedMusics = () => {
+            return safeParseArray(localStorage.getItem(MUSIC_SAVED_KEY))
+                .map(normalizeMusicItem)
+                .filter(Boolean)
+                .slice(0, 200);
+        };
+
+        const setSavedMusics = (items) => {
+            const next = (Array.isArray(items) ? items : [])
+                .map(normalizeMusicItem)
+                .filter(Boolean)
+                .slice(0, 200);
+            try { localStorage.setItem(MUSIC_SAVED_KEY, JSON.stringify(next)); } catch {}
+        };
+
+        const isMusicSaved = (videoId) => {
+            const id = String(videoId || '').trim();
+            if (!id) return false;
+            return getSavedMusics().some((it) => String(it.videoId) === id);
+        };
+
+        const toggleSavedMusic = (item) => {
+            const normalized = normalizeMusicItem(item);
+            if (!normalized) return false;
+            const current = getSavedMusics();
+            const exists = current.some((it) => String(it.videoId) === normalized.videoId);
+            const next = exists
+                ? current.filter((it) => String(it.videoId) !== normalized.videoId)
+                : [normalized, ...current.filter((it) => String(it.videoId) !== normalized.videoId)];
+            setSavedMusics(next);
+            return !exists;
+        };
+
+        const getAuthHeaders = () => {
+            const t = localStorage.getItem('jwtToken');
+            if (!t || t === 'null' || t === 'undefined') return {};
+            return { 'Authorization': `Bearer ${t}` };
+        };
+
+        const isDarkTheme = () => document.documentElement.classList.contains('dark-mode');
+
+        const clamp = (n, min, max) => Math.min(max, Math.max(min, n));
+        const formatTime = (sec) => {
+            const s = Math.max(0, Math.floor(Number(sec) || 0));
+            const m = Math.floor(s / 60);
+            const r = s % 60;
+            return `${m}:${String(r).padStart(2, '0')}`;
+        };
+
+        const getVideoTrimBounds = () => {
+            const video = exploringGetVideo();
+            const d = video && Number.isFinite(video.duration) ? Number(video.duration) : 0;
+            if (!d) return { start: 0, end: 0, clipDuration: 0 };
+            const start = (Number(editorState.trimStart) / 100) * d;
+            const end = (Number(editorState.trimEnd) / 100) * d;
+            const clipDuration = Math.max(0, end - start);
+            return { start, end, clipDuration };
+        };
+
+        const getTargetMusicDurationSec = () => {
+            const { clipDuration } = getVideoTrimBounds();
+            if (!clipDuration) return 30;
+            return Math.max(1, Math.min(30, clipDuration));
+        };
+
+        const syncSelectedMusicToVideoNow = () => {
+            const video = exploringGetVideo();
+            if (!video) return;
+            const { start } = getVideoTrimBounds();
+            const base = Number.isFinite(editorState.musicStartSec) ? Number(editorState.musicStartSec) : 0;
+            const clipTime = Math.max(0, (Number(video.currentTime) || 0) - start);
+            const targetTime = base + clipTime;
+
+            if (editorState.audioPlayer) {
+                try {
+                    editorState.audioPlayer.currentTime = targetTime;
+                } catch {}
+                if (video.paused) {
+                    try { editorState.audioPlayer.pause(); } catch {}
+                }
+            }
+            if (editorState.youtubePlayerReady && editorState.youtubePlayer) {
+                try {
+                    editorState.youtubePlayer.seekTo?.(targetTime, true);
+                } catch {}
+                if (video.paused) {
+                    try { editorState.youtubePlayer.pauseVideo?.(); } catch {}
+                }
+            }
+        };
+
+        let musicSegmentCancelBtn = null;
+        let musicSegmentTitleEl = null;
+        let youtubeMusicTrimOverlay = null;
+        let isMusicSegmentModalOpen = false;
+        let youtubeMusicWaveform = null;
+        let musicWaveformKey = '';
+        let musicSegmentStyleEl = null;
+        let musicSegmentBottomWrap = null;
+        let musicSegmentTopWrap = null;
+        let musicSegmentPanel = null;
+
+        const applyMusicSegmentPanelLayout = () => {
+            if (!youtubeMusicTrimOverlay || !musicSegmentPanel) return;
+            const isDesktop = window.matchMedia && window.matchMedia('(min-width: 769px)').matches;
+            const baseHeight = (Number(window.innerHeight) && Number(window.innerHeight) < 720) ? '100vh' : '96vh';
+            const previewEl = nowPostPreview || document.getElementById('now-post-preview') || document.querySelector('.now-post-preview');
+            const rect = (() => {
+                try {
+                    if (!isDesktop || !previewEl || !previewEl.getBoundingClientRect) return null;
+                    const r = previewEl.getBoundingClientRect();
+                    if (!r || !Number.isFinite(r.width) || !Number.isFinite(r.height) || r.width <= 0 || r.height <= 0) return null;
+                    return r;
+                } catch {
+                    return null;
+                }
+            })();
+
+            if (isDesktop) {
+                youtubeMusicTrimOverlay.style.alignItems = 'center';
+                youtubeMusicTrimOverlay.style.justifyContent = 'center';
+                youtubeMusicTrimOverlay.style.padding = '0';
+
+                if (rect) {
+                    musicSegmentPanel.style.width = `${Math.round(rect.width)}px`;
+                    musicSegmentPanel.style.maxWidth = musicSegmentPanel.style.width;
+                    musicSegmentPanel.style.height = `${Math.round(rect.height)}px`;
+                    musicSegmentPanel.style.maxHeight = musicSegmentPanel.style.height;
+                } else {
+                    musicSegmentPanel.style.width = 'min(92vw, 560px)';
+                    musicSegmentPanel.style.maxWidth = '92vw';
+                    musicSegmentPanel.style.height = 'min(86vh, 720px)';
+                    musicSegmentPanel.style.maxHeight = '86vh';
+                }
+
+                if (musicSegmentBottomWrap) {
+                    musicSegmentBottomWrap.style.top = '0';
+                    musicSegmentBottomWrap.style.padding = '14px 14px 18px';
+                }
+                if (musicSegmentTopWrap) {
+                    musicSegmentTopWrap.style.padding = '12px 14px 12px';
+                }
+                return;
+            }
+
+            youtubeMusicTrimOverlay.style.alignItems = 'stretch';
+            youtubeMusicTrimOverlay.style.justifyContent = 'stretch';
+            youtubeMusicTrimOverlay.style.padding = '0';
+            musicSegmentPanel.style.width = '100%';
+            musicSegmentPanel.style.height = baseHeight;
+            musicSegmentPanel.style.maxHeight = baseHeight;
+            if (musicSegmentBottomWrap) {
+                musicSegmentBottomWrap.style.padding = '14px 14px calc(clamp(70px, 12vh, 120px) + env(safe-area-inset-bottom))';
+            }
+            if (musicSegmentTopWrap) {
+                musicSegmentTopWrap.style.padding = 'calc(12px + env(safe-area-inset-top)) 14px 12px';
+            }
+        };
+
+        const hash32 = (str) => {
+            let h = 2166136261;
+            const s = String(str || '');
+            for (let i = 0; i < s.length; i++) {
+                h ^= s.charCodeAt(i);
+                h = Math.imul(h, 16777619);
+            }
+            return h >>> 0;
+        };
+
+        const buildWaveformBars = (key) => {
+            if (!youtubeMusicWaveform) return;
+            const nextKey = String(key || '');
+            if (!nextKey) return;
+            if (nextKey === musicWaveformKey && youtubeMusicWaveform.childElementCount) return;
+            musicWaveformKey = nextKey;
+            youtubeMusicWaveform.innerHTML = '';
+
+            let seed = hash32(nextKey) || 1;
+            const rand = () => {
+                seed ^= seed << 13;
+                seed ^= seed >>> 17;
+                seed ^= seed << 5;
+                return (seed >>> 0) / 4294967296;
+            };
+
+            const width = Number(window.innerWidth) || 360;
+            const bars = clamp(Math.floor(width / 5), 70, 180);
+            for (let i = 0; i < bars; i++) {
+                const a = rand();
+                const b = rand();
+                const c = rand();
+                const shaped = Math.max(a * a, b * 0.65, c * 0.35);
+                const height = clamp(10 + Math.round(shaped * 62), 8, 96);
+                const bar = document.createElement('div');
+                bar.style.flex = '1 1 0';
+                bar.style.width = '0';
+                bar.style.minWidth = '1px';
+                bar.style.height = `${height}%`;
+                bar.style.borderRadius = '999px';
+                bar.style.background = 'rgba(255,255,255,0.78)';
+                bar.style.transformOrigin = 'bottom';
+                bar.style.transition = 'transform 220ms ease';
+                bar.style.transform = 'scaleY(0.92)';
+                youtubeMusicWaveform.appendChild(bar);
+            }
+        };
+
+        const updateWaveformSelectionEffect = () => {
+            if (!youtubeMusicWaveform) return;
+            const track = Number.isFinite(editorState.musicTrackDurationSec) ? Number(editorState.musicTrackDurationSec) : 0;
+            const seg = Number.isFinite(editorState.musicDurationSec) ? Number(editorState.musicDurationSec) : 0;
+            const start = Number.isFinite(editorState.musicStartSec) ? Number(editorState.musicStartSec) : 0;
+            const nodes = youtubeMusicWaveform.children;
+            const n = nodes ? nodes.length : 0;
+            if (!track || !seg || !n) {
+                for (let i = 0; i < n; i++) nodes[i].style.transform = 'scaleY(0.92)';
+                return;
+            }
+            const maxStart = Math.max(0, track - seg);
+            const clampedStart = clamp(start, 0, maxStart);
+            const clampedEnd = clamp(clampedStart + seg, 0, track);
+            const startPct = clampedStart / track;
+            const endPct = clampedEnd / track;
+            for (let i = 0; i < n; i++) {
+                const centerPct = (i + 0.5) / n;
+                const inSel = centerPct >= startPct && centerPct <= endPct;
+                nodes[i].style.transform = inSel ? 'scaleY(1.16)' : 'scaleY(0.92)';
+            }
+        };
+
+        stopSelectedMusicFn = () => {
+            editorState.youtubeMusic = null;
+            editorState.musicFile = null;
+            editorState.musicStartSec = 0;
+            editorState.musicDurationSec = 30;
+            editorState.musicTrackDurationSec = 0;
+            if (musicFileInput) musicFileInput.value = '';
+            if (editorState.audioPlayer) {
+                editorState.audioPlayer.pause();
+                editorState.audioPlayer = null;
+            }
+            if (editorState.youtubePlayer) {
+                try {
+                    editorState.youtubePlayer.stopVideo?.();
+                    editorState.youtubePlayer.pauseVideo?.();
+                    editorState.youtubePlayer.destroy?.();
+                } catch {}
+                editorState.youtubePlayer = null;
+                editorState.youtubePlayerReady = false;
+                editorState.youtubePlayerReadyPromise = null;
+            }
+            const ytContainer = document.getElementById('now-youtube-audio-player');
+            if (ytContainer) ytContainer.remove();
+            toolMusic.classList.remove('active');
+            toolMusic.title = '';
+            isMusicSegmentModalOpen = false;
+            if (nowPostModal) nowPostModal.classList.remove('music-segment-open');
+            if (youtubeMusicTrimOverlay) {
+                youtubeMusicTrimOverlay.classList.add('hidden');
+                youtubeMusicTrimOverlay.style.display = 'none';
+            }
+            if (youtubeMusicTrimBox) youtubeMusicTrimBox.style.display = 'none';
+        };
+
+        const ensureMusicSegmentEditor = () => {
+            if (youtubeMusicTrimOverlay && document.body.contains(youtubeMusicTrimOverlay) && youtubeMusicTrimBox && youtubeMusicTrimOverlay.contains(youtubeMusicTrimBox)) {
+                return youtubeMusicTrimBox;
+            }
+
+            const dark = isDarkTheme();
+            youtubeMusicTrimOverlay = document.createElement('div');
+            youtubeMusicTrimOverlay.id = 'now-music-segment-overlay';
+            youtubeMusicTrimOverlay.classList.add('hidden');
+            youtubeMusicTrimOverlay.style.display = 'none';
+            youtubeMusicTrimOverlay.style.position = 'fixed';
+            youtubeMusicTrimOverlay.style.inset = '0';
+            youtubeMusicTrimOverlay.style.zIndex = '999999';
+            youtubeMusicTrimOverlay.style.background = 'rgba(0,0,0,0.60)';
+            youtubeMusicTrimOverlay.style.backdropFilter = 'none';
+            youtubeMusicTrimOverlay.style.webkitBackdropFilter = 'none';
+            youtubeMusicTrimOverlay.style.alignItems = 'stretch';
+            youtubeMusicTrimOverlay.style.justifyContent = 'stretch';
+            youtubeMusicTrimOverlay.style.padding = '0';
+            youtubeMusicTrimOverlay.style.boxSizing = 'border-box';
+
+            const panel = document.createElement('div');
+            musicSegmentPanel = panel;
+            panel.style.width = '100%';
+            panel.style.height = (Number(window.innerHeight) && Number(window.innerHeight) < 720) ? '100vh' : '96vh';
+            panel.style.maxHeight = panel.style.height;
+            panel.style.borderRadius = '0';
+            panel.style.padding = '0';
+            panel.style.boxSizing = 'border-box';
+            panel.style.border = 'none';
+            panel.style.background = 'transparent';
+            panel.style.display = 'flex';
+            panel.style.flexDirection = 'column';
+            panel.style.position = 'relative';
+
+            const topBar = document.createElement('div');
+            topBar.style.display = 'flex';
+            topBar.style.alignItems = 'center';
+            topBar.style.justifyContent = 'space-between';
+            topBar.style.gap = '10px';
+            topBar.style.marginBottom = '0';
+            topBar.style.flexShrink = '0';
+            topBar.style.position = 'absolute';
+            topBar.style.top = '0';
+            topBar.style.left = '0';
+            topBar.style.right = '0';
+            topBar.style.zIndex = '2';
+            topBar.style.padding = 'calc(12px + env(safe-area-inset-top)) 14px 12px';
+            topBar.style.boxSizing = 'border-box';
+            topBar.style.background = 'transparent';
+
+            musicSegmentCancelBtn = document.createElement('button');
+            musicSegmentCancelBtn.type = 'button';
+            musicSegmentCancelBtn.setAttribute('aria-label', 'Cancelar');
+            musicSegmentCancelBtn.innerHTML = '<i class="fas fa-times"></i>';
+            musicSegmentCancelBtn.style.width = '40px';
+            musicSegmentCancelBtn.style.height = '40px';
+            musicSegmentCancelBtn.style.display = 'inline-flex';
+            musicSegmentCancelBtn.style.alignItems = 'center';
+            musicSegmentCancelBtn.style.justifyContent = 'center';
+            musicSegmentCancelBtn.style.borderRadius = '999px';
+            musicSegmentCancelBtn.style.cursor = 'pointer';
+            musicSegmentCancelBtn.style.color = dark ? '#fff' : '#111';
+            musicSegmentCancelBtn.style.background = dark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.06)';
+            musicSegmentCancelBtn.style.border = dark ? '1px solid rgba(255,255,255,0.18)' : '1px solid rgba(0,0,0,0.10)';
+            musicSegmentCancelBtn.style.fontSize = '22px';
+            musicSegmentCancelBtn.style.lineHeight = '1';
+
+            youtubeMusicTrimApplyBtn = document.createElement('button');
+            youtubeMusicTrimApplyBtn.type = 'button';
+            youtubeMusicTrimApplyBtn.setAttribute('aria-label', 'Concluir');
+            youtubeMusicTrimApplyBtn.innerHTML = '<i class="fas fa-check"></i>';
+            youtubeMusicTrimApplyBtn.style.width = '40px';
+            youtubeMusicTrimApplyBtn.style.height = '40px';
+            youtubeMusicTrimApplyBtn.style.display = 'inline-flex';
+            youtubeMusicTrimApplyBtn.style.alignItems = 'center';
+            youtubeMusicTrimApplyBtn.style.justifyContent = 'center';
+            youtubeMusicTrimApplyBtn.style.borderRadius = '999px';
+            youtubeMusicTrimApplyBtn.style.cursor = 'pointer';
+            youtubeMusicTrimApplyBtn.style.color = dark ? '#fff' : '#111';
+            youtubeMusicTrimApplyBtn.style.background = dark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.06)';
+            youtubeMusicTrimApplyBtn.style.border = dark ? '1px solid rgba(255,255,255,0.18)' : '1px solid rgba(0,0,0,0.10)';
+            youtubeMusicTrimApplyBtn.style.fontSize = '22px';
+            youtubeMusicTrimApplyBtn.style.lineHeight = '1';
+
+            topBar.appendChild(musicSegmentCancelBtn);
+            const spacer = document.createElement('div');
+            spacer.style.flex = '1';
+            topBar.appendChild(spacer);
+            topBar.appendChild(youtubeMusicTrimApplyBtn);
+
+            youtubeMusicTrimBox = document.createElement('div');
+            youtubeMusicTrimBox.id = 'now-music-segment-editor';
+            youtubeMusicTrimBox.style.display = 'none';
+
+            const content = document.createElement('div');
+            content.style.display = 'flex';
+            content.style.flexDirection = 'column';
+            content.style.gap = '10px';
+
+            musicSegmentTitleEl = document.createElement('div');
+            musicSegmentTitleEl.style.fontWeight = '800';
+            musicSegmentTitleEl.style.fontSize = '14px';
+            musicSegmentTitleEl.style.overflow = 'hidden';
+            musicSegmentTitleEl.style.textOverflow = 'ellipsis';
+            musicSegmentTitleEl.style.whiteSpace = 'nowrap';
+            musicSegmentTitleEl.style.textAlign = 'center';
+
+            youtubeMusicTrimTimeline = document.createElement('div');
+            youtubeMusicTrimTimeline.style.fontSize = '13px';
+            youtubeMusicTrimTimeline.style.opacity = '0.9';
+            youtubeMusicTrimTimeline.style.textAlign = 'center';
+            youtubeMusicTrimTimeline.textContent = 'Trecho: 0:00 - 0:30';
+
+            youtubeMusicTrimBar = document.createElement('div');
+            youtubeMusicTrimBar.style.position = 'relative';
+            youtubeMusicTrimBar.style.height = '62px';
+            youtubeMusicTrimBar.style.borderRadius = '16px';
+            youtubeMusicTrimBar.style.userSelect = 'none';
+            youtubeMusicTrimBar.style.touchAction = 'none';
+            youtubeMusicTrimBar.style.background = 'rgba(0,0,0,0.26)';
+            youtubeMusicTrimBar.style.border = dark ? '1px solid rgba(255,255,255,0.12)' : '1px solid rgba(0,0,0,0.10)';
+            youtubeMusicTrimBar.style.overflow = 'hidden';
+
+            youtubeMusicWaveform = document.createElement('div');
+            youtubeMusicWaveform.style.position = 'absolute';
+            youtubeMusicWaveform.style.inset = '0';
+            youtubeMusicWaveform.style.display = 'flex';
+            youtubeMusicWaveform.style.alignItems = 'center';
+            youtubeMusicWaveform.style.gap = '1px';
+            youtubeMusicWaveform.style.padding = '6px 10px';
+            youtubeMusicWaveform.style.boxSizing = 'border-box';
+            youtubeMusicWaveform.style.pointerEvents = 'none';
+
+            youtubeMusicTrimHighlight = document.createElement('div');
+            youtubeMusicTrimHighlight.style.position = 'absolute';
+            youtubeMusicTrimHighlight.style.top = '4px';
+            youtubeMusicTrimHighlight.style.bottom = '4px';
+            youtubeMusicTrimHighlight.style.height = 'auto';
+            youtubeMusicTrimHighlight.style.borderRadius = '12px';
+            youtubeMusicTrimHighlight.style.left = '0%';
+            youtubeMusicTrimHighlight.style.width = '100%';
+            youtubeMusicTrimHighlight.style.background = dark ? 'rgba(127,214,255,0.35)' : 'rgba(2,132,199,0.22)';
+            youtubeMusicTrimHighlight.style.border = dark ? '1px solid rgba(127,214,255,0.45)' : '1px solid rgba(2,132,199,0.30)';
+            youtubeMusicTrimHighlight.style.boxShadow = '0 0 0 2px rgba(255,255,255,0.85)';
+
+            youtubeMusicTrimHandle = document.createElement('div');
+            youtubeMusicTrimHandle.style.position = 'absolute';
+            youtubeMusicTrimHandle.style.top = '50%';
+            youtubeMusicTrimHandle.style.width = '22px';
+            youtubeMusicTrimHandle.style.height = '22px';
+            youtubeMusicTrimHandle.style.borderRadius = '999px';
+            youtubeMusicTrimHandle.style.left = '0%';
+            youtubeMusicTrimHandle.style.transform = 'translate(-50%, -50%)';
+            youtubeMusicTrimHandle.style.boxShadow = '0 6px 18px rgba(0,0,0,0.25)';
+            youtubeMusicTrimHandle.style.background = dark ? '#fff' : '#111';
+            youtubeMusicTrimHandle.style.display = 'none';
+
+            youtubeMusicTrimBar.appendChild(youtubeMusicWaveform);
+            youtubeMusicTrimBar.appendChild(youtubeMusicTrimHighlight);
+            youtubeMusicTrimBar.appendChild(youtubeMusicTrimHandle);
+
+            content.appendChild(musicSegmentTitleEl);
+            content.appendChild(youtubeMusicTrimTimeline);
+            content.appendChild(youtubeMusicTrimBar);
+            youtubeMusicTrimBox.appendChild(content);
+
+            musicSegmentBottomWrap = document.createElement('div');
+            musicSegmentBottomWrap.style.position = 'absolute';
+            musicSegmentBottomWrap.style.left = '0';
+            musicSegmentBottomWrap.style.right = '0';
+            musicSegmentBottomWrap.style.bottom = '0';
+            musicSegmentBottomWrap.style.top = `${Math.floor((Number(window.innerHeight) || 720) * 0.20)}px`;
+            musicSegmentBottomWrap.style.display = 'flex';
+            musicSegmentBottomWrap.style.flexDirection = 'column';
+            musicSegmentBottomWrap.style.justifyContent = 'flex-end';
+            musicSegmentBottomWrap.style.gap = '10px';
+            musicSegmentBottomWrap.style.padding = '14px 14px calc(clamp(70px, 12vh, 120px) + env(safe-area-inset-bottom))';
+            musicSegmentBottomWrap.style.boxSizing = 'border-box';
+            musicSegmentBottomWrap.style.background = 'transparent';
+            musicSegmentBottomWrap.style.borderTop = 'none';
+
+            musicSegmentBottomWrap.appendChild(youtubeMusicTrimBox);
+
+            musicSegmentTopWrap = topBar;
+            panel.appendChild(musicSegmentTopWrap);
+            panel.appendChild(musicSegmentBottomWrap);
+            youtubeMusicTrimOverlay.appendChild(panel);
+            document.body.appendChild(youtubeMusicTrimOverlay);
+            applyMusicSegmentPanelLayout();
+
+            youtubeMusicTrimOverlay.addEventListener('click', (e) => {
+                if (e.target !== youtubeMusicTrimOverlay) return;
+                isMusicSegmentModalOpen = false;
+                if (nowPostModal) nowPostModal.classList.remove('music-segment-open');
+                youtubeMusicTrimOverlay.classList.add('hidden');
+                youtubeMusicTrimOverlay.style.display = 'none';
+            });
+
+            if (!musicSegmentStyleEl) {
+                musicSegmentStyleEl = document.createElement('style');
+                musicSegmentStyleEl.id = 'now-music-segment-style';
+                musicSegmentStyleEl.textContent = `
+#now-post-modal.music-segment-open #video-editor-sidebar,
+#now-post-modal.music-segment-open #video-trim-ui,
+#now-post-modal.music-segment-open #video-trim-header,
+#now-post-modal.music-segment-open #video-drawing-palette,
+#now-post-modal.music-segment-open #video-drawing-header,
+#now-post-modal.music-segment-open #video-drawing-canvas,
+#now-post-modal.music-segment-open .now-post-actions,
+#now-post-modal.music-segment-open #now-post-close {
+  display: none !important;
+}
+`;
+                document.head.appendChild(musicSegmentStyleEl);
+            }
+
+            const setStartFromClientX = (clientX) => {
+                const track = Number.isFinite(editorState.musicTrackDurationSec) ? Number(editorState.musicTrackDurationSec) : 0;
+                if (!track) return;
+                const seg = Number.isFinite(editorState.musicDurationSec) ? Number(editorState.musicDurationSec) : 30;
+                const maxStart = Math.max(0, track - seg);
+                const rect = youtubeMusicTrimBar.getBoundingClientRect();
+                const x = clamp(Number(clientX) - rect.left, 0, rect.width || 1);
+                const pct = (x / (rect.width || 1));
+                editorState.musicStartSec = clamp(pct * track, 0, maxStart);
+                updateMusicTrimUi();
+                syncSelectedMusicToVideoNow();
+            };
+
+            let draggingTrim = false;
+            let activePointerId = null;
+            const onPointerDown = (e) => {
+                if (!e) return;
+                if (!(editorState.youtubeMusic?.videoId || editorState.musicFile)) return;
+                draggingTrim = true;
+                activePointerId = e.pointerId;
+                try { youtubeMusicTrimBar.setPointerCapture(activePointerId); } catch {}
+                setStartFromClientX(e.clientX);
+            };
+            const onPointerMove = (e) => {
+                if (!draggingTrim) return;
+                if (activePointerId != null && e.pointerId !== activePointerId) return;
+                setStartFromClientX(e.clientX);
+            };
+            const onPointerUp = (e) => {
+                if (activePointerId != null && e.pointerId !== activePointerId) return;
+                draggingTrim = false;
+                activePointerId = null;
+                try { youtubeMusicTrimBar.releasePointerCapture(e.pointerId); } catch {}
+            };
+            youtubeMusicTrimBar.addEventListener('pointerdown', onPointerDown);
+            youtubeMusicTrimBar.addEventListener('pointermove', onPointerMove);
+            youtubeMusicTrimBar.addEventListener('pointerup', onPointerUp);
+            youtubeMusicTrimBar.addEventListener('pointercancel', onPointerUp);
+
+            musicSegmentCancelBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                stopSelectedMusicFn?.();
+                isMusicSegmentModalOpen = false;
+                if (nowPostModal) nowPostModal.classList.remove('music-segment-open');
+                if (youtubeMusicTrimOverlay) {
+                    youtubeMusicTrimOverlay.classList.add('hidden');
+                    youtubeMusicTrimOverlay.style.display = 'none';
+                }
+            });
+
+            youtubeMusicTrimApplyBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                showSucessoToast('Trecho da música aplicado.');
+                syncSelectedMusicToVideoNow();
+                isMusicSegmentModalOpen = false;
+                if (nowPostModal) nowPostModal.classList.remove('music-segment-open');
+                if (youtubeMusicTrimOverlay) {
+                    youtubeMusicTrimOverlay.classList.add('hidden');
+                    youtubeMusicTrimOverlay.style.display = 'none';
+                }
+            });
+
+            return youtubeMusicTrimBox;
+        };
+
+        const openMusicSegmentModal = () => {
+            ensureMusicSegmentEditor();
+            if (!youtubeMusicTrimOverlay) return;
+            applyMusicSegmentPanelLayout();
+            const anchorTop = (() => {
+                try {
+                    const r = nowPostDesc && nowPostDesc.getBoundingClientRect ? nowPostDesc.getBoundingClientRect() : null;
+                    if (r && Number.isFinite(r.top) && r.top > 0) return r.top;
+                } catch {}
+                return (Number(window.innerHeight) || 720) * 0.62;
+            })();
+            const vh = Number(window.innerHeight) || 720;
+            const desiredTop = clamp(
+                Math.floor(anchorTop - (vh * 0.64)),
+                Math.floor(vh * 0.03),
+                Math.floor(vh * 0.28),
+            );
+            isMusicSegmentModalOpen = true;
+            if (nowPostModal) nowPostModal.classList.add('music-segment-open');
+            if (musicSegmentBottomWrap) {
+                if (window.matchMedia && window.matchMedia('(min-width: 769px)').matches) {
+                    musicSegmentBottomWrap.style.top = '0';
+                } else {
+                    musicSegmentBottomWrap.style.top = `${Math.max(0, desiredTop)}px`;
+                }
+            }
+            youtubeMusicTrimOverlay.classList.remove('hidden');
+            youtubeMusicTrimOverlay.style.display = 'flex';
+            updateMusicTrimUi();
+        };
+
+        const ensureMusicTrackDurationSec = async () => {
+            if (Number.isFinite(editorState.musicTrackDurationSec) && Number(editorState.musicTrackDurationSec) > 0) {
+                return Number(editorState.musicTrackDurationSec);
+            }
+            if (editorState.youtubeMusic?.videoId && (!editorState.youtubePlayer || !editorState.youtubePlayerReady)) {
+                try { await ensureYouTubeAudioPlayer(); } catch {}
+            }
+            if (editorState.youtubePlayerReady && editorState.youtubePlayer) {
+                for (let i = 0; i < 12; i++) {
+                    try {
+                        const d = Number(editorState.youtubePlayer.getDuration?.() || 0);
+                        if (Number.isFinite(d) && d > 0) {
+                            editorState.musicTrackDurationSec = d;
+                            return d;
+                        }
+                    } catch {}
+                    await new Promise((r) => setTimeout(r, 150));
+                }
+                return 0;
+            }
+            if (editorState.musicFile) {
+                if (editorState.audioPlayer && Number.isFinite(editorState.audioPlayer.duration) && editorState.audioPlayer.duration > 0) {
+                    editorState.musicTrackDurationSec = Number(editorState.audioPlayer.duration);
+                    return editorState.musicTrackDurationSec;
+                }
+                const url = URL.createObjectURL(editorState.musicFile);
+                const a = new Audio();
+                a.preload = 'metadata';
+                a.src = url;
+                const d = await new Promise((resolve) => {
+                    const done = () => {
+                        const dur = Number(a.duration || 0);
+                        resolve(Number.isFinite(dur) ? dur : 0);
+                    };
+                    a.addEventListener('loadedmetadata', done, { once: true });
+                    a.addEventListener('error', () => resolve(0), { once: true });
+                });
+                try { URL.revokeObjectURL(url); } catch {}
+                if (d > 0) editorState.musicTrackDurationSec = d;
+                return d;
+            }
+            return 0;
+        };
+
+        const updateMusicTrimUi = () => {
+            ensureMusicSegmentEditor();
+            if (!youtubeMusicTrimBox || !youtubeMusicTrimTimeline || !youtubeMusicTrimBar || !youtubeMusicTrimHighlight || !youtubeMusicTrimHandle) return;
+            const hasMusic = !!(editorState.youtubeMusic?.videoId || editorState.musicFile);
+            youtubeMusicTrimBox.style.display = hasMusic ? '' : 'none';
+            if (!hasMusic) {
+                isMusicSegmentModalOpen = false;
+                if (nowPostModal) nowPostModal.classList.remove('music-segment-open');
+                if (youtubeMusicTrimOverlay) {
+                    youtubeMusicTrimOverlay.classList.add('hidden');
+                    youtubeMusicTrimOverlay.style.display = 'none';
+                }
+                return;
+            }
+            if (musicSegmentTitleEl) {
+                musicSegmentTitleEl.textContent = (editorState.youtubeMusic?.title || (editorState.musicFile ? editorState.musicFile.name : '') || 'Música selecionada');
+            }
+            buildWaveformBars(editorState.youtubeMusic?.videoId || (editorState.musicFile ? editorState.musicFile.name : ''));
+
+            const track = Number.isFinite(editorState.musicTrackDurationSec) ? Number(editorState.musicTrackDurationSec) : 0;
+            const seg = Number.isFinite(editorState.musicDurationSec) ? Number(editorState.musicDurationSec) : 30;
+            if (!track) {
+                ensureMusicTrackDurationSec().then(() => {
+                    updateMusicTrimUi();
+                    syncSelectedMusicToVideoNow();
+                }).catch(() => {});
+                youtubeMusicTrimTimeline.textContent = `Trecho: 0:00 - ${formatTime(seg)}`;
+                youtubeMusicTrimHighlight.style.left = '0%';
+                youtubeMusicTrimHighlight.style.width = '100%';
+                youtubeMusicTrimHandle.style.left = '0%';
+                updateWaveformSelectionEffect();
+                return;
+            }
+            const maxStart = Math.max(0, track - seg);
+            const start = clamp(Number(editorState.musicStartSec) || 0, 0, maxStart);
+            editorState.musicStartSec = start;
+            const leftPct = (start / track) * 100;
+            const widthPct = Math.min(100, (seg / track) * 100);
+
+            youtubeMusicTrimTimeline.textContent = `Trecho: ${formatTime(start)} - ${formatTime(start + seg)}`;
+            youtubeMusicTrimHighlight.style.left = `${leftPct}%`;
+            youtubeMusicTrimHighlight.style.width = `${widthPct}%`;
+            youtubeMusicTrimHandle.style.left = `${leftPct}%`;
+            updateWaveformSelectionEffect();
+        };
+
+        const refreshMusicDurationFromVideoTrim = () => {
+            const next = getTargetMusicDurationSec();
+            if (!Number.isFinite(next) || next <= 0) return;
+            if (Number(editorState.musicDurationSec) === Number(next)) return;
+            editorState.musicDurationSec = next;
+            updateMusicTrimUi();
+            syncSelectedMusicToVideoNow();
+        };
+
+        if (trimStartInput && trimEndInput) {
+            const onTrimChange = () => refreshMusicDurationFromVideoTrim();
+            trimStartInput.addEventListener('input', onTrimChange);
+            trimEndInput.addEventListener('input', onTrimChange);
+        }
+
+        const ensureYouTubeIFrameApi = () => {
+            if (window.__helpyYTApiPromise) return window.__helpyYTApiPromise;
+            window.__helpyYTApiPromise = new Promise((resolve) => {
+                const check = () => {
+                    if (window.YT && window.YT.Player) {
+                        resolve();
+                        return true;
+                    }
+                    return false;
+                };
+                if (check()) return;
+
+                const previous = window.onYouTubeIframeAPIReady;
+                window.onYouTubeIframeAPIReady = () => {
+                    try {
+                        if (typeof previous === 'function') previous();
+                    } catch {}
+                    check();
+                    resolve();
+                };
+
+                const already = document.querySelector('script[src*=\"youtube.com/iframe_api\"]');
+                if (!already) {
+                    const s = document.createElement('script');
+                    s.src = 'https://www.youtube.com/iframe_api';
+                    s.async = true;
+                    document.head.appendChild(s);
+                }
+            });
+            return window.__helpyYTApiPromise;
+        };
+
+        const ensureYouTubeAudioPlayer = async () => {
+            await ensureYouTubeIFrameApi();
+            if (editorState.youtubePlayer && editorState.youtubePlayerReady) return editorState.youtubePlayer;
+            if (editorState.youtubePlayer && editorState.youtubePlayerReadyPromise) {
+                await editorState.youtubePlayerReadyPromise;
+                return editorState.youtubePlayer;
+            }
+
+            let container = document.getElementById('now-youtube-audio-player');
+            if (!container) {
+                container = document.createElement('div');
+                container.id = 'now-youtube-audio-player';
+                container.style.position = 'fixed';
+                container.style.left = '-9999px';
+                container.style.top = '0';
+                container.style.width = '1px';
+                container.style.height = '1px';
+                container.style.overflow = 'hidden';
+                const inner = document.createElement('div');
+                inner.id = 'now-youtube-audio-iframe';
+                container.appendChild(inner);
+                document.body.appendChild(container);
+            }
+
+            editorState.youtubePlayerReady = false;
+            editorState.youtubePlayerReadyPromise = new Promise((resolve) => {
+                editorState.youtubePlayer = new window.YT.Player('now-youtube-audio-iframe', {
+                    height: '1',
+                    width: '1',
+                    videoId: '',
+                    playerVars: {
+                        autoplay: 0,
+                        controls: 0,
+                        disablekb: 1,
+                        playsinline: 1,
+                        modestbranding: 1,
+                        rel: 0,
+                        origin: window.location.origin
+                    },
+                    events: {
+                        onReady: () => {
+                            editorState.youtubePlayerReady = true;
+                            resolve();
+                        }
+                    }
+                });
+            });
+            await editorState.youtubePlayerReadyPromise;
+            return editorState.youtubePlayer;
+        };
+
+        const applyYouTubeModalTheme = () => {
+            if (!youtubeMusicModalOverlay || !youtubeMusicModal) return;
+            const dark = isDarkTheme();
+            youtubeMusicModalOverlay.style.background = dark ? 'rgba(0,0,0,0.65)' : 'rgba(255,255,255,0.65)';
+            youtubeMusicModalOverlay.style.backdropFilter = 'blur(2px)';
+
+            youtubeMusicModal.style.background = dark ? 'rgba(0,0,0,0.55)' : 'rgba(255,255,255,0.92)';
+            youtubeMusicModal.style.color = dark ? '#fff' : '#111';
+            youtubeMusicModal.style.border = dark ? '1px solid rgba(255,255,255,0.14)' : '1px solid rgba(0,0,0,0.10)';
+            youtubeMusicModal.style.borderRadius = '14px';
+
+            if (youtubeMusicInput) {
+                youtubeMusicInput.style.background = dark ? 'rgba(0,0,0,0.25)' : '#fff';
+                youtubeMusicInput.style.color = dark ? '#fff' : '#111';
+                youtubeMusicInput.style.border = dark ? '1px solid rgba(255,255,255,0.18)' : '1px solid rgba(0,0,0,0.15)';
+            }
+            if (youtubeMusicStatus) {
+                youtubeMusicStatus.style.color = dark ? 'rgba(255,255,255,0.85)' : 'rgba(0,0,0,0.75)';
+            }
+            if (youtubeMusicTitleEl) {
+                youtubeMusicTitleEl.style.color = dark ? '#fff' : '#111';
+            }
+            if (youtubeMusicCloseX) {
+                youtubeMusicCloseX.style.color = dark ? '#fff' : '#111';
+                youtubeMusicCloseX.style.background = dark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.06)';
+                youtubeMusicCloseX.style.border = dark ? '1px solid rgba(255,255,255,0.18)' : '1px solid rgba(0,0,0,0.10)';
+            }
+            if (youtubeMusicSavedBtn) {
+                youtubeMusicSavedBtn.style.color = dark ? '#fff' : '#111';
+                youtubeMusicSavedBtn.style.background = dark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.06)';
+                youtubeMusicSavedBtn.style.border = dark ? '1px solid rgba(255,255,255,0.18)' : '1px solid rgba(0,0,0,0.10)';
+            }
+            if (youtubeMusicTrimBox) {
+                youtubeMusicTrimBox.style.border = dark ? '1px solid rgba(255,255,255,0.14)' : '1px solid rgba(0,0,0,0.12)';
+                youtubeMusicTrimBox.style.background = dark ? 'rgba(0,0,0,0.18)' : 'rgba(255,255,255,0.45)';
+            }
+            if (youtubeMusicTrimApplyBtn) {
+                youtubeMusicTrimApplyBtn.style.color = dark ? '#fff' : '#111';
+                youtubeMusicTrimApplyBtn.style.background = dark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.06)';
+                youtubeMusicTrimApplyBtn.style.border = dark ? '1px solid rgba(255,255,255,0.18)' : '1px solid rgba(0,0,0,0.10)';
+            }
+            if (youtubeMusicTrimBar) {
+                youtubeMusicTrimBar.style.background = dark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.10)';
+            }
+            if (youtubeMusicTrimHighlight) {
+                youtubeMusicTrimHighlight.style.background = dark ? 'rgba(127,214,255,0.35)' : 'rgba(2,132,199,0.22)';
+                youtubeMusicTrimHighlight.style.border = dark ? '1px solid rgba(127,214,255,0.45)' : '1px solid rgba(2,132,199,0.30)';
+            }
+            if (youtubeMusicTrimHandle) {
+                youtubeMusicTrimHandle.style.background = dark ? '#fff' : '#111';
+            }
+        };
+
+        const searchYouTubeMusic = async (term, signal) => {
+            const q = String(term || '').trim();
+            if (!q) return [];
+            const resp = await fetch(`/api/youtube/search?q=${encodeURIComponent(q)}`, {
+                method: 'GET',
+                headers: {
+                    ...getAuthHeaders()
+                },
+                signal
+            });
+            const data = await resp.json().catch(() => ({}));
+            if (!resp.ok || data?.success === false) {
+                throw new Error(data?.message || 'Erro ao buscar no YouTube.');
+            }
+            return Array.isArray(data?.items) ? data.items : [];
+        };
+
+        const ensureYouTubeMusicModal = () => {
+            if (youtubeMusicModalOverlay && document.body.contains(youtubeMusicModalOverlay)) {
+                return youtubeMusicModalOverlay;
+            }
+
+            youtubeMusicModalOverlay = document.createElement('div');
+            youtubeMusicModalOverlay.className = 'modal-overlay hidden';
+            youtubeMusicModalOverlay.id = 'youtube-music-modal-overlay';
+
+            youtubeMusicModal = document.createElement('div');
+            youtubeMusicModal.className = 'modal';
+            youtubeMusicModal.style.maxWidth = '560px';
+            youtubeMusicModal.style.width = '92%';
+            youtubeMusicModal.style.padding = '16px';
+            youtubeMusicModal.style.maxHeight = '80vh';
+            youtubeMusicModal.style.overflowY = 'auto';
+            youtubeMusicModal.style.overflowX = 'hidden';
+
+            const header = document.createElement('div');
+            header.style.display = 'flex';
+            header.style.alignItems = 'center';
+            header.style.justifyContent = 'space-between';
+            header.style.gap = '12px';
+            header.style.marginBottom = '10px';
+
+            youtubeMusicTitleEl = document.createElement('div');
+            youtubeMusicTitleEl.textContent = 'Buscar música (YouTube)';
+            youtubeMusicTitleEl.style.fontWeight = '700';
+
+            const headerActions = document.createElement('div');
+            headerActions.style.display = 'inline-flex';
+            headerActions.style.alignItems = 'center';
+            headerActions.style.gap = '10px';
+
+            youtubeMusicSavedBtn = document.createElement('button');
+            youtubeMusicSavedBtn.type = 'button';
+            youtubeMusicSavedBtn.setAttribute('aria-label', 'Músicas salvas');
+            youtubeMusicSavedBtn.innerHTML = '<i class="fas fa-heart"></i>';
+            youtubeMusicSavedBtn.style.width = '36px';
+            youtubeMusicSavedBtn.style.height = '36px';
+            youtubeMusicSavedBtn.style.display = 'inline-flex';
+            youtubeMusicSavedBtn.style.alignItems = 'center';
+            youtubeMusicSavedBtn.style.justifyContent = 'center';
+            youtubeMusicSavedBtn.style.borderRadius = '999px';
+            youtubeMusicSavedBtn.style.cursor = 'pointer';
+
+            youtubeMusicCloseX = document.createElement('button');
+            youtubeMusicCloseX.type = 'button';
+            youtubeMusicCloseX.setAttribute('aria-label', 'Fechar');
+            youtubeMusicCloseX.innerHTML = '<i class="fas fa-times"></i>';
+            youtubeMusicCloseX.style.width = '36px';
+            youtubeMusicCloseX.style.height = '36px';
+            youtubeMusicCloseX.style.display = 'inline-flex';
+            youtubeMusicCloseX.style.alignItems = 'center';
+            youtubeMusicCloseX.style.justifyContent = 'center';
+            youtubeMusicCloseX.style.borderRadius = '999px';
+            youtubeMusicCloseX.style.cursor = 'pointer';
+
+            header.appendChild(youtubeMusicTitleEl);
+            headerActions.appendChild(youtubeMusicSavedBtn);
+            headerActions.appendChild(youtubeMusicCloseX);
+            header.appendChild(headerActions);
+
+            const row = document.createElement('div');
+            row.style.display = 'flex';
+            row.style.gap = '8px';
+            row.style.alignItems = 'center';
+
+            youtubeMusicInput = document.createElement('input');
+            youtubeMusicInput.type = 'text';
+            youtubeMusicInput.placeholder = 'Digite um termo (ex: “aquela música”)';
+            youtubeMusicInput.style.flex = '1';
+            youtubeMusicInput.style.padding = '10px';
+            youtubeMusicInput.style.borderRadius = '10px';
+            youtubeMusicInput.style.border = '1px solid rgba(0,0,0,0.15)';
+
+            row.appendChild(youtubeMusicInput);
+
+            youtubeMusicStatus = document.createElement('div');
+            youtubeMusicStatus.style.marginTop = '8px';
+            youtubeMusicStatus.style.fontSize = '13px';
+            youtubeMusicStatus.style.opacity = '0.85';
+            youtubeMusicStatus.textContent = '';
+
+            youtubeMusicResults = document.createElement('div');
+            youtubeMusicResults.style.marginTop = '12px';
+            youtubeMusicResults.style.display = 'flex';
+            youtubeMusicResults.style.flexDirection = 'column';
+            youtubeMusicResults.style.gap = '8px';
+            youtubeMusicResults.style.overflowX = 'hidden';
+
+            youtubeMusicModal.appendChild(header);
+            youtubeMusicModal.appendChild(row);
+            youtubeMusicModal.appendChild(youtubeMusicStatus);
+            youtubeMusicModal.appendChild(youtubeMusicResults);
+
+            youtubeMusicModalOverlay.appendChild(youtubeMusicModal);
+            document.body.appendChild(youtubeMusicModalOverlay);
+
+            const close = () => {
+                youtubeMusicModalOverlay.classList.add('hidden');
+                youtubeMusicModalOverlay.style.display = 'none';
+                youtubeMusicStatus.textContent = '';
+                if (liveSearchTimerId) clearTimeout(liveSearchTimerId);
+                liveSearchTimerId = 0;
+                if (liveSearchAbortController) {
+                    try { liveSearchAbortController.abort(); } catch {}
+                    liveSearchAbortController = null;
+                }
+            };
+
+            youtubeMusicModalOverlay.addEventListener('click', (e) => {
+                if (e.target === youtubeMusicModalOverlay) close();
+            });
+
+            youtubeMusicCloseX.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                close();
+            });
+
+            const renderEmptyMessage = (msg) => {
+                youtubeMusicResults.innerHTML = '';
+                const box = document.createElement('div');
+                box.textContent = msg || '';
+                box.style.fontSize = '13px';
+                box.style.opacity = '0.85';
+                box.style.padding = '10px 4px';
+                youtubeMusicResults.appendChild(box);
+            };
+
+            renderHistoryFn = () => {
+                const items = getMusicHistory();
+                if (!items.length) {
+                    renderEmptyMessage('Nenhuma música no histórico.');
+                    return;
+                }
+                renderResults(items);
+            };
+
+            renderSavedFn = () => {
+                const items = getSavedMusics();
+                if (!items.length) {
+                    renderEmptyMessage('Nenhuma música salva.');
+                    return;
+                }
+                renderResults(items);
+            };
+
+            setModeFn = (mode) => {
+                youtubeMusicMode = mode === 'saved' ? 'saved' : 'search';
+                if (youtubeMusicSavedBtn) {
+                    youtubeMusicSavedBtn.style.color = youtubeMusicMode === 'saved' ? '#ff5a7a' : '';
+                }
+            };
+
+            const renderResults = (items) => {
+                youtubeMusicResults.innerHTML = '';
+                const dark = isDarkTheme();
+                const selectedVideoId = editorState.youtubeMusic?.videoId ? String(editorState.youtubeMusic.videoId) : '';
+
+                let itemsToRender = Array.isArray(items) ? [...items] : [];
+                if (selectedVideoId) {
+                    const existingIndex = itemsToRender.findIndex((it) => String(it?.videoId || '') === selectedVideoId);
+                    const selectedItem = {
+                        title: editorState.youtubeMusic?.title || 'Música selecionada',
+                        videoId: selectedVideoId,
+                        thumbnailUrl: editorState.youtubeMusic?.thumbnailUrl || ''
+                    };
+                    if (existingIndex === -1) {
+                        itemsToRender.unshift(selectedItem);
+                    } else if (existingIndex > 0) {
+                        const [found] = itemsToRender.splice(existingIndex, 1);
+                        itemsToRender.unshift(found || selectedItem);
+                    }
+                }
+
+                (itemsToRender || []).forEach((item) => {
+                    const itemVideoId = item?.videoId ? String(item.videoId) : '';
+                    const isSelected = !!(selectedVideoId && itemVideoId && itemVideoId === selectedVideoId);
+                    const isSaved = !!(itemVideoId && isMusicSaved(itemVideoId));
+
+                    const btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.style.display = 'flex';
+                    btn.style.gap = '10px';
+                    btn.style.alignItems = 'center';
+                    btn.style.padding = '10px';
+                    btn.style.borderRadius = '12px';
+                    btn.style.border = dark ? '1px solid rgba(255,255,255,0.14)' : '1px solid rgba(0,0,0,0.12)';
+                    btn.style.background = dark ? 'rgba(0,0,0,0.18)' : 'rgba(255,255,255,0.45)';
+                    btn.style.textAlign = 'left';
+                    btn.style.cursor = 'pointer';
+                    btn.style.color = dark ? '#fff' : '#111';
+                    btn.style.width = '100%';
+                    btn.style.maxWidth = '100%';
+                    btn.style.boxSizing = 'border-box';
+
+                    const thumbWrap = document.createElement('div');
+                    thumbWrap.style.position = 'relative';
+                    thumbWrap.style.width = '56px';
+                    thumbWrap.style.height = '56px';
+                    thumbWrap.style.flexShrink = '0';
+
+                    const img = document.createElement('img');
+                    img.src = item.thumbnailUrl || '';
+                    img.alt = '';
+                    img.style.width = '56px';
+                    img.style.height = '56px';
+                    img.style.objectFit = 'cover';
+                    img.style.borderRadius = '10px';
+
+                    thumbWrap.appendChild(img);
+
+                    if (itemVideoId) {
+                        const heart = document.createElement('button');
+                        heart.type = 'button';
+                        heart.setAttribute('aria-label', isSaved ? 'Remover dos salvos' : 'Salvar música');
+                        heart.innerHTML = `<i class="${isSaved ? 'fas' : 'far'} fa-heart"></i>`;
+                        heart.style.position = 'absolute';
+                        heart.style.top = '6px';
+                        heart.style.right = '6px';
+                        heart.style.width = '24px';
+                        heart.style.height = '24px';
+                        heart.style.display = 'inline-flex';
+                        heart.style.alignItems = 'center';
+                        heart.style.justifyContent = 'center';
+                        heart.style.borderRadius = '999px';
+                        heart.style.cursor = 'pointer';
+                        heart.style.zIndex = '6';
+                        heart.style.color = isSaved ? '#ff5a7a' : (dark ? '#fff' : '#111');
+                        heart.style.background = dark ? 'rgba(0,0,0,0.55)' : 'rgba(255,255,255,0.85)';
+                        heart.style.border = dark ? '1px solid rgba(255,255,255,0.18)' : '1px solid rgba(0,0,0,0.12)';
+                        heart.addEventListener('click', (e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            const nextSaved = toggleSavedMusic(item);
+                            heart.innerHTML = `<i class="${nextSaved ? 'fas' : 'far'} fa-heart"></i>`;
+                            heart.style.color = nextSaved ? '#ff5a7a' : (dark ? '#fff' : '#111');
+                            heart.setAttribute('aria-label', nextSaved ? 'Remover dos salvos' : 'Salvar música');
+                            if (youtubeMusicMode === 'saved' && !nextSaved) {
+                                renderSavedFn?.();
+                            }
+                        });
+                        thumbWrap.appendChild(heart);
+                    }
+
+                    const textWrap = document.createElement('div');
+                    textWrap.style.display = 'flex';
+                    textWrap.style.flexDirection = 'column';
+                    textWrap.style.gap = '2px';
+                    textWrap.style.position = 'relative';
+                    textWrap.style.overflow = 'visible';
+                    textWrap.style.flex = '1';
+                    textWrap.style.minWidth = '0';
+
+                    const t = document.createElement('div');
+                    t.textContent = item.title || '';
+                    t.style.fontSize = '14px';
+                    t.style.fontWeight = '600';
+                    t.style.overflow = 'hidden';
+                    t.style.textOverflow = 'ellipsis';
+                    t.style.whiteSpace = 'nowrap';
+
+                    if (isSelected) {
+                        const removeOverName = document.createElement('button');
+                        removeOverName.type = 'button';
+                        removeOverName.setAttribute('aria-label', 'Remover música');
+                        removeOverName.innerHTML = '<i class="fas fa-times"></i>';
+                        removeOverName.style.position = 'absolute';
+                        removeOverName.style.top = '0';
+                        removeOverName.style.right = '0';
+                        removeOverName.style.width = '26px';
+                        removeOverName.style.height = '26px';
+                        removeOverName.style.display = 'inline-flex';
+                        removeOverName.style.alignItems = 'center';
+                        removeOverName.style.justifyContent = 'center';
+                        removeOverName.style.borderRadius = '999px';
+                        removeOverName.style.cursor = 'pointer';
+                        removeOverName.style.zIndex = '5';
+                        removeOverName.style.color = dark ? '#fff' : '#111';
+                        removeOverName.style.background = dark ? 'rgba(0,0,0,0.55)' : 'rgba(255,255,255,0.85)';
+                        removeOverName.style.border = dark ? '1px solid rgba(255,255,255,0.18)' : '1px solid rgba(0,0,0,0.12)';
+                        removeOverName.addEventListener('click', (e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            stopSelectedMusicFn?.();
+                            renderResults(itemsToRender.filter((it) => String(it?.videoId || '') !== selectedVideoId));
+                        });
+                        textWrap.appendChild(removeOverName);
+                    }
+
+                    textWrap.appendChild(t);
+
+                    btn.appendChild(thumbWrap);
+                    btn.appendChild(textWrap);
+
+                    btn.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        addToMusicHistory(item);
+                        editorState.youtubeMusic = {
+                            title: String(item.title || '').trim(),
+                            videoId: String(item.videoId || '').trim(),
+                            thumbnailUrl: String(item.thumbnailUrl || '').trim()
+                        };
+                        lastLiveQuery = '';
+                        editorState.musicFile = null;
+                        editorState.musicDurationSec = getTargetMusicDurationSec();
+                        editorState.musicStartSec = 0;
+                        editorState.musicTrackDurationSec = 0;
+                        if (editorState.audioPlayer) {
+                            editorState.audioPlayer.pause();
+                            editorState.audioPlayer = null;
+                        }
+                        if (editorState.youtubeMusic.videoId) {
+                            const video = exploringGetVideo();
+                            if (video && video.paused) {
+                                video.play().catch(() => {});
+                            }
+                            const { start } = getVideoTrimBounds();
+                            const clipTime = video && Number.isFinite(video.currentTime) ? Math.max(0, Number(video.currentTime) - start) : 0;
+                            const startAt = (Number.isFinite(editorState.musicStartSec) ? Number(editorState.musicStartSec) : 0) + clipTime;
+                            const startYouTube = () => {
+                                const player = editorState.youtubePlayer;
+                                if (!player) return;
+                                try {
+                                    player.unMute?.();
+                                    player.setVolume?.(100);
+                                } catch {}
+                                try {
+                                    player.loadVideoById?.(editorState.youtubeMusic.videoId, startAt);
+                                } catch {}
+                                try {
+                                    player.playVideo?.();
+                                } catch {}
+                            };
+                            if (editorState.youtubePlayerReady && editorState.youtubePlayer) {
+                                startYouTube();
+                            } else {
+                                ensureYouTubeAudioPlayer().then(startYouTube).catch(() => {});
+                            }
+                        }
+                        toolMusic.classList.add('active');
+                        toolMusic.title = editorState.youtubeMusic.title || 'Música selecionada';
+                        renderResults(itemsToRender);
+                        close();
+                        openMusicSegmentModal();
+                        ensureMusicTrackDurationSec().then(() => {
+                            updateMusicTrimUi();
+                            syncSelectedMusicToVideoNow();
+                        }).catch(() => {});
+                    });
+
+                    youtubeMusicResults.appendChild(btn);
+                });
+            };
+
+            renderSelectedOnlyFn = () => {
+                const hasYoutube = !!(editorState.youtubeMusic && editorState.youtubeMusic.videoId);
+                const hasFile = !!editorState.musicFile;
+                youtubeMusicResults.innerHTML = '';
+                if (!hasYoutube && !hasFile) return;
+                editorState.musicDurationSec = getTargetMusicDurationSec();
+                if (hasYoutube) {
+                    renderResults([{
+                        title: editorState.youtubeMusic.title || 'Música selecionada',
+                        videoId: editorState.youtubeMusic.videoId,
+                        thumbnailUrl: editorState.youtubeMusic.thumbnailUrl || ''
+                    }]);
+                    return;
+                }
+                const dark = isDarkTheme();
+                const box = document.createElement('div');
+                box.style.display = 'flex';
+                box.style.alignItems = 'center';
+                box.style.gap = '10px';
+                box.style.padding = '10px';
+                box.style.borderRadius = '12px';
+                box.style.border = dark ? '1px solid rgba(255,255,255,0.14)' : '1px solid rgba(0,0,0,0.12)';
+                box.style.background = dark ? 'rgba(0,0,0,0.18)' : 'rgba(255,255,255,0.45)';
+                box.style.color = dark ? '#fff' : '#111';
+
+                const icon = document.createElement('div');
+                icon.style.width = '56px';
+                icon.style.height = '56px';
+                icon.style.borderRadius = '10px';
+                icon.style.display = 'flex';
+                icon.style.alignItems = 'center';
+                icon.style.justifyContent = 'center';
+                icon.style.position = 'relative';
+                icon.style.flexShrink = '0';
+                icon.style.background = dark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)';
+                icon.innerHTML = '<i class="fas fa-music"></i>';
+
+                const removeX = document.createElement('button');
+                removeX.type = 'button';
+                removeX.setAttribute('aria-label', 'Remover música');
+                removeX.innerHTML = '<i class="fas fa-times"></i>';
+                removeX.style.position = 'absolute';
+                removeX.style.top = '-8px';
+                removeX.style.right = '-8px';
+                removeX.style.width = '28px';
+                removeX.style.height = '28px';
+                removeX.style.display = 'inline-flex';
+                removeX.style.alignItems = 'center';
+                removeX.style.justifyContent = 'center';
+                removeX.style.borderRadius = '999px';
+                removeX.style.cursor = 'pointer';
+                removeX.style.color = dark ? '#fff' : '#111';
+                removeX.style.background = dark ? 'rgba(0,0,0,0.55)' : 'rgba(255,255,255,0.85)';
+                removeX.style.border = dark ? '1px solid rgba(255,255,255,0.18)' : '1px solid rgba(0,0,0,0.12)';
+                removeX.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    stopSelectedMusicFn?.();
+                    youtubeMusicResults.innerHTML = '';
+                });
+                icon.appendChild(removeX);
+
+                const text = document.createElement('div');
+                text.style.fontSize = '14px';
+                text.style.fontWeight = '600';
+                text.style.overflow = 'hidden';
+                text.style.textOverflow = 'ellipsis';
+                text.style.whiteSpace = 'nowrap';
+                text.textContent = editorState.musicFile?.name ? `Arquivo: ${editorState.musicFile.name}` : 'Arquivo de música selecionado';
+
+                box.appendChild(icon);
+                box.appendChild(text);
+                youtubeMusicResults.appendChild(box);
+            };
+
+            doSearch = async (force = false) => {
+                const q = String(youtubeMusicInput.value || '').trim();
+                if (!q) {
+                    youtubeMusicStatus.textContent = '';
+                    if (youtubeMusicMode === 'saved') {
+                        renderSavedFn?.();
+                        lastLiveQuery = '';
+                        return;
+                    }
+                    if (editorState.youtubeMusic?.videoId || editorState.musicFile) {
+                        renderSelectedOnlyFn?.();
+                        lastLiveQuery = '';
+                        return;
+                    }
+                    renderHistoryFn?.();
+                    lastLiveQuery = '';
+                    return;
+                }
+                if (q.length < 3) {
+                    youtubeMusicStatus.textContent = 'Digite pelo menos 3 letras para buscar.';
+                    youtubeMusicResults.innerHTML = '';
+                    lastLiveQuery = q;
+                    return;
+                }
+                if (!force && q === lastLiveQuery) return;
+                if (youtubeMusicMode !== 'search') setModeFn?.('search');
+                lastLiveQuery = q;
+                youtubeMusicStatus.textContent = 'Buscando...';
+                youtubeMusicResults.innerHTML = '';
+                try {
+                    if (liveSearchAbortController) {
+                        try { liveSearchAbortController.abort(); } catch {}
+                    }
+                    liveSearchAbortController = new AbortController();
+                    const items = await searchYouTubeMusic(q, liveSearchAbortController.signal);
+                    if (!items.length) {
+                        youtubeMusicStatus.textContent = 'Nenhum resultado.';
+                        return;
+                    }
+                    youtubeMusicStatus.textContent = '';
+                    renderResults(items);
+                } catch (err) {
+                    if (err && (err.name === 'AbortError' || String(err.message || '').includes('aborted'))) {
+                        return;
+                    }
+                    youtubeMusicStatus.textContent = err?.message ? String(err.message) : 'Erro ao buscar.';
+                }
+            };
+
+            youtubeMusicInput.addEventListener('keydown', (e) => {
+                if (e.key !== 'Enter') return;
+                e.preventDefault();
+                doSearch(true);
+            });
+
+            youtubeMusicInput.addEventListener('input', () => {
+                if (liveSearchTimerId) clearTimeout(liveSearchTimerId);
+                liveSearchTimerId = setTimeout(() => {
+                    doSearch(false);
+                }, 350);
+            });
+
+            youtubeMusicSavedBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (youtubeMusicMode === 'saved') {
+                    setModeFn?.('search');
+                    if (youtubeMusicInput) youtubeMusicInput.value = '';
+                    lastLiveQuery = '';
+                    youtubeMusicStatus.textContent = '';
+                    if (editorState.youtubeMusic?.videoId || editorState.musicFile) {
+                        renderSelectedOnlyFn?.();
+                    } else {
+                        renderHistoryFn?.();
+                    }
+                    return;
+                }
+                setModeFn?.('saved');
+                if (youtubeMusicInput) youtubeMusicInput.value = '';
+                lastLiveQuery = '';
+                youtubeMusicStatus.textContent = '';
+                renderSavedFn?.();
+            });
+
+            applyYouTubeModalTheme();
+            return youtubeMusicModalOverlay;
+        };
+
+        const openYouTubeMusicModal = () => {
+            const overlay = ensureYouTubeMusicModal();
+            overlay.classList.remove('hidden');
+            overlay.style.display = 'flex';
+            if (youtubeMusicInput) youtubeMusicInput.value = '';
+            if (youtubeMusicStatus) youtubeMusicStatus.textContent = '';
+            if (youtubeMusicResults) youtubeMusicResults.innerHTML = '';
+            lastLiveQuery = '';
+            youtubeMusicMode = 'search';
+            if (youtubeMusicSavedBtn) youtubeMusicSavedBtn.style.color = '';
+            applyYouTubeModalTheme();
+            ensureYouTubeAudioPlayer().catch(() => {});
+            requestAnimationFrame(() => {
+                youtubeMusicInput?.focus?.();
+            });
+            if (editorState.youtubeMusic?.videoId || editorState.musicFile) {
+                renderSelectedOnlyFn?.();
+            } else {
+                youtubeMusicStatus.textContent = '';
+                renderHistoryFn?.();
+            }
+        };
+
+        toolMusic.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (editorState.youtubeMusic?.videoId || editorState.musicFile) {
+                openMusicSegmentModal();
+                ensureMusicTrackDurationSec().then(() => {
+                    updateMusicTrimUi();
+                    syncSelectedMusicToVideoNow();
+                }).catch(() => {});
+                return;
+            }
+            openYouTubeMusicModal();
         });
 
         musicFileInput.addEventListener('change', (e) => {
             const file = e.target.files && e.target.files[0];
             if (file) {
                 editorState.musicFile = file;
+                editorState.youtubeMusic = null;
+                editorState.musicDurationSec = getTargetMusicDurationSec();
+                editorState.musicStartSec = 0;
+                editorState.musicTrackDurationSec = 0;
+                if (editorState.youtubePlayer) {
+                    try {
+                        editorState.youtubePlayer.stopVideo?.();
+                    } catch {}
+                }
                 toolMusic.classList.add('active');
                 
                 // Setup preview audio
                 if (editorState.audioPlayer) editorState.audioPlayer.pause();
                 editorState.audioPlayer = new Audio(URL.createObjectURL(file));
-                editorState.audioPlayer.loop = true; // Loop da música? Ou toca uma vez?
+                editorState.audioPlayer.loop = false;
                 
                 // Muta vídeo original ao adicionar música? Geralmente sim ou mixa.
                 // O usuário pediu "Mudar Áudio (Mudo/Ativo)", então ele controla manualmente.
                 // Mas talvez queira baixar o volume do original. Vamos manter controle manual.
+                openMusicSegmentModal();
+                ensureMusicTrackDurationSec().then(() => {
+                    updateMusicTrimUi();
+                    syncSelectedMusicToVideoNow();
+                }).catch(() => {});
                 
                 const video = exploringGetVideo();
                 if (video && !video.paused) {
+                    syncSelectedMusicToVideoNow();
                     editorState.audioPlayer.play().catch(() => {});
                 }
             }
@@ -2655,7 +4662,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Helpers
     const exploringGetVideo = () => {
-        return explorarPreviewMediaContainer ? explorarPreviewMediaContainer.querySelector('video') : null;
+        return nowPreviewMediaContainer ? nowPreviewMediaContainer.querySelector('video') : null;
     };
 
     const seekVideoTo = (pct, autoPause = true) => {
@@ -2667,38 +4674,46 @@ document.addEventListener('DOMContentLoaded', () => {
             // Pausa se estiver tocando para focar no scrubbing
             if (autoPause && !video.paused) {
                  video.pause();
+                 if (editorState.audioPlayer) {
+                    try { editorState.audioPlayer.pause(); } catch {}
+                 }
+                 if (editorState.youtubePlayerReady && editorState.youtubePlayer) {
+                    try {
+                        editorState.youtubePlayer.pauseVideo?.();
+                    } catch {}
+                 }
             }
         }
     };
 
-    const closeExplorarModal = () => {
-        if (!explorarPostModal) return;
-        explorarPostModal.classList.remove('is-open');
+    const closenowModal = () => {
+        if (!nowPostModal) return;
+        nowPostModal.classList.remove('is-open');
         try {
-            if (explorarPostModal.contains(document.activeElement)) {
+            if (nowPostModal.contains(document.activeElement)) {
                 /** @type {HTMLElement} */(document.activeElement)?.blur?.();
             }
-            explorarPostModal.setAttribute('inert', '');
+            nowPostModal.setAttribute('inert', '');
         } catch {}
-        explorarPostModal.setAttribute('aria-hidden', 'true');
-        resetExplorarModal();
-        document.body.classList.remove('explorar-post-modal-open');
+        nowPostModal.setAttribute('aria-hidden', 'true');
+        resetnowModal();
+        document.body.classList.remove('now-post-modal-open');
     };
 
-    if (explorarAddMediaBtn && explorarMediaInput) {
-        const showExplorarMsg = (msg) => {
-            if (!explorarValidationMsg) return;
-            explorarValidationMsg.textContent = msg;
-            explorarValidationMsg.classList.add('visible');
+    if (nowAddMediaBtn && nowMediaInput) {
+        const shownowMsg = (msg) => {
+            if (!nowValidationMsg) return;
+            nowValidationMsg.textContent = msg;
+            nowValidationMsg.classList.add('visible');
             setTimeout(() => {
-                explorarValidationMsg.classList.remove('visible');
+                nowValidationMsg.classList.remove('visible');
             }, 3000);
         };
 
-        explorarAddMediaBtn.addEventListener('click', () => {
-            explorarMediaInput.click();
+        nowAddMediaBtn.addEventListener('click', () => {
+            nowMediaInput.click();
         });
-        explorarMediaInput.addEventListener('change', (event) => {
+        nowMediaInput.addEventListener('change', (event) => {
             const file = event.target.files && event.target.files[0];
             if (file) {
                 // Validação de Tamanho (Aumentado para 100MB para Upload Direto S3)
@@ -2707,51 +4722,53 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 if (file.size > maxSize) {
                     alert(`O arquivo é muito grande (${(file.size / 1024 / 1024).toFixed(2)}MB). O limite é de ${MAX_SIZE_MB}MB.`);
-                    explorarMediaInput.value = ''; // Limpa o input
+                    nowMediaInput.value = ''; // Limpa o input
                     return;
                 }
 
-                // Somente vídeos no explorar
+                // Somente vídeos no now
                 if (!file.type.startsWith('video/')) {
-                    showExplorarMsg('Somente vídeos são permitidos no explorar');
-                    explorarMediaInput.value = '';
+                    shownowMsg('Somente vídeos são permitidos no now');
+                    nowMediaInput.value = '';
                     return;
                 }
 
-                // Validação de Vídeo (Duração max 30s)
-                if (file.type.startsWith('video/')) {
-                    openExplorarModal(file);
-                    const video = document.createElement('video');
-                    video.preload = 'metadata';
-                    video.onloadedmetadata = function() {
-                        window.URL.revokeObjectURL(video.src);
-                        if (video.duration > 31) { // Margem de erro de 1s
-                            showExplorarMsg('Apenas videos de 30 segundos');
-                            explorarMediaInput.value = ''; // Limpa o input
-                            closeExplorarModal();
-                        } else {
-                            // ok, nada a fazer (modal já aberto)
-                        }
-                    };
-                    video.onerror = function() {
-                         window.URL.revokeObjectURL(video.src);
-                         console.error('Erro ao carregar metadados do vídeo.');
-                         // mantém modal aberto, apenas loga erro
-                    };
-                    video.src = URL.createObjectURL(file);
+                opennowModal(file);
+
+                const previewVideo = nowPreviewMediaContainer ? nowPreviewMediaContainer.querySelector('video') : null;
+                if (!previewVideo) return;
+
+                const openTrimIfNeeded = () => {
+                    const duration = previewVideo.duration || 0;
+                    if (!duration) return;
+                    if (duration <= MAX_TRIM_DURATION) return;
+
+                    const maxPct = (MAX_TRIM_DURATION / duration) * 100;
+                    editorState.trimStart = 0;
+                    editorState.trimEnd = maxPct;
+                    if (trimStartInput) trimStartInput.value = 0;
+                    if (trimEndInput) trimEndInput.value = maxPct;
+                    updateTrimUI();
+                    toolTrim?.click?.();
+                };
+
+                if (previewVideo.readyState >= 1 && previewVideo.duration) {
+                    openTrimIfNeeded();
+                } else {
+                    previewVideo.addEventListener('loadedmetadata', openTrimIfNeeded, { once: true });
                 }
             }
         });
     }
 
-    if (explorarPostClose) {
-        explorarPostClose.addEventListener('click', closeExplorarModal);
+    if (nowPostClose) {
+        nowPostClose.addEventListener('click', closenowModal);
     }
 
-    if (explorarPostModal) {
-        explorarPostModal.addEventListener('click', (event) => {
-            if (event.target === explorarPostModal) {
-                closeExplorarModal();
+    if (nowPostModal) {
+        nowPostModal.addEventListener('click', (event) => {
+            if (event.target === nowPostModal) {
+                closenowModal();
             }
         });
     }
@@ -2759,53 +4776,53 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     // User requested to keep sidebar visible while typing
-    // if (explorarPostDesc) {
-    //     explorarPostDesc.addEventListener('focus', () => {
+    // if (nowPostDesc) {
+    //     nowPostDesc.addEventListener('focus', () => {
     //         if (videoEditorSidebar) videoEditorSidebar.classList.add('hidden');
     //     });
-    //     explorarPostDesc.addEventListener('blur', () => {
+    //     nowPostDesc.addEventListener('blur', () => {
     //          if (videoEditorSidebar && !editorState.isDrawingMode) {
     //              videoEditorSidebar.classList.remove('hidden');
     //          }
     //     });
     // }
 
-    if (explorarPostSend) {
-        explorarPostSend.addEventListener('click', async () => {
+    if (nowPostSend) {
+        nowPostSend.addEventListener('click', async () => {
             if (!token) return;
             // Evita duplicidade por cliques repetidos
-            if (explorarPostSend.dataset.sending === '1' || explorarPostSend.disabled) return;
+            if (nowPostSend.dataset.sending === '1' || nowPostSend.disabled) return;
             
-            const content = explorarPostDesc?.value || '';
-            if (!content.trim() && !explorarSelectedFile) return;
+            const content = nowPostDesc?.value || '';
+            if (!content.trim() && !nowSelectedFile) return;
 
             // Validação de Tamanho do Arquivo (Limite Aumentado para Upload Direto S3: 100MB)
-            if (explorarSelectedFile) {
+            if (nowSelectedFile) {
                 const MAX_SIZE_MB = 100; // 100MB
                 const MAX_SIZE_BYTES = MAX_SIZE_MB * 1024 * 1024;
                 
-                if (explorarSelectedFile.size > MAX_SIZE_BYTES) {
-                    alert(`O arquivo selecionado é muito grande (${(explorarSelectedFile.size / 1024 / 1024).toFixed(2)}MB). \n\nO limite atual é de ${MAX_SIZE_MB}MB. Por favor, escolha um vídeo menor.`);
+                if (nowSelectedFile.size > MAX_SIZE_BYTES) {
+                    alert(`O arquivo selecionado é muito grande (${(nowSelectedFile.size / 1024 / 1024).toFixed(2)}MB). \n\nO limite atual é de ${MAX_SIZE_MB}MB. Por favor, escolha um vídeo menor.`);
                     return;
                 }
             }
 
-            explorarPostSend.dataset.sending = '1';
-            explorarPostSend.disabled = true;
+            nowPostSend.dataset.sending = '1';
+            nowPostSend.disabled = true;
             
             // Feedback visual imediato
-            const originalBtnText = explorarPostSend.innerHTML;
-            explorarPostSend.innerHTML = '<div class="spinner-border spinner-border-sm" role="status"></div> Enviando...';
+            const originalBtnText = nowPostSend.innerHTML;
+            nowPostSend.innerHTML = '<div class="spinner-border spinner-border-sm" role="status"></div> Enviando...';
 
             // ========================================================================
             // 1. CAPTURA DADOS ANTES DE FECHAR O MODAL (para evitar perda no reset)
             // ========================================================================
-            const fileToUpload = explorarSelectedFile; // Captura arquivo selecionado
+            const fileToUpload = nowSelectedFile; // Captura arquivo selecionado
             const currentEditorState = { ...editorState }; // Captura estado do editor
-            const categoriaAtual = explorarCategoriaCurrent?.textContent?.trim();
+            const categoriaAtual = nowCategoriaCurrent?.textContent?.trim();
             
             // Captura duração do vídeo (necessária para trim)
-            const videoEl = explorarPostPreview ? explorarPostPreview.querySelector('video') : null;
+            const videoEl = nowPostPreview ? nowPostPreview.querySelector('video') : null;
             const duration = videoEl ? (videoEl.duration || 0) : 0;
 
             // Captura blob do desenho (se houver) - precisa ser feito ANTES de limpar o canvas
@@ -2821,11 +4838,11 @@ document.addEventListener('DOMContentLoaded', () => {
             // ========================================================================
             // 2. FECHA O MODAL IMEDIATAMENTE (UI/UX)
             // ========================================================================
-            closeExplorarModal();
+            closenowModal();
 
             // Adiciona efeito visual de carregamento no avatar
-            if (explorarUserAvatar) {
-                explorarUserAvatar.classList.add('uploading-status');
+            if (nowUserAvatar) {
+                nowUserAvatar.classList.add('uploading-status');
             }
 
             // ========================================================================
@@ -2854,12 +4871,22 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 formData.append('trimEnd', 0);
             }
+
+            const hasYouTubeMusic = !!currentEditorState.youtubeMusic?.videoId;
+            const hasMusicFile = !!currentEditorState.musicFile;
+            if (hasYouTubeMusic || hasMusicFile) {
+                formData.append('musicStartSec', Number(currentEditorState.musicStartSec) || 0);
+                formData.append('musicDurationSec', Number(currentEditorState.musicDurationSec) || 0);
+                formData.append('musicTrackDurationSec', Number(currentEditorState.musicTrackDurationSec) || 0);
+            }
             
             // Lógica de Upload
             try {
                 let mediaUrl = '';
                 let mediaType = '';
                 let drawingUrl = '';
+                let musicUrl = '';
+                let musicType = '';
 
                 // Helper de Upload S3
                 const uploadToS3 = async (file, progressCallback) => {
@@ -2928,6 +4955,17 @@ document.addEventListener('DOMContentLoaded', () => {
                      }
                 }
 
+                if (hasYouTubeMusic) {
+                    formData.append('musicSource', 'youtube');
+                    formData.append('youtubeMusic', JSON.stringify(currentEditorState.youtubeMusic || {}));
+                } else if (hasMusicFile) {
+                    formData.append('musicSource', 'file');
+                    musicUrl = await uploadToS3(currentEditorState.musicFile);
+                    musicType = currentEditorState.musicFile?.type || '';
+                    if (musicUrl) formData.append('musicUrl', musicUrl);
+                    if (musicType) formData.append('musicType', musicType);
+                }
+
                 // 3. Salva o post no backend (com URL já pronta ou apenas texto)
                 if (mediaUrl) {
                     formData.append('mediaUrl', mediaUrl);
@@ -2939,7 +4977,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Se não teve arquivo, formData só tem content/category (já adicionados acima)
 
                 const xhr = new XMLHttpRequest();
-                xhr.open('POST', '/api/explorar-posts', true);
+                xhr.open('POST', '/api/now-posts', true);
                 xhr.setRequestHeader('Authorization', `Bearer ${token}`);
                 
                 xhr.onreadystatechange = () => {
@@ -2959,15 +4997,15 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
 
                         // Atualiza o feed e, IMPORTANTE, aplica o anel verde no avatar
-                        fetchExplorarFeed();
+                        fetchnowFeed();
                         
-                        if (typeof applyStatusRingToAvatarFeed === 'function' && explorarUserAvatar && userId) {
+                        if (typeof applyStatusRingToAvatarFeed === 'function' && nowUserAvatar && userId) {
                             // Aplica o anel verde (status postado) no avatar do usuário logado
-                            applyStatusRingToAvatarFeed(explorarUserAvatar, userId);
+                            applyStatusRingToAvatarFeed(nowUserAvatar, userId);
                             
                             // Opcional: Forçar refresh do avatar se necessário, mas a função acima já deve cuidar do CSS
-                            explorarUserAvatar.classList.add('has-story');
-                            explorarUserAvatar.classList.remove('is-viewed'); // Garante que não fique cinza
+                            nowUserAvatar.classList.add('has-story');
+                            nowUserAvatar.classList.remove('is-viewed'); // Garante que não fique cinza
                         }
                         
                         // Não mostramos alert de sucesso pois o fluxo é "transparente"
@@ -2979,15 +5017,15 @@ document.addEventListener('DOMContentLoaded', () => {
                         alert('Erro ao salvar post em background: ' + err.message);
                     } finally {
                         // Remove efeito de carregamento do avatar
-                        if (explorarUserAvatar) {
-                            explorarUserAvatar.classList.remove('uploading-status');
+                        if (nowUserAvatar) {
+                            nowUserAvatar.classList.remove('uploading-status');
                         }
 
                         // Limpa estado do botão (mesmo que oculto/resetado, bom garantir)
-                        if (explorarPostSend) {
-                            delete explorarPostSend.dataset.sending;
-                            explorarPostSend.disabled = false;
-                            if (originalBtnText) explorarPostSend.innerHTML = originalBtnText;
+                        if (nowPostSend) {
+                            delete nowPostSend.dataset.sending;
+                            nowPostSend.disabled = false;
+                            if (originalBtnText) nowPostSend.innerHTML = originalBtnText;
                         }
                     }
                 };
@@ -2998,14 +5036,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 alert('Falha no envio: ' + err.message);
                 
                 // Remove efeito de carregamento do avatar em caso de erro no catch principal
-                if (explorarUserAvatar) {
-                    explorarUserAvatar.classList.remove('uploading-status');
+                if (nowUserAvatar) {
+                    nowUserAvatar.classList.remove('uploading-status');
                 }
 
-                if (explorarPostSend) {
-                    delete explorarPostSend.dataset.sending;
-                    explorarPostSend.disabled = false;
-                    if (originalBtnText) explorarPostSend.innerHTML = originalBtnText;
+                if (nowPostSend) {
+                    delete nowPostSend.dataset.sending;
+                    nowPostSend.disabled = false;
+                    if (originalBtnText) nowPostSend.innerHTML = originalBtnText;
                 }
             }
         });
@@ -3259,16 +5297,16 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function closeExplorarCityControls() {
-        if (explorarCityControls) {
-            explorarCityControls.classList.remove('is-open');
+    function closenowCityControls() {
+        if (nowCityControls) {
+            nowCityControls.classList.remove('is-open');
         }
-        if (explorarCityRow) {
-            explorarCityRow.classList.remove('is-hidden');
+        if (nowCityRow) {
+            nowCityRow.classList.remove('is-hidden');
         }
-        persistExplorarCities();
-        renderExplorarCityChips();
-        fetchExplorarFeed();
+        persistnowCities();
+        rendernowCityChips();
+        fetchnowFeed();
     }
 
     function applyTheme(theme) {
@@ -3398,35 +5436,35 @@ document.addEventListener('DOMContentLoaded', () => {
         bottomNavHomeBtn.addEventListener('click', () => {
             fecharModaisPrecisoAgoraEPedidoUrgente();
             fecharBuscaUI();
-            if (explorarPage?.classList.contains('is-open')) {
-                closeExplorarPanel();
+            if (nowPage?.classList.contains('is-open')) {
+                closenowPanel();
                 return;
             }
-            if (feedExplorarSlider) {
-                feedExplorarSlider.classList.remove('is-explorar');
-                feedExplorarSlider.style.transform = 'translateX(-100vw)';
+            if (feednowSlider) {
+                feednowSlider.classList.remove('is-now');
+                feednowSlider.style.transform = 'translateX(-100vw)';
             }
         });
     }
 
-    const headerExplorarBtn = document.getElementById('header-explorar');
-    if (headerExplorarBtn) {
-        headerExplorarBtn.addEventListener('click', () => {
+    const headerNowBtn = document.getElementById('header-now');
+    if (headerNowBtn) {
+        headerNowBtn.addEventListener('click', () => {
             const isMobile = window.matchMedia('(max-width: 768px)').matches;
             
             // Toggle logic for desktop
             if (!isMobile) {
-                if (document.body.classList.contains('explorar-open')) {
-                    closeExplorarPanel();
+                if (document.body.classList.contains('now-open')) {
+                    closenowPanel();
                 } else {
-                    openExplorarPanel(true);
+                    opennowPanel(true);
                 }
                 return;
             }
 
             fecharModaisPrecisoAgoraEPedidoUrgente();
             fecharBuscaUI();
-            openExplorarPanel();
+            opennowPanel();
         });
     }
 
@@ -3434,7 +5472,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const desktopBackBtn = document.getElementById('desktop-back-btn');
     if (desktopBackBtn) {
         desktopBackBtn.addEventListener('click', () => {
-            closeExplorarPanel();
+            closenowPanel();
         });
     }
 
@@ -3516,6 +5554,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     modal.classList.remove('hidden');
                     try { window.syncModalScrollLock?.(); } catch {}
                 }
+            }
+
+            if (openPanel === 'now') {
+                 // Pequeno delay para garantir carregamento
+                 setTimeout(() => {
+                     opennowPanel(true);
+                 }, 300);
             }
         }
 
@@ -3606,9 +5651,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const storedName = localStorage.getItem('userName') || '';
         const storedPhotoUrl = localStorage.getItem('userPhotoUrl');
 
-        const syncExplorarAvatar = () => {
-            if (explorarUserAvatar && userAvatarHeader?.src) {
-                explorarUserAvatar.src = userAvatarHeader.src;
+        const syncnowAvatar = () => {
+            if (nowUserAvatar && userAvatarHeader?.src) {
+                nowUserAvatar.src = userAvatarHeader.src;
             }
         };
 
@@ -3619,7 +5664,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // Se não tem foto ou é inválida, usa a imagem padrão
             if (!storedPhotoUrl || storedPhotoUrl === 'undefined' || storedPhotoUrl === 'null' || storedPhotoUrl.includes('placehold.co/50?text=User')) {
                 userAvatarHeader.src = '/imagens/default-user.png';
-                syncExplorarAvatar();
+                syncnowAvatar();
                 if (token) {
                     const headers = { 'Authorization': `Bearer ${token}` };
                     fetch('/api/user/me', { headers })
@@ -3633,7 +5678,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             if (apiPhoto) {
                                 localStorage.setItem('userPhotoUrl', apiPhoto);
                                 userAvatarHeader.src = apiPhoto;
-                                syncExplorarAvatar();
+                                syncnowAvatar();
                                 return;
                             }
                             return fetch('/api/usuario/me', { headers })
@@ -3644,7 +5689,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                     if (fallbackPhoto) {
                                         localStorage.setItem('userPhotoUrl', fallbackPhoto);
                                         userAvatarHeader.src = fallbackPhoto;
-                                        syncExplorarAvatar();
+                                        syncnowAvatar();
                                     }
                                 });
                         })
@@ -3665,7 +5710,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     userAvatarHeader.src = freshUrl;
                     userAvatarHeader.loading = 'eager';
                     userAvatarHeader.decoding = 'sync';
-                    syncExplorarAvatar();
+                    syncnowAvatar();
                     
                     userAvatarHeader.style.opacity = '0';
                     setTimeout(() => {
@@ -3678,17 +5723,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Se a foto do usuário falhar, usa a imagem padrão
                     userAvatarHeader.src = '/imagens/default-user.png';
                     userAvatarHeader.loading = 'eager';
-                    syncExplorarAvatar();
+                    syncnowAvatar();
                 };
                 
                 preloadImg.src = freshUrl;
             } else {
                 // Sem foto do usuário, usa a imagem padrão
                 userAvatarHeader.src = '/imagens/default-user.png';
-                syncExplorarAvatar();
+                syncnowAvatar();
             }
         }
-        syncExplorarAvatar();
+        syncnowAvatar();
     }
 
     // ----------------------------------------------------------------------
@@ -3942,10 +5987,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    let explorarSelectedCities = [];
-    let explorarLazyObserver = null;
-    let explorarTouchStart = null;
-    let explorarHasFetched = false;
+    let nowSelectedCities = [];
+    let nowLazyObserver = null;
+    let nowTouchStart = null;
+    let nowHasFetched = false;
 
     function normalizeCityKey(value) {
         return String(value || '')
@@ -3967,74 +6012,74 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function resolveCityName(value) {
         const formatted = formatCityName(value);
-        if (!explorarCidadesDatalist) return formatted;
-        const options = Array.from(explorarCidadesDatalist.options || []);
+        if (!nowCidadesDatalist) return formatted;
+        const options = Array.from(nowCidadesDatalist.options || []);
         const match = options.find((opt) => normalizeCityKey(opt.value) === normalizeCityKey(formatted));
         return match ? match.value : formatted;
     }
 
-    function persistExplorarCities() {
+    function persistnowCities() {
         try {
-            localStorage.setItem('explorarCities', JSON.stringify(explorarSelectedCities));
+            localStorage.setItem('nowCities', JSON.stringify(nowSelectedCities));
         } catch (e) {
-            console.warn('Nao foi possivel salvar cidades do explorar.');
+            console.warn('Nao foi possivel salvar cidades do now.');
         }
     }
 
-    function renderExplorarCityChips() {
-        if (!explorarCidadeChips) return;
-        explorarCidadeChips.innerHTML = '';
-        if (explorarCityName) {
-            explorarCityName.textContent = explorarSelectedCities.length
-                ? explorarSelectedCities.join(', ')
+    function rendernowCityChips() {
+        if (!nowCidadeChips) return;
+        nowCidadeChips.innerHTML = '';
+        if (nowCityName) {
+            nowCityName.textContent = nowSelectedCities.length
+                ? nowSelectedCities.join(', ')
                 : '-';
         }
-        explorarSelectedCities.forEach((cidade) => {
+        nowSelectedCities.forEach((cidade) => {
             const chip = document.createElement('div');
-            chip.className = 'explorar-city-chip';
+            chip.className = 'now-city-chip';
             chip.innerHTML = `
                 <span>${cidade}</span>
                 <button type="button" aria-label="Remover cidade">&times;</button>
             `;
             const btn = chip.querySelector('button');
             btn.addEventListener('click', () => {
-                explorarSelectedCities = explorarSelectedCities.filter((c) => normalizeCityKey(c) !== normalizeCityKey(cidade));
-                persistExplorarCities();
-                renderExplorarCityChips();
-                fetchExplorarFeed();
+                nowSelectedCities = nowSelectedCities.filter((c) => normalizeCityKey(c) !== normalizeCityKey(cidade));
+                persistnowCities();
+                rendernowCityChips();
+                fetchnowFeed();
             });
-            explorarCidadeChips.appendChild(chip);
+            nowCidadeChips.appendChild(chip);
         });
     }
 
-    function addExplorarCity(value) {
+    function addnowCity(value) {
         const city = resolveCityName(value);
         if (!city) return;
-        const exists = explorarSelectedCities.some((c) => normalizeCityKey(c) === normalizeCityKey(city));
+        const exists = nowSelectedCities.some((c) => normalizeCityKey(c) === normalizeCityKey(city));
         if (exists) return;
-        explorarSelectedCities = [city, ...explorarSelectedCities.filter((c) => normalizeCityKey(c) !== normalizeCityKey(city))];
-        persistExplorarCities();
-        renderExplorarCityChips();
-        fetchExplorarFeed();
-        if (explorarCityControls) {
-            explorarCityControls.classList.remove('is-open');
+        nowSelectedCities = [city, ...nowSelectedCities.filter((c) => normalizeCityKey(c) !== normalizeCityKey(city))];
+        persistnowCities();
+        rendernowCityChips();
+        fetchnowFeed();
+        if (nowCityControls) {
+            nowCityControls.classList.remove('is-open');
         }
-        if (explorarCityRow) {
-            explorarCityRow.classList.remove('is-hidden');
+        if (nowCityRow) {
+            nowCityRow.classList.remove('is-hidden');
         }
     }
 
-    function setupExplorarLazyLoading() {
-        if (!explorarFeedList || !('IntersectionObserver' in window)) return;
-        if (explorarLazyObserver) {
-            explorarLazyObserver.disconnect();
+    function setupnowLazyLoading() {
+        if (!nowFeedList || !('IntersectionObserver' in window)) return;
+        if (nowLazyObserver) {
+            nowLazyObserver.disconnect();
         }
         const isDesktop = window.matchMedia('(min-width: 1024px)').matches;
         const observerOptions = isDesktop
             ? { root: null, rootMargin: '400px 0px', threshold: 0.25 }
-            : { root: explorarFeedList, rootMargin: '200px 0px', threshold: 0.25 };
+            : { root: nowFeedList, rootMargin: '200px 0px', threshold: 0.25 };
 
-        explorarLazyObserver = new IntersectionObserver((entries) => {
+        nowLazyObserver = new IntersectionObserver((entries) => {
             entries.forEach((entry) => {
                 if (!entry.isIntersecting) return;
                 const media = entry.target.querySelector('video[data-src], img[data-src]');
@@ -4048,17 +6093,17 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     }
                 }
-                explorarLazyObserver.unobserve(entry.target);
+                nowLazyObserver.unobserve(entry.target);
             });
         }, observerOptions);
 
-        explorarFeedList.querySelectorAll('.explorar-card').forEach((card) => explorarLazyObserver.observe(card));
+        nowFeedList.querySelectorAll('.now-card').forEach((card) => nowLazyObserver.observe(card));
     }
 
     // Aplica src imediato aos primeiros cartões visíveis (fallback para garantir carregamento inicial)
-    function primeExplorarMediaSrc() {
-        if (!explorarFeedList) return;
-        const cards = Array.from(explorarFeedList.querySelectorAll('.explorar-card')).slice(0, 2);
+    function primenowMediaSrc() {
+        if (!nowFeedList) return;
+        const cards = Array.from(nowFeedList.querySelectorAll('.now-card')).slice(0, 2);
         cards.forEach((card) => {
             const media = card.querySelector('video[data-src], img[data-src]');
             if (media) {
@@ -4109,7 +6154,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Observa vídeos já presentes
         attachAutoObserverToExistingVideos();
 
-        // Observa adições no feed principal e no explorar
+        // Observa adições no feed principal e no now
         const observeContainer = (el) => {
             if (!el) return;
             const mo = new MutationObserver((mutations) => {
@@ -4133,13 +6178,13 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         observeContainer(document.getElementById('posts-container'));
-        observeContainer(document.getElementById('explorar-feed-list'));
+        observeContainer(document.getElementById('now-feed-list'));
     }
 
     function attachAutoObserverToExistingVideos() {
         const candidates = [
             ...document.querySelectorAll('#posts-container video.post-media-item'),
-            ...document.querySelectorAll('#explorar-feed-list video')
+            ...document.querySelectorAll('#now-feed-list video')
         ];
         candidates.forEach((v) => {
             try {
@@ -4150,7 +6195,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function buildExplorarActionLinks(item) {
+    function buildnowActionLinks(item) {
         const actions = [];
         if (item?.perfilUrl) {
             actions.push({ label: 'Ver perfil', url: item.perfilUrl, className: 'outline' });
@@ -4167,27 +6212,32 @@ document.addEventListener('DOMContentLoaded', () => {
         return actions;
     }
 
-    function renderExplorarFeed(items) {
-        if (!explorarFeedList) return;
-        explorarFeedList.innerHTML = '';
+    async function rendernowFeed(items) {
+        if (!nowFeedList) return;
+        nowFeedList.innerHTML = '';
 
         if (!Array.isArray(items) || items.length === 0) {
-            if (explorarFeedStatus) {
-                explorarFeedStatus.textContent = 'Sem videos para estas cidades no momento.';
+            if (nowFeedStatus) {
+                nowFeedStatus.textContent = 'Sem videos para estas cidades no momento.';
             }
             return;
         }
 
-        if (explorarFeedStatus) {
-            explorarFeedStatus.textContent = '';
+        if (nowFeedStatus) {
+            nowFeedStatus.textContent = '';
+        }
+
+        const isMobileNow = window.matchMedia ? window.matchMedia('(max-width: 992px)').matches : window.innerWidth <= 992;
+        if (isMobileNow) {
+            await fetchAdsFeed();
         }
 
         items.forEach((item, index) => {
             const card = document.createElement('article');
-            card.className = 'explorar-card';
+            card.className = 'now-card';
             const rawItemId = item?._id || item?.id || '';
             if (rawItemId) {
-                card.dataset.explorarId = String(rawItemId);
+                card.dataset.nowId = String(rawItemId);
             }
             const mediaUrl = item.mediaUrl || item.imagemUrl || '';
             const isVideo = String(item.mediaType || '').includes('video');
@@ -4200,7 +6250,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const desc = item.descricao || item.content || '';
             const cityText = [item.cidade, item.estado].filter(Boolean).join(' - ');
             const empresaNome = item.empresa || item.nomeEmpresa || item.user?.nome || item.anunciante || item.titulo || item.nome || 'Perfil';
-            const actions = buildExplorarActionLinks(item);
+            const actions = buildnowActionLinks(item);
             const perfilAction = actions.find((action) => action.label === 'Ver perfil');
             const rawPerfilId = item?.userId?._id || item?.userId || item?.dono?._id || item?.dono?.id || item?.ownerId || item?.autorId;
             const ownerId = rawPerfilId?._id || rawPerfilId;
@@ -4223,42 +6273,42 @@ document.addEventListener('DOMContentLoaded', () => {
             const isLiked = !!item.isLikedByMe;
 
             const mediaHTML = isVideo
-                ? `<video class="explorar-video" muted playsinline autoplay preload="metadata" data-src="${mediaUrl}"></video>`
-                : `<img class="explorar-image" alt="" loading="lazy" decoding="async" data-src="${mediaUrl}">`;
+                ? `<video class="now-video" muted playsinline autoplay preload="metadata" data-src="${mediaUrl}"></video>`
+                : `<img class="now-image" alt="" loading="lazy" decoding="async" data-src="${mediaUrl}">`;
             
             const drawingUrl = item.drawingUrl || '';
             const drawingHTML = (isVideo && drawingUrl) 
-                ? `<img class="explorar-drawing-layer" src="${drawingUrl}" alt="" aria-hidden="true">` 
+                ? `<img class="now-drawing-layer" src="${drawingUrl}" alt="" aria-hidden="true">` 
                 : '';
 
             const isOwner = ownerId && userId && String(ownerId) === String(userId);
             const deleteButtonHTML = isOwner
-                ? `<button class="explorar-card-delete" type="button" aria-label="Apagar status" data-id="${rawItemId}">
+                ? `<button class="now-card-delete" type="button" aria-label="Apagar status" data-id="${rawItemId}">
                         <i class="fas fa-trash"></i>
                     </button>`
                 : '';
 
             card.innerHTML = `
-                <div class="explorar-card-media">
+                <div class="now-card-media">
                     ${mediaHTML}
                     ${drawingHTML}
-                    ${badge ? `<div class="explorar-card-badge">${badge}</div>` : ''}
+                    ${badge ? `<div class="now-card-badge">${badge}</div>` : ''}
                     ${deleteButtonHTML}
                     ${rawItemId ? `
-                    <button class="explorar-report-btn" type="button" data-post-id="${rawItemId}" aria-label="Denunciar">
+                    <button class="now-report-btn" type="button" data-post-id="${rawItemId}" aria-label="Denunciar">
                         <i class="fas fa-flag"></i>
                     </button>` : ''}
-                    <div class="explorar-card-info-overlay">
-                        <div class="explorar-card-info">
-                            <a class="explorar-card-perfil" href="${perfilUrl}">
-                                <img class="explorar-card-avatar" src="${perfilFoto}" alt="${empresaNome}" onerror="this.src='imagens/default-user.png'">
-                                <span class="explorar-card-empresa">${empresaNome}</span>
+                    <div class="now-card-info-overlay">
+                        <div class="now-card-info">
+                            <a class="now-card-perfil" href="${perfilUrl}">
+                                <img class="now-card-avatar" src="${perfilFoto}" alt="${empresaNome}" onerror="this.src='imagens/default-user.png'">
+                                <span class="now-card-empresa">${empresaNome}</span>
                             </a>
                         </div>
-                        ${(desc || title) ? `<p class="explorar-card-desc">${desc || title}</p>` : ''}
-                        ${cityText ? `<span class="explorar-card-cidade">${cityText}</span>` : ''}
+                        ${(desc || title) ? `<p class="now-card-desc">${desc || title}</p>` : ''}
+                        ${cityText ? `<span class="now-card-cidade">${cityText}</span>` : ''}
                         ${rawItemId ? `
-                        <button class="explorar-like-btn btn-like ${isLiked ? 'liked' : ''}" type="button" data-post-id="${rawItemId}" aria-label="Curtir status">
+                        <button class="now-like-btn btn-like ${isLiked ? 'liked' : ''}" type="button" data-post-id="${rawItemId}" aria-label="Curtir status">
                             <i class="fas fa-heart"></i>
                             <span class="like-count">${likesCount}</span>
                         </button>` : ''}
@@ -4266,15 +6316,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
             `;
             if (ownerId) {
-                card.dataset.explorarOwnerId = String(ownerId);
+                card.dataset.nowOwnerId = String(ownerId);
             }
             if (isStatus) {
-                card.dataset.explorarIsStatus = '1';
+                card.dataset.nowIsStatus = '1';
             }
 
-            const perfilAnchor = card.querySelector('.explorar-card-perfil');
-            const avatarEl = card.querySelector('.explorar-card-avatar');
-            const nomeEl = card.querySelector('.explorar-card-empresa');
+            const perfilAnchor = card.querySelector('.now-card-perfil');
+            const avatarEl = card.querySelector('.now-card-avatar');
+            const nomeEl = card.querySelector('.now-card-empresa');
 
             if (avatarEl) {
                 avatarEl.addEventListener('click', (event) => {
@@ -4303,25 +6353,40 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (ownerStories.length > 0) {
                             // Inverte a ordem para cronológica (antigo -> novo)
                             ownerStories.reverse();
-                            explorarStoryQueue = ownerStories.map((story) => ({
-                                id: String(story._id || ''),
-                                ownerId: story?.userId?._id || story?.userId || story?.ownerId || story?.autorId,
-                                mediaUrl: story.mediaUrl,
-                                isVideo: String(story.mediaType || '').includes('video'),
-                                nome: story?.titulo || story?.nome || 'Status',
-                                desc: story?.descricao || story?.content || '',
-                                cidade: [story?.cidade, story?.estado].filter(Boolean).join(' - '),
-                                videoMuted: story.videoMuted,
-                                trimStart: story.trimStart,
-                                trimEnd: story.trimEnd,
-                                drawingUrl: story.drawingUrl
-                            }));
-                            explorarUserStory = explorarStoryQueue[0] || null;
-                            setExplorarStorySegments(explorarStoryQueue.length);
+                            nowStoryQueue = ownerStories.map((story) => {
+                                const rawOwnerId = story?.userId?._id || story?.userId || story?.ownerId || story?.autorId;
+                                const ownerIdFinal = rawOwnerId?._id || rawOwnerId;
+                                const avatarFinal = story?.foto || story?.avatarUrl || story?.userId?.foto || story?.userId?.avatarUrl || 'imagens/default-user.png';
+                                const perfilUrlFinal = story?.perfilUrl || (ownerIdFinal ? `/perfil.html?id=${encodeURIComponent(String(ownerIdFinal))}&statusOwnerId=${encodeURIComponent(String(ownerIdFinal))}` : '#');
+                                return ({
+                                    id: String(story._id || ''),
+                                    ownerId: ownerIdFinal,
+                                    mediaUrl: story.mediaUrl,
+                                    isVideo: String(story.mediaType || '').includes('video'),
+                                    nome: story?.titulo || story?.nome || 'Status',
+                                    desc: story?.descricao || story?.content || '',
+                                    cidade: [story?.cidade, story?.estado].filter(Boolean).join(' - '),
+                                    avatar: avatarFinal,
+                                    perfilUrl: perfilUrlFinal,
+                                    videoMuted: story.videoMuted,
+                                    trimStart: story.trimStart,
+                                    trimEnd: story.trimEnd,
+                                    drawingUrl: story.drawingUrl,
+                                    youtubeMusic: story.youtubeMusic,
+                                    musicUrl: story.musicUrl,
+                                    musicType: story.musicType,
+                                    musicStartSec: story.musicStartSec,
+                                    musicDurationSec: story.musicDurationSec,
+                                    musicTrackDurationSec: story.musicTrackDurationSec,
+                                    musicSource: story.musicSource
+                                });
+                            });
+                            nowUserStory = nowStoryQueue[0] || null;
+                            setnowStorySegments(nowStoryQueue.length);
                             // Encontra o primeiro não visualizado
-                            const firstUnviewedIndex = explorarStoryQueue.findIndex(story => !isExplorarStoryViewed(story.id));
+                            const firstUnviewedIndex = nowStoryQueue.findIndex(story => !isnowStoryViewed(story.id));
                             const startIndex = firstUnviewedIndex !== -1 ? firstUnviewedIndex : 0;
-                            goToExplorarStory(startIndex);
+                            goTonowStory(startIndex);
                             return;
                         }
                     }
@@ -4340,7 +6405,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             }
 
-            const videoEl = card.querySelector('video.explorar-video');
+            const videoEl = card.querySelector('video.now-video');
             if (videoEl) {
                 if (item.videoMuted) {
                     videoEl.muted = true;
@@ -4387,14 +6452,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 videoEl.addEventListener('click', (event) => {
                     event.preventDefault();
                     // Removido redirecionamento para perfil ao clicar no vídeo
-                    // O usuário quer ver o vídeo em fullscreen no explorar
+                    // O usuário quer ver o vídeo em fullscreen no now
                     
                     const src = videoEl.getAttribute('src') || videoEl.getAttribute('data-src');
                     if (src && !videoEl.getAttribute('src')) {
                         videoEl.setAttribute('src', src);
                         videoEl.removeAttribute('data-src');
                     }
-                    openExplorarVideo(src, {
+                    opennowVideo(src, {
                         nome: empresaNome,
                         desc: desc || title,
                         cidade: cityText,
@@ -4406,14 +6471,21 @@ document.addEventListener('DOMContentLoaded', () => {
                         videoMuted: item.videoMuted,
                         trimStart: item.trimStart,
                         trimEnd: item.trimEnd,
-                        drawingUrl: item.drawingUrl
+                        drawingUrl: item.drawingUrl,
+                        youtubeMusic: item.youtubeMusic,
+                        musicUrl: item.musicUrl,
+                        musicType: item.musicType,
+                        musicStartSec: item.musicStartSec,
+                        musicDurationSec: item.musicDurationSec,
+                        musicTrackDurationSec: item.musicTrackDurationSec,
+                        musicSource: item.musicSource
                     });
                 });
             }
-            // Adiciona botão WhatsApp no card do explorar ao lado do nome (apenas se não for dono)
+            // Adiciona botão WhatsApp no card do now ao lado do nome (apenas se não for dono)
             (async () => {
                 try {
-                    const perfilAnchor = card.querySelector('.explorar-card-perfil');
+                    const perfilAnchor = card.querySelector('.now-card-perfil');
                     if (!perfilAnchor || !ownerId) return;
                     if (userId && String(ownerId) === String(userId)) return; // não mostra para o dono
                     const respUser = await fetch(`/api/usuario/${ownerId}`, {
@@ -4431,7 +6503,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     waLink.href = `https://wa.me/${encodeURIComponent(numeroDigits)}?text=${encodeURIComponent(msg)}`;
                     waLink.target = '_blank';
                     waLink.rel = 'noopener noreferrer';
-                    waLink.className = 'explorar-card-whatsapp';
+                    waLink.className = 'now-card-whatsapp';
                     waLink.innerHTML = '<i class="fab fa-whatsapp"></i>';
                     ['click', 'touchstart', 'touchend', 'pointerdown', 'pointerup'].forEach((type) => {
                         waLink.addEventListener(type, (ev) => {
@@ -4442,7 +6514,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 } catch {}
             })();
 
-            const deleteBtn = card.querySelector('.explorar-card-delete');
+            const deleteBtn = card.querySelector('.now-card-delete');
             if (deleteBtn) {
                 deleteBtn.addEventListener('click', async (event) => {
                     event.preventDefault();
@@ -4461,10 +6533,10 @@ document.addEventListener('DOMContentLoaded', () => {
                                 throw new Error(data?.message || 'Erro ao apagar status.');
                             }
                             card.remove();
-                            explorarStoryQueue = explorarStoryQueue.filter((item) => String(item.id) !== String(postId));
-                            explorarUserStory = explorarStoryQueue[0] || null;
-                            setExplorarStorySegments(explorarStoryQueue.length);
-                            updateExplorarStoryIndicator();
+                            nowStoryQueue = nowStoryQueue.filter((item) => String(item.id) !== String(postId));
+                            nowUserStory = nowStoryQueue[0] || null;
+                            setnowStorySegments(nowStoryQueue.length);
+                            updatenowStoryIndicator();
                         } catch (error) {
                             console.error('Erro ao apagar status:', error);
                             alert(error.message);
@@ -4473,27 +6545,27 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             }
 
-            // Nenhum handler para imagens (explorar apenas vídeos)
+            // Nenhum handler para imagens (now apenas vídeos)
 
-            const likeBtn = card.querySelector('.explorar-like-btn.btn-like');
+            const likeBtn = card.querySelector('.now-like-btn.btn-like');
             if (likeBtn) {
                 likeBtn.addEventListener('click', handleLikePost);
             }
-            const reportBtn = card.querySelector('.explorar-report-btn');
+            const reportBtn = card.querySelector('.now-report-btn');
             if (reportBtn) {
                 reportBtn.addEventListener('click', (e) => {
                     e.preventDefault();
                     e.stopPropagation();
                     const postId = reportBtn.dataset.postId;
                     if (!postId) return;
-                    abrirDenunciaModal({ alvoTipo: 'explorar', alvoId: postId, origem: 'explorar' });
+                    abrirDenunciaModal({ alvoTipo: 'now', alvoId: postId, origem: 'now' });
                 });
             }
 
-            explorarFeedList.appendChild(card);
+            nowFeedList.appendChild(card);
 
             if (rawItemId) {
-                const overlay = card.querySelector('.explorar-card-info-overlay');
+                const overlay = card.querySelector('.now-card-info-overlay');
                 if (overlay) {
                     (async () => {
                         try {
@@ -4504,17 +6576,17 @@ document.addEventListener('DOMContentLoaded', () => {
                             if (!resp.ok || data?.success === false) return;
                             const preview = Array.isArray(data.likesPreview) ? data.likesPreview : [];
                             if (!preview.length) return;
-                            const existing = overlay.querySelector('.explorar-like-avatars');
+                            const existing = overlay.querySelector('.now-like-avatars');
                             if (existing) existing.remove();
                             const avatarsBtn = document.createElement('button');
                             avatarsBtn.type = 'button';
-                            avatarsBtn.className = 'explorar-like-avatars';
+                            avatarsBtn.className = 'now-like-avatars';
                             preview.forEach((u) => {
                                 if (!u || !u.foto) return;
                                 const img = document.createElement('img');
                                 img.src = u.foto;
                                 img.alt = u.nome || '';
-                                img.className = 'explorar-like-avatar';
+                                img.className = 'now-like-avatar';
                                 img.referrerPolicy = 'no-referrer';
                                 avatarsBtn.appendChild(img);
                             });
@@ -4531,36 +6603,36 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
 
-            if (false && (index + 1) % 4 === 0) {
+            if (isMobileNow && (index + 1) % 4 === 0) {
                 const ad = pickNextAdFeed();
                 if (ad) {
                     const adEl = buildAdElementFeed(ad);
-                    adEl.classList.add('explorar-card');
-                    explorarFeedList.appendChild(adEl);
+                    adEl.classList.add('now-card');
+                    nowFeedList.appendChild(adEl);
                 }
             }
         });
 
-        setupExplorarLazyLoading();
-        primeExplorarMediaSrc();
+        setupnowLazyLoading();
+        primenowMediaSrc();
         // Após carregar cards, garantir autoplay/pause conforme visibilidade
         setupVideoAutoplayObserver();
     }
 
-    async function fetchExplorarFeed() {
-        if (!explorarFeedList) return;
-        if (explorarFeedStatus) {
-            explorarFeedStatus.textContent = 'Carregando novidades...';
+    async function fetchnowFeed() {
+        if (!nowFeedList) return;
+        if (nowFeedStatus) {
+            nowFeedStatus.textContent = 'Carregando novidades...';
         }
         const params = new URLSearchParams();
-        if (explorarSelectedCities.length > 0) {
-            params.set('cidades', explorarSelectedCities.join(','));
+        if (nowSelectedCities.length > 0) {
+            params.set('cidades', nowSelectedCities.join(','));
         }
-        const categoriaAtual = explorarCategoriaCurrent?.textContent?.trim();
+        const categoriaAtual = nowCategoriaCurrent?.textContent?.trim();
         if (categoriaAtual && categoriaAtual !== 'Todas') {
             params.set('categoria', categoriaAtual);
         }
-        const url = `/api/explorar-feed?${params.toString()}`;
+        const url = `/api/now-feed?${params.toString()}`;
         try {
             const resp = await fetch(url, {
                 headers: { 'Authorization': `Bearer ${token}` }
@@ -4576,7 +6648,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const isVideo = String(it?.mediaType || '').includes('video');
                 return isPost && hasMedia && isVideo;
             });
-            renderExplorarFeed(onlyVideos);
+            await rendernowFeed(onlyVideos);
             applyProfileReturnScroll();
             if (userId) {
                 const userStories = onlyVideos.filter((item) => {
@@ -4585,88 +6657,107 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 // Inverte a ordem para cronológica (antigo -> novo)
                 userStories.reverse();
-                explorarStoryQueue = userStories.map((story) => ({
-                    id: String(story._id || ''),
-                    ownerId: story?.userId?._id || story?.userId || story?.ownerId || story?.autorId,
-                    mediaUrl: story.mediaUrl,
-                    isVideo: String(story.mediaType || '').includes('video'),
-                    nome: story?.titulo || story?.nome || 'Minha postagem',
-                    desc: story?.descricao || story?.content || '',
-                    cidade: [story?.cidade, story?.estado].filter(Boolean).join(' - ')
-                }));
-                explorarUserStory = explorarStoryQueue[0] || null;
-                setExplorarStorySegments(explorarStoryQueue.length);
-                updateExplorarStoryIndicator();
+                nowStoryQueue = userStories.map((story) => {
+                    const rawOwnerId = story?.userId?._id || story?.userId || story?.ownerId || story?.autorId;
+                    const ownerIdFinal = rawOwnerId?._id || rawOwnerId;
+                    const avatarFinal = story?.foto || story?.avatarUrl || story?.userId?.foto || story?.userId?.avatarUrl || 'imagens/default-user.png';
+                    const perfilUrlFinal = story?.perfilUrl || (ownerIdFinal ? `/perfil.html?id=${encodeURIComponent(String(ownerIdFinal))}&statusOwnerId=${encodeURIComponent(String(ownerIdFinal))}` : '#');
+                    return ({
+                        id: String(story._id || ''),
+                        ownerId: ownerIdFinal,
+                        mediaUrl: story.mediaUrl,
+                        isVideo: String(story.mediaType || '').includes('video'),
+                        nome: story?.titulo || story?.nome || 'Minha postagem',
+                        desc: story?.descricao || story?.content || '',
+                        cidade: [story?.cidade, story?.estado].filter(Boolean).join(' - '),
+                        avatar: avatarFinal,
+                        perfilUrl: perfilUrlFinal,
+                        videoMuted: story.videoMuted,
+                        trimStart: story.trimStart,
+                        trimEnd: story.trimEnd,
+                        drawingUrl: story.drawingUrl,
+                        youtubeMusic: story.youtubeMusic,
+                        musicUrl: story.musicUrl,
+                        musicType: story.musicType,
+                        musicStartSec: story.musicStartSec,
+                        musicDurationSec: story.musicDurationSec,
+                        musicTrackDurationSec: story.musicTrackDurationSec,
+                        musicSource: story.musicSource
+                    });
+                });
+                nowUserStory = nowStoryQueue[0] || null;
+                setnowStorySegments(nowStoryQueue.length);
+                updatenowStoryIndicator();
             }
-            explorarHasFetched = true;
+            nowHasFetched = true;
         } catch (err) {
-            console.error('Erro ao carregar explorar:', err);
-            if (explorarFeedStatus) {
-                explorarFeedStatus.textContent = 'Nao foi possivel carregar o explorar.';
+            console.error('Erro ao carregar now:', err);
+            if (nowFeedStatus) {
+                nowFeedStatus.textContent = 'Nao foi possivel carregar o now.';
             }
         }
     }
 
-    function openExplorarPanel(force = false) {
-        if (!explorarPage) return;
+    function opennowPanel(force = false) {
+        if (!nowPage) return;
         const isMobile = window.matchMedia('(max-width: 768px)').matches;
         if (!force && !isMobile) return;
         
-        explorarPage.classList.add('is-open');
-        explorarPage.classList.remove('is-dragging');
-        explorarPage.style.transform = '';
-        explorarPage.setAttribute('aria-hidden', 'false');
-        document.documentElement.classList.add('explorar-open');
-        document.body.classList.add('explorar-open');
+        nowPage.classList.add('is-open');
+        nowPage.classList.remove('is-dragging');
+        nowPage.style.transform = '';
+        nowPage.setAttribute('aria-hidden', 'false');
+        document.documentElement.classList.add('now-open');
+        document.body.classList.add('now-open');
 
         if (isMobile) {
-            if (feedExplorarSlider) {
-                feedExplorarSlider.classList.add('is-explorar');
-                feedExplorarSlider.classList.remove('is-dragging');
-                feedExplorarSlider.style.transform = 'translateX(0)';
+            if (feednowSlider) {
+                feednowSlider.classList.add('is-now');
+                feednowSlider.classList.remove('is-dragging');
+                feednowSlider.style.transform = 'translateX(0)';
             }
         } else {
-            // Desktop: Esconder o feed principal para mostrar o explorar no lugar
+            // Desktop: Esconder o feed principal para mostrar o now no lugar
             const mainFeed = document.querySelector('main');
             if (mainFeed) mainFeed.style.display = 'none';
-            // Garantir que o feedExplorarSlider ocupe o espaço se necessário
-            if (feedExplorarSlider) feedExplorarSlider.style.flex = '1';
+            // Garantir que o feednowSlider ocupe o espaço se necessário
+            if (feednowSlider) feednowSlider.style.flex = '1';
         }
 
-        if (!explorarHasFetched) {
-            fetchExplorarFeed();
+        if (!nowHasFetched) {
+            fetchnowFeed();
         }
     }
 
-    if (pendingExplorarOpen) {
-        openExplorarPanel(true);
-        pendingExplorarOpen = false;
+    if (pendingnowOpen) {
+        opennowPanel(true);
+        pendingnowOpen = false;
     }
 
-    function closeExplorarPanel() {
-        if (!explorarPage) return;
-        explorarPage.classList.remove('is-open');
-        explorarPage.classList.remove('is-dragging');
-        explorarPage.style.transform = '';
-        explorarPage.setAttribute('aria-hidden', 'true');
-        document.documentElement.classList.remove('explorar-open');
-        document.body.classList.remove('explorar-open');
+    function closenowPanel() {
+        if (!nowPage) return;
+        nowPage.classList.remove('is-open');
+        nowPage.classList.remove('is-dragging');
+        nowPage.style.transform = '';
+        nowPage.setAttribute('aria-hidden', 'true');
+        document.documentElement.classList.remove('now-open');
+        document.body.classList.remove('now-open');
         
         // Restaurar visibilidade do feed (Desktop)
         const mainFeed = document.querySelector('main');
         if (mainFeed) mainFeed.style.display = '';
-        if (feedExplorarSlider) feedExplorarSlider.style.flex = '';
+        if (feednowSlider) feednowSlider.style.flex = '';
 
-        if (feedExplorarSlider) {
-            feedExplorarSlider.classList.remove('is-explorar');
-            feedExplorarSlider.classList.remove('is-dragging');
+        if (feednowSlider) {
+            feednowSlider.classList.remove('is-now');
+            feednowSlider.classList.remove('is-dragging');
             // Remove inline transform to let CSS handle state (mobile: -100vw, desktop: none)
-            feedExplorarSlider.style.transform = '';
+            feednowSlider.style.transform = '';
         }
     }
 
-    async function bootstrapExplorarCities() {
-        if (!explorarSelectedCities.length && token) {
+    async function bootstrapnowCities() {
+        if (!nowSelectedCities.length && token) {
             try {
                 const resp = await fetch('/api/user/me', {
                     headers: { 'Authorization': `Bearer ${token}` }
@@ -4674,34 +6765,34 @@ document.addEventListener('DOMContentLoaded', () => {
                 const data = await resp.json();
                 const cidade = data?.usuario?.cidade || data?.user?.cidade || '';
                 if (cidade) {
-                    explorarSelectedCities = [cidade];
-                    persistExplorarCities();
+                    nowSelectedCities = [cidade];
+                    persistnowCities();
                 }
             } catch (e) {
                 console.warn('Nao foi possivel obter cidade do usuario.');
             }
         }
-        renderExplorarCityChips();
+        rendernowCityChips();
     }
 
-    function setupExplorarSwipe() {
+    function setupnowSwipe() {
         if (!('ontouchstart' in window)) return;
         let isDragging = false;
         let wasBackdropVisible = false;
         let isClosing = false;
         document.addEventListener('touchstart', (event) => {
-            if (explorarVideoOverlay && !explorarVideoOverlay.classList.contains('hidden')) {
+            if (nowVideoOverlay && !nowVideoOverlay.classList.contains('hidden')) {
                 return;
             }
             const touch = event.touches[0];
             if (!touch) return;
             const isMobile = window.matchMedia('(max-width: 768px)').matches;
             if (!isMobile) return;
-            if (explorarPage?.classList.contains('is-open')) {
+            if (nowPage?.classList.contains('is-open')) {
                 const edgeThreshold = window.innerWidth * 0.3;
                 if (touch.clientX < edgeThreshold) return;
                 isClosing = true;
-                explorarTouchStart = {
+                nowTouchStart = {
                     x: touch.clientX || 0,
                     y: touch.clientY || 0,
                     time: Date.now()
@@ -4710,7 +6801,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             const edgeThreshold = window.innerWidth * 0.3;
             if (touch.clientX > edgeThreshold) return;
-            explorarTouchStart = {
+            nowTouchStart = {
                 x: touch.clientX || 0,
                 y: touch.clientY || 0,
                 time: Date.now()
@@ -4718,14 +6809,14 @@ document.addEventListener('DOMContentLoaded', () => {
         }, { passive: false });
 
         document.addEventListener('touchmove', (event) => {
-            if (explorarVideoOverlay && !explorarVideoOverlay.classList.contains('hidden')) {
+            if (nowVideoOverlay && !nowVideoOverlay.classList.contains('hidden')) {
                 return;
             }
-            if (!explorarTouchStart) return;
+            if (!nowTouchStart) return;
             const touch = event.touches[0];
             if (!touch) return;
-            const deltaX = touch.clientX - explorarTouchStart.x;
-            const deltaY = touch.clientY - explorarTouchStart.y;
+            const deltaX = touch.clientX - nowTouchStart.x;
+            const deltaY = touch.clientY - nowTouchStart.y;
             const absX = Math.abs(deltaX);
             const absY = Math.abs(deltaY);
 
@@ -4747,51 +6838,51 @@ document.addEventListener('DOMContentLoaded', () => {
                 : Math.min(0, -panelWidth + deltaX);
             if (!isDragging) {
                 isDragging = true;
-                explorarPage.classList.add('is-dragging');
-                explorarPage.classList.remove('is-open');
-                explorarPage.setAttribute('aria-hidden', 'false');
-                document.documentElement.classList.add('explorar-open');
-                document.body.classList.add('explorar-open');
+                nowPage.classList.add('is-dragging');
+                nowPage.classList.remove('is-open');
+                nowPage.setAttribute('aria-hidden', 'false');
+                document.documentElement.classList.add('now-open');
+                document.body.classList.add('now-open');
                 if (mobileSidebarBackdrop) {
                     wasBackdropVisible = mobileSidebarBackdrop.classList.contains('visible');
                     mobileSidebarBackdrop.classList.remove('visible');
                 }
-                if (feedExplorarSlider) {
-                    feedExplorarSlider.classList.add('is-dragging');
-                    feedExplorarSlider.classList.remove('is-explorar');
+                if (feednowSlider) {
+                    feednowSlider.classList.add('is-dragging');
+                    feednowSlider.classList.remove('is-now');
                 }
             }
-            if (feedExplorarSlider) {
-                feedExplorarSlider.style.transform = `translateX(${translateX}px)`;
+            if (feednowSlider) {
+                feednowSlider.style.transform = `translateX(${translateX}px)`;
             }
         }, { passive: false });
 
         document.addEventListener('touchend', (event) => {
-            if (explorarVideoOverlay && !explorarVideoOverlay.classList.contains('hidden')) {
+            if (nowVideoOverlay && !nowVideoOverlay.classList.contains('hidden')) {
                 return;
             }
-            if (!explorarTouchStart) return;
+            if (!nowTouchStart) return;
             const touch = event.changedTouches[0];
             if (!touch) return;
-            const deltaX = touch.clientX - explorarTouchStart.x;
-            const deltaY = touch.clientY - explorarTouchStart.y;
-            const elapsed = Date.now() - explorarTouchStart.time;
-            explorarTouchStart = null;
+            const deltaX = touch.clientX - nowTouchStart.x;
+            const deltaY = touch.clientY - nowTouchStart.y;
+            const elapsed = Date.now() - nowTouchStart.time;
+            nowTouchStart = null;
             if (isDragging) {
                 isDragging = false;
                 const panelWidth = window.innerWidth;
                 const shouldComplete = Math.abs(deltaX) > panelWidth * 0.5;
                 if (isClosing) {
                     if (shouldComplete) {
-                        closeExplorarPanel();
+                        closenowPanel();
                     } else {
-                        openExplorarPanel(true);
+                        opennowPanel(true);
                     }
                 } else {
                     if (shouldComplete) {
-                        openExplorarPanel(true);
+                        opennowPanel(true);
                     } else {
-                        closeExplorarPanel();
+                        closenowPanel();
                     }
                 }
                 if (mobileSidebarBackdrop && wasBackdropVisible) {
@@ -4806,10 +6897,10 @@ document.addEventListener('DOMContentLoaded', () => {
             if (absX < 45) return;
             if (absX < absY * 2.2) return;
             if (!isClosing && deltaX > window.innerWidth * 0.5) {
-                openExplorarPanel(true);
+                opennowPanel(true);
             }
             if (isClosing && deltaX < -window.innerWidth * 0.5) {
-                closeExplorarPanel();
+                closenowPanel();
             }
             isClosing = false;
         }, { passive: true });
@@ -4825,6 +6916,14 @@ document.addEventListener('DOMContentLoaded', () => {
     let adsSeenFeed = new Set();
     let adsCursorFeed = 0;
     let adsLoadedFeed = false;
+    let adsSidebarObserver = null;
+    let adsSidebarAppendLock = false;
+    let adsSidebarAutoScrollIntervalId = null;
+    let adsSidebarAutoScrollResumeTimeoutId = null;
+    let adsSidebarAutoScrollLastTs = null;
+    let adsSidebarAutoScrollLastAppendAt = 0;
+    let adsSidebarAutoScrollPausedUntil = 0;
+    let adsSidebarAutoScrollRemainder = 0;
 
     let feedInterestQueue = new Set();
     let feedInterestTimer = null;
@@ -4919,7 +7018,21 @@ document.addEventListener('DOMContentLoaded', () => {
     function buildAdElementFeed(destaque) {
         const titulo = destaque?.titulo || destaque?.title || 'Anúncio';
         const descricao = destaque?.descricao || destaque?.subtitle || destaque?.texto || '';
-        const imagem = destaque?.imagemUrl || destaque?.imageUrl || destaque?.imagem || 'https://placehold.co/600x320?text=Anuncio';
+        const rawImagem = destaque?.imagemUrl || destaque?.imageUrl || destaque?.imagem || 'https://placehold.co/600x320?text=Anuncio';
+        let imagem = rawImagem;
+        if (typeof imagem === 'string') {
+            const trimmed = imagem.trim();
+            if (/^https?%3A%2F%2F/i.test(trimmed)) {
+                try {
+                    imagem = decodeURIComponent(trimmed);
+                } catch {}
+            } else if (!/^https?:\/\//i.test(trimmed) && /%2F|%3A/i.test(trimmed)) {
+                try {
+                    const decodedOnce = decodeURIComponent(trimmed);
+                    imagem = /^https?%3A%2F%2F/i.test(decodedOnce) ? decodeURIComponent(decodedOnce) : decodedOnce;
+                } catch {}
+            }
+        }
         const link = destaque?.linkUrl || destaque?.url || destaque?.link;
         const perfilUrl = destaque?.ownerId ? `/perfil.html?id=${destaque.ownerId}` : null;
         const cidadeEstado = [destaque?.ownerCidade, destaque?.ownerEstado].filter(Boolean).join(' - ');
@@ -4945,6 +7058,211 @@ document.addEventListener('DOMContentLoaded', () => {
             if (link) window.open(link, '_blank');
         });
         return adEl;
+    }
+
+    function getAdsSidebarEl() {
+        return document.querySelector('.anuncios-sidebar');
+    }
+
+    function isDesktopAdsSidebar() {
+        try {
+            return window.matchMedia ? window.matchMedia('(min-width: 993px)').matches : window.innerWidth > 992;
+        } catch {
+            return window.innerWidth > 992;
+        }
+    }
+
+    function isAdsSidebarEnabled() {
+        const sidebar = getAdsSidebarEl();
+        if (!sidebar) return false;
+        if (sidebar.clientHeight <= 0) return false;
+        try {
+            const cs = window.getComputedStyle ? window.getComputedStyle(sidebar) : null;
+            if (cs && (cs.display === 'none' || cs.visibility === 'hidden')) return false;
+        } catch {}
+        return true;
+    }
+
+    function ensureAdsSidebarSentinel() {
+        const sidebar = getAdsSidebarEl();
+        if (!sidebar) return null;
+        let sentinel = sidebar.querySelector('[data-ads-sentinel="1"]');
+        if (!sentinel) {
+            sentinel = document.createElement('div');
+            sentinel.dataset.adsSentinel = '1';
+            sentinel.style.width = '100%';
+            sentinel.style.height = '1px';
+            sidebar.appendChild(sentinel);
+        }
+        return sentinel;
+    }
+
+    async function appendNextAdToSidebar() {
+        if (adsSidebarAppendLock) return false;
+        if (!isAdsSidebarEnabled()) return false;
+        const sidebar = getAdsSidebarEl();
+        if (!sidebar) return false;
+        const sentinel = ensureAdsSidebarSentinel();
+        if (!sentinel) return false;
+        adsSidebarAppendLock = true;
+        try {
+            await fetchAdsFeed();
+            const ad = pickNextAdFeed();
+            if (!ad) return false;
+            const adEl = buildAdElementFeed(ad);
+            sidebar.insertBefore(adEl, sentinel);
+            return true;
+        } finally {
+            adsSidebarAppendLock = false;
+        }
+    }
+
+    async function primeAdsSidebar(minAds = 6) {
+        if (!isAdsSidebarEnabled()) return;
+        const sidebar = getAdsSidebarEl();
+        if (!sidebar) return;
+        ensureAdsSidebarSentinel();
+        const current = sidebar.querySelectorAll('.anuncio-nativo-feed').length;
+        const target = Math.max(minAds, current);
+        let added = current;
+        while (added < target) {
+            const ok = await appendNextAdToSidebar();
+            if (!ok) break;
+            added += 1;
+        }
+
+        let guard = 0;
+        while ((sidebar.scrollHeight - sidebar.clientHeight) < 20 && guard < 18) {
+            const ok = await appendNextAdToSidebar();
+            if (!ok) break;
+            guard += 1;
+        }
+    }
+
+    function setupAdsSidebarInfinite() {
+        const sidebar = getAdsSidebarEl();
+        if (!sidebar) return;
+        const sentinel = ensureAdsSidebarSentinel();
+        if (!sentinel) return;
+
+        primeAdsSidebar();
+        setupAdsSidebarAutoScroll();
+
+        if (!sidebar.dataset.adsSidebarResizeSetup) {
+            sidebar.dataset.adsSidebarResizeSetup = '1';
+            window.addEventListener('resize', () => {
+                primeAdsSidebar();
+            });
+        }
+
+        if (!('IntersectionObserver' in window)) return;
+        if (adsSidebarObserver) return;
+        adsSidebarObserver = new IntersectionObserver((entries) => {
+            entries.forEach((entry) => {
+                if (!entry.isIntersecting) return;
+                appendNextAdToSidebar();
+            });
+        }, { root: sidebar, threshold: 0.01, rootMargin: '200px 0px' });
+        adsSidebarObserver.observe(sentinel);
+    }
+
+    function stopAdsSidebarAutoScroll() {
+        if (adsSidebarAutoScrollIntervalId) {
+            cancelAnimationFrame(adsSidebarAutoScrollIntervalId);
+            adsSidebarAutoScrollIntervalId = null;
+        }
+        if (adsSidebarAutoScrollResumeTimeoutId) {
+            clearTimeout(adsSidebarAutoScrollResumeTimeoutId);
+            adsSidebarAutoScrollResumeTimeoutId = null;
+        }
+        adsSidebarAutoScrollLastTs = null;
+        adsSidebarAutoScrollRemainder = 0;
+    }
+
+    function startAdsSidebarAutoScroll() {
+        if (adsSidebarAutoScrollIntervalId) return;
+        const sidebar = getAdsSidebarEl();
+        if (!sidebar) return;
+        if (!isAdsSidebarEnabled()) return;
+
+        const speedPxPerSecond = 9;
+        const tick = (ts) => {
+            try {
+                if (document.hidden) {
+                    return;
+                }
+                if (!isAdsSidebarEnabled()) {
+                    stopAdsSidebarAutoScroll();
+                    return;
+                }
+
+                if (adsSidebarAutoScrollPausedUntil && Date.now() < adsSidebarAutoScrollPausedUntil) {
+                    return;
+                }
+
+                const maxScrollTop = Math.max(0, sidebar.scrollHeight - sidebar.clientHeight);
+                if (maxScrollTop <= 2) {
+                    const now = Date.now();
+                    if (!adsSidebarAppendLock && (now - adsSidebarAutoScrollLastAppendAt) > 350) {
+                        adsSidebarAutoScrollLastAppendAt = now;
+                        appendNextAdToSidebar();
+                    }
+                    return;
+                }
+
+                const last = adsSidebarAutoScrollLastTs ?? ts;
+                const dt = Math.min(50, Math.max(0, ts - last));
+                adsSidebarAutoScrollLastTs = ts;
+                const delta = (speedPxPerSecond * dt) / 1000;
+
+                const currentMax = Math.max(0, sidebar.scrollHeight - sidebar.clientHeight);
+                adsSidebarAutoScrollRemainder += delta;
+                const step = adsSidebarAutoScrollRemainder >= 1 ? Math.floor(adsSidebarAutoScrollRemainder) : 0;
+                if (step <= 0) return;
+                adsSidebarAutoScrollRemainder -= step;
+                const next = sidebar.scrollTop + step;
+                if (next >= currentMax - 1) {
+                    sidebar.scrollTop = 0;
+                } else {
+                    sidebar.scrollTop = next;
+                }
+            } finally {
+                adsSidebarAutoScrollIntervalId = requestAnimationFrame(tick);
+            }
+        };
+        adsSidebarAutoScrollLastTs = null;
+        adsSidebarAutoScrollRemainder = 0;
+        adsSidebarAutoScrollIntervalId = requestAnimationFrame(tick);
+    }
+
+    function pauseAdsSidebarAutoScrollForUser() {
+        if (!isAdsSidebarEnabled()) return;
+        adsSidebarAutoScrollPausedUntil = Date.now() + 5000;
+        adsSidebarAutoScrollLastTs = null;
+        adsSidebarAutoScrollRemainder = 0;
+    }
+
+    function setupAdsSidebarAutoScroll() {
+        const sidebar = getAdsSidebarEl();
+        if (!sidebar) return;
+        if (sidebar.dataset.adsAutoScrollSetup !== '1') {
+            sidebar.dataset.adsAutoScrollSetup = '1';
+
+            const onUserIntent = () => pauseAdsSidebarAutoScrollForUser();
+            sidebar.addEventListener('wheel', onUserIntent, { passive: true });
+            sidebar.addEventListener('touchstart', onUserIntent, { passive: true });
+            sidebar.addEventListener('pointerdown', onUserIntent, { passive: true });
+            sidebar.addEventListener('mousedown', onUserIntent, { passive: true });
+            sidebar.addEventListener('scroll', () => {
+                if (adsSidebarAutoScrollIntervalId) return;
+                pauseAdsSidebarAutoScrollForUser();
+            }, { passive: true });
+        }
+
+        stopAdsSidebarAutoScroll();
+        setTimeout(() => {
+            startAdsSidebarAutoScroll();
+        }, 300);
     }
 
     function renderSinglePostElement(post) {
@@ -5327,7 +7645,8 @@ document.addEventListener('DOMContentLoaded', () => {
         isRenderingFeedChunk = true;
         try {
             await fetchAdsFeed();
-            const isMobileAds = window.innerWidth <= 992;
+            // Verifica largura da tela para decidir onde renderizar anúncios
+            const isMobile = window.innerWidth <= 992;
 
             const end = Math.min(nextPostIndexFeed + feedChunkSize, allPostsFeed.length);
             for (let i = nextPostIndexFeed; i < end; i += 1) {
@@ -5343,12 +7662,27 @@ document.addEventListener('DOMContentLoaded', () => {
                         feedInterestObserver.observe(postEl);
                     }
 
-                    if (isMobileAds && renderedPostsCountFeed % 4 === 0) {
+                    const insertEvery = window.innerWidth > 992 ? 3 : 4;
+                    if (renderedPostsCountFeed % insertEvery === 0) {
                         try {
                             const ad = pickNextAdFeed();
                             if (ad) {
                                 const adEl = buildAdElementFeed(ad);
-                                postsContainer.appendChild(adEl);
+                                if (isMobile) {
+                                    // Mobile: insere no feed
+                                    postsContainer.appendChild(adEl);
+                                } else {
+                                    // Desktop: insere na sidebar fixa
+                                    const sidebar = document.querySelector('.anuncios-sidebar');
+                                    if (sidebar) {
+                                        const sentinel = ensureAdsSidebarSentinel();
+                                        if (sentinel) {
+                                            sidebar.insertBefore(adEl, sentinel);
+                                        } else {
+                                            sidebar.appendChild(adEl);
+                                        }
+                                    }
+                                }
                             }
                         } catch (adErr) {
                             console.warn('Erro ao inserir anúncio:', adErr);
@@ -5467,6 +7801,18 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderPosts(posts) {
         if (!postsContainer) return;
         postsContainer.innerHTML = '';
+        
+        // Limpa anúncios da sidebar (Desktop)
+        const sidebar = document.querySelector('.anuncios-sidebar');
+        if (sidebar) sidebar.innerHTML = '';
+        if (adsSidebarObserver) {
+            try {
+                adsSidebarObserver.disconnect();
+            } catch {}
+            adsSidebarObserver = null;
+        }
+        stopAdsSidebarAutoScroll();
+        ensureAdsSidebarSentinel();
 
         allPostsFeed = Array.isArray(posts) ? posts : [];
         nextPostIndexFeed = 0;
@@ -5483,6 +7829,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
+        setupAdsSidebarInfinite();
         setupInfiniteFeedScroll();
         renderNextFeedChunk();
     }
@@ -5595,7 +7942,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const statusCacheFeed = new Map();
     async function getOwnerStories(ownerId) {
         try {
-            const resp = await fetch(`/api/explorar-feed?t=${Date.now()}`, {
+            const resp = await fetch(`/api/now-feed?t=${Date.now()}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const data = await resp.json();
@@ -5620,7 +7967,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (statusCacheFeed.has(key)) return statusCacheFeed.get(key);
         const stories = await getOwnerStories(ownerId);
         const hasStory = stories.length > 0;
-        const hasUnviewed = stories.some((s) => !isExplorarStoryViewed(String(s._id || s.id)));
+        const hasUnviewed = stories.some((s) => !isnowStoryViewed(String(s._id || s.id)));
         const info = { stories, hasStory, hasUnviewed };
         statusCacheFeed.set(key, info);
         return info;
@@ -5650,20 +7997,28 @@ document.addEventListener('DOMContentLoaded', () => {
                     e.stopPropagation();
                     const stories = await getOwnerStories(ownerId);
                     if (stories.length) {
-                        explorarStoryQueue = stories.map((story) => ({
-                            id: String(story._id || ''),
-                            ownerId: story?.userId?._id || story?.userId || story?.ownerId || story?.autorId,
-                            mediaUrl: story.mediaUrl,
-                            isVideo: String(story.mediaType || '').includes('video'),
-                            nome: story?.titulo || story?.nome || 'Status',
-                            desc: story?.descricao || story?.content || '',
-                            cidade: [story?.cidade, story?.estado].filter(Boolean).join(' - ')
-                        }));
-                        setExplorarStorySegments(explorarStoryQueue.length);
+                        nowStoryQueue = stories.map((story) => {
+                            const rawOwnerId = story?.userId?._id || story?.userId || story?.ownerId || story?.autorId;
+                            const ownerIdFinal = rawOwnerId?._id || rawOwnerId;
+                            const avatarFinal = story?.foto || story?.avatarUrl || story?.userId?.foto || story?.userId?.avatarUrl || 'imagens/default-user.png';
+                            const perfilUrlFinal = story?.perfilUrl || (ownerIdFinal ? `/perfil.html?id=${encodeURIComponent(String(ownerIdFinal))}&statusOwnerId=${encodeURIComponent(String(ownerIdFinal))}` : '#');
+                            return ({
+                                id: String(story._id || ''),
+                                ownerId: ownerIdFinal,
+                                mediaUrl: story.mediaUrl,
+                                isVideo: String(story.mediaType || '').includes('video'),
+                                nome: story?.titulo || story?.nome || 'Status',
+                                desc: story?.descricao || story?.content || '',
+                                cidade: [story?.cidade, story?.estado].filter(Boolean).join(' - '),
+                                avatar: avatarFinal,
+                                perfilUrl: perfilUrlFinal
+                            });
+                        });
+                        setnowStorySegments(nowStoryQueue.length);
                         // Encontra o primeiro não visualizado
-                        const firstUnviewedIndex = explorarStoryQueue.findIndex(story => !isExplorarStoryViewed(story.id));
+                        const firstUnviewedIndex = nowStoryQueue.findIndex(story => !isnowStoryViewed(story.id));
                         const startIndex = firstUnviewedIndex !== -1 ? firstUnviewedIndex : 0;
-                        goToExplorarStory(startIndex);
+                        goTonowStory(startIndex);
                     } else {
                         const perfilUrl = `/perfil.html?id=${encodeURIComponent(ownerId)}`;
                         window.location.href = perfilUrl;
@@ -5750,17 +8105,25 @@ document.addEventListener('DOMContentLoaded', () => {
                     e.stopPropagation();
                     const stories = await getOwnerStories(ownerId);
                     if (stories.length) {
-                        explorarStoryQueue = stories.map((story) => ({
-                            id: String(story._id || ''),
-                            ownerId: story?.userId?._id || story?.userId || story?.ownerId || story?.autorId,
-                            mediaUrl: story.mediaUrl,
-                            isVideo: String(story.mediaType || '').includes('video'),
-                            nome: story?.titulo || story?.nome || 'Status',
-                            desc: story?.descricao || story?.content || '',
-                            cidade: [story?.cidade, story?.estado].filter(Boolean).join(' - ')
-                        }));
-                        setExplorarStorySegments(explorarStoryQueue.length);
-                        goToExplorarStory(0);
+                        nowStoryQueue = stories.map((story) => {
+                            const rawOwnerId = story?.userId?._id || story?.userId || story?.ownerId || story?.autorId;
+                            const ownerIdFinal = rawOwnerId?._id || rawOwnerId;
+                            const avatarFinal = story?.foto || story?.avatarUrl || story?.userId?.foto || story?.userId?.avatarUrl || 'imagens/default-user.png';
+                            const perfilUrlFinal = story?.perfilUrl || (ownerIdFinal ? `/perfil.html?id=${encodeURIComponent(String(ownerIdFinal))}&statusOwnerId=${encodeURIComponent(String(ownerIdFinal))}` : '#');
+                            return ({
+                                id: String(story._id || ''),
+                                ownerId: ownerIdFinal,
+                                mediaUrl: story.mediaUrl,
+                                isVideo: String(story.mediaType || '').includes('video'),
+                                nome: story?.titulo || story?.nome || 'Status',
+                                desc: story?.descricao || story?.content || '',
+                                cidade: [story?.cidade, story?.estado].filter(Boolean).join(' - '),
+                                avatar: avatarFinal,
+                                perfilUrl: perfilUrlFinal
+                            });
+                        });
+                        setnowStorySegments(nowStoryQueue.length);
+                        goTonowStory(0);
                     } else {
                         navigateToProfile(ownerId);
                     }
@@ -6816,32 +9179,32 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    if (explorarCidadeAddBtn && explorarCidadeInput) {
-        explorarCidadeAddBtn.addEventListener('click', () => {
-            addExplorarCity(explorarCidadeInput.value);
-            explorarCidadeInput.value = '';
+    if (nowCidadeAddBtn && nowCidadeInput) {
+        nowCidadeAddBtn.addEventListener('click', () => {
+            addnowCity(nowCidadeInput.value);
+            nowCidadeInput.value = '';
         });
-        explorarCidadeInput.addEventListener('keydown', (event) => {
+        nowCidadeInput.addEventListener('keydown', (event) => {
             if (event.key === 'Enter') {
                 event.preventDefault();
-                addExplorarCity(explorarCidadeInput.value);
-                explorarCidadeInput.value = '';
+                addnowCity(nowCidadeInput.value);
+                nowCidadeInput.value = '';
             }
         });
 
-        explorarCidadeInput.addEventListener('blur', () => {
-            if (explorarCidadeInput.value) {
-                explorarCidadeInput.value = resolveCityName(explorarCidadeInput.value);
+        nowCidadeInput.addEventListener('blur', () => {
+            if (nowCidadeInput.value) {
+                nowCidadeInput.value = resolveCityName(nowCidadeInput.value);
             }
         });
 
-        let explorarSugestaoTimer = null;
-        explorarCidadeInput.addEventListener('input', () => {
-            if (!explorarCidadesDatalist) return;
-            const termo = explorarCidadeInput.value.trim();
-            if (explorarSugestaoTimer) clearTimeout(explorarSugestaoTimer);
+        let nowSugestaoTimer = null;
+        nowCidadeInput.addEventListener('input', () => {
+            if (!nowCidadesDatalist) return;
+            const termo = nowCidadeInput.value.trim();
+            if (nowSugestaoTimer) clearTimeout(nowSugestaoTimer);
             if (!termo || termo.length < 1) return;
-            explorarSugestaoTimer = setTimeout(async () => {
+            nowSugestaoTimer = setTimeout(async () => {
                 try {
                     const resp = await fetch(`/api/cidades?q=${encodeURIComponent(termo)}`, {
                         headers: { 'Authorization': `Bearer ${token}` }
@@ -6849,15 +9212,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     const data = await resp.json();
                     if (!resp.ok || !data?.success) return;
                     const sugestoes = Array.isArray(data.cidades) ? data.cidades : (Array.isArray(data.sugestoes) ? data.sugestoes : []);
-                    if (explorarCidadesDatalist) {
-                        explorarCidadesDatalist.innerHTML = '';
+                    if (nowCidadesDatalist) {
+                        nowCidadesDatalist.innerHTML = '';
                         const frag = document.createDocumentFragment();
                         sugestoes.forEach((cidade) => {
                             const opt = document.createElement('option');
                             opt.value = cidade;
                             frag.appendChild(opt);
                         });
-                        explorarCidadesDatalist.appendChild(frag);
+                        nowCidadesDatalist.appendChild(frag);
                     }
                 } catch (err) {
                     console.warn('Falha ao buscar sugestoes de cidades:', err);
@@ -6866,48 +9229,48 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    if (explorarCityEditBtn && explorarCityControls) {
-        explorarCityEditBtn.addEventListener('click', () => {
-            explorarCityControls.classList.toggle('is-open');
-            if (explorarCityRow) {
-                explorarCityRow.classList.toggle('is-hidden');
+    if (nowCityEditBtn && nowCityControls) {
+        nowCityEditBtn.addEventListener('click', () => {
+            nowCityControls.classList.toggle('is-open');
+            if (nowCityRow) {
+                nowCityRow.classList.toggle('is-hidden');
             }
-            if (!explorarCityControls.classList.contains('is-open')) {
-                closeExplorarCityControls();
+            if (!nowCityControls.classList.contains('is-open')) {
+                closenowCityControls();
             }
         });
     }
 
-    if (explorarCityControls) {
+    if (nowCityControls) {
         document.addEventListener('click', (event) => {
-            if (!explorarCityControls.classList.contains('is-open')) return;
+            if (!nowCityControls.classList.contains('is-open')) return;
             const target = event.target;
-            if (explorarCityControls.contains(target) || explorarCityEditBtn?.contains(target)) return;
-            closeExplorarCityControls();
+            if (nowCityControls.contains(target) || nowCityEditBtn?.contains(target)) return;
+            closenowCityControls();
         });
     }
 
-    if (explorarCategoriaCurrent && explorarCategoriasModal) {
-        explorarCategoriaCurrent.addEventListener('click', () => {
-            const isOpen = explorarCategoriasModal.classList.toggle('is-open');
-            const current = explorarCategoriaCurrent.textContent?.trim();
-            explorarCategoriasModal.querySelectorAll('.explorar-categoria-option').forEach((option) => {
+    if (nowCategoriaCurrent && nowCategoriasModal) {
+        nowCategoriaCurrent.addEventListener('click', () => {
+            const isOpen = nowCategoriasModal.classList.toggle('is-open');
+            const current = nowCategoriaCurrent.textContent?.trim();
+            nowCategoriasModal.querySelectorAll('.now-categoria-option').forEach((option) => {
                 option.classList.toggle('is-hidden', option.textContent?.trim() === current);
             });
         });
-        explorarCategoriasModal.querySelectorAll('.explorar-categoria-option').forEach((option) => {
+        nowCategoriasModal.querySelectorAll('.now-categoria-option').forEach((option) => {
             option.addEventListener('click', () => {
-                explorarCategoriaCurrent.textContent = option.textContent || 'Todas';
-                explorarCategoriasModal.classList.remove('is-open');
+                nowCategoriaCurrent.textContent = option.textContent || 'Todas';
+                nowCategoriasModal.classList.remove('is-open');
                 
-                fetchExplorarFeed();
+                fetchnowFeed();
             });
         });
         document.addEventListener('click', (event) => {
-            if (!explorarCategoriasModal.classList.contains('is-open')) return;
+            if (!nowCategoriasModal.classList.contains('is-open')) return;
             const target = event.target;
-            if (explorarCategoriasModal.contains(target) || explorarCategoriaCurrent.contains(target)) return;
-            explorarCategoriasModal.classList.remove('is-open');
+            if (nowCategoriasModal.contains(target) || nowCategoriaCurrent.contains(target)) return;
+            nowCategoriasModal.classList.remove('is-open');
         });
 
     }
@@ -7022,10 +9385,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 html += `
                     <div class="search-item search-user" data-user-id="${u.id}">
                         <img src="${foto}" alt="${u.nome || 'Usuário'}" class="search-avatar">
-                        <div>
+                        <div style="flex: 1;">
                             <div class="search-title">${u.nome || 'Usuário'}</div>
                             <div class="search-subtitle">${u.subtitulo || ''}</div>
                         </div>
+                        <button class="btn-remove-history" data-user-id="${u.id}" title="Remover do histórico" style="background:none; border:none; cursor:pointer; font-size:16px; margin-left:10px;">
+                            🗑️
+                        </button>
                     </div>
                 `;
             });
@@ -7033,8 +9399,23 @@ document.addEventListener('DOMContentLoaded', () => {
             searchResultsContainer.innerHTML = html;
             if (searchResultsBackdrop) searchResultsBackdrop.classList.add('visible');
 
+            // Adicionar eventos para remover itens do histórico
+            searchResultsContainer.querySelectorAll('.btn-remove-history').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation(); // Impede a navegação
+                    const targetId = btn.dataset.userId;
+                    const currentHistory = getSearchHistoryUsers();
+                    const newHistory = currentHistory.filter(h => h.id !== targetId);
+                    setSearchHistoryUsers(newHistory);
+                    renderSearchHistoryUsers(); // Re-renderiza a lista
+                });
+            });
+
             searchResultsContainer.querySelectorAll('.search-user').forEach(item => {
-                item.addEventListener('click', () => {
+                item.addEventListener('click', (e) => {
+                    // Se clicou no botão de remover, não navega
+                    if (e.target.closest('.btn-remove-history')) return;
+                    
                     const targetUserId = item.dataset.userId;
                     navigateToProfile(targetUserId);
                 });
@@ -7053,8 +9434,8 @@ document.addEventListener('DOMContentLoaded', () => {
         async function buscarNoServidor(termo) {
             const q = (termo || '').trim();
             if (!q) {
-                // No mobile, quando a busca estiver "aberta", mostra histórico ao invés de fechar tudo
-                if (headerElement?.classList?.contains('search-open') && window.innerWidth <= 768) {
+                // Se estiver vazio, mostra o histórico (tanto mobile quanto desktop)
+                if ((headerElement?.classList?.contains('search-open') && window.innerWidth <= 768) || window.innerWidth > 768) {
                     renderSearchHistoryUsers();
                 } else {
                     if (searchResultsContainer) searchResultsContainer.innerHTML = '';
@@ -7158,6 +9539,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 buscarNoServidor(valor);
             }
         });
+
+        // Adiciona evento de click para mostrar histórico ao focar/clicar na barra vazia
+        searchInput.addEventListener('click', () => {
+            if (!searchInput.value.trim()) {
+                buscarNoServidor('');
+            }
+        });
     }
 
     async function refreshPostLikesUI(postId) {
@@ -7182,26 +9570,26 @@ document.addEventListener('DOMContentLoaded', () => {
                     button.classList.remove('liked');
                 }
             });
-            const feedOverlays = document.querySelectorAll(`.explorar-card[data-explorar-id="${postId}"] .explorar-card-info-overlay`);
+            const feedOverlays = document.querySelectorAll(`.now-card[data-now-id="${postId}"] .now-card-info-overlay`);
             feedOverlays.forEach((overlay) => {
-                const existing = overlay.querySelector('.explorar-like-avatars');
+                const existing = overlay.querySelector('.now-like-avatars');
                 if (existing) existing.remove();
                 if (!preview.length) return;
                 const avatarsBtn = document.createElement('button');
                 avatarsBtn.type = 'button';
-                avatarsBtn.className = 'explorar-like-avatars';
+                avatarsBtn.className = 'now-like-avatars';
                 preview.forEach((u) => {
                     if (!u || !u.foto) return;
                     const img = document.createElement('img');
                     img.src = u.foto;
                     img.alt = u.nome || '';
-                    img.className = 'explorar-like-avatar';
+                    img.className = 'now-like-avatar';
                     img.referrerPolicy = 'no-referrer';
                     avatarsBtn.appendChild(img);
                 });
                 if (!avatarsBtn.childElementCount) return;
-                const card = overlay.closest('.explorar-card');
-                const isOwnerForModal = !!(card && card.querySelector('.explorar-card-delete') && likesFull.length > 0);
+                const card = overlay.closest('.now-card');
+                const isOwnerForModal = !!(card && card.querySelector('.now-card-delete') && likesFull.length > 0);
                 if (isOwnerForModal) {
                     avatarsBtn.addEventListener('click', () => {
                         openLikesModal(postId, likesFull, avatarsBtn);
@@ -7217,24 +9605,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 overlay.appendChild(avatarsBtn);
             });
-            if (explorarVideoInfo && explorarCurrentPostId && String(explorarCurrentPostId) === String(postId)) {
-                const existing = explorarVideoInfo.querySelector('.explorar-like-avatars');
+            if (nowVideoInfo && nowCurrentPostId && String(nowCurrentPostId) === String(postId)) {
+                const existing = nowVideoInfo.querySelector('.now-like-avatars');
                 if (existing) existing.remove();
                 if (preview.length) {
                     const avatarsBtn = document.createElement('button');
                     avatarsBtn.type = 'button';
-                    avatarsBtn.className = 'explorar-like-avatars';
+                    avatarsBtn.className = 'now-like-avatars';
                     preview.forEach((u) => {
                         if (!u || !u.foto) return;
                         const img = document.createElement('img');
                         img.src = u.foto;
                         img.alt = u.nome || '';
-                        img.className = 'explorar-like-avatar';
+                        img.className = 'now-like-avatar';
                         img.referrerPolicy = 'no-referrer';
                         avatarsBtn.appendChild(img);
                     });
                     if (avatarsBtn.childElementCount) {
-                        const isOwner = explorarCurrentOwnerId && userId && String(explorarCurrentOwnerId) === String(userId);
+                        const isOwner = nowCurrentOwnerId && userId && String(nowCurrentOwnerId) === String(userId);
                         const isOwnerWithList = isOwner && likesFull.length > 0;
                         if (isOwnerWithList) {
                             avatarsBtn.addEventListener('click', (ev) => {
@@ -7249,7 +9637,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 });
                             });
                         }
-                        explorarVideoInfo.appendChild(avatarsBtn);
+                        nowVideoInfo.appendChild(avatarsBtn);
                     }
                 }
             }
@@ -12572,17 +14960,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 deferNonCriticalInit(() => fetchDestaques());
             }
 
-            if (explorarPage) {
+            if (nowPage) {
                 try {
-                    const storedCities = JSON.parse(localStorage.getItem('explorarCities') || '[]');
+                    const storedCities = JSON.parse(localStorage.getItem('nowCities') || '[]');
                     if (Array.isArray(storedCities)) {
-                        explorarSelectedCities = storedCities.filter(Boolean);
+                        nowSelectedCities = storedCities.filter(Boolean);
                     }
                 } catch (e) {
-                    explorarSelectedCities = [];
+                    nowSelectedCities = [];
                 }
-                bootstrapExplorarCities();
-                setupExplorarSwipe();
+                bootstrapnowCities();
+                setupnowSwipe();
             }
         }
         
@@ -12637,33 +15025,33 @@ document.addEventListener('DOMContentLoaded', () => {
             }, 1500); // Aguarda posts carregarem
         }
         
-        // Abrir automaticamente o status/vídeo do Explorar se vier por notificação
+        // Abrir automaticamente o status/vídeo do now se vier por notificação
         if (statusPostIdNav) {
-            console.log('🎬 Navegação para status/vídeo (Explorar) detectada:', statusPostIdNav);
-            // Garante painel Explorar aberto
-            openExplorarPanel(true);
+            console.log('🎬 Navegação para status/vídeo (now) detectada:', statusPostIdNav);
+            // Garante painel now aberto
+            opennowPanel(true);
             // Aguarda feed carregar e tenta abrir o card
             let tentativas = 0;
             const maxTentativas = 6;
             const tryOpenStatus = async () => {
-                const card = document.querySelector(`.explorar-card[data-explorar-id="${statusPostIdNav}"]`);
+                const card = document.querySelector(`.now-card[data-now-id="${statusPostIdNav}"]`);
                 if (card) {
-                    const videoEl = card.querySelector('video.explorar-video');
-                    const imgEl = card.querySelector('img.explorar-image');
+                    const videoEl = card.querySelector('video.now-video');
+                    const imgEl = card.querySelector('img.now-image');
                     if (videoEl) {
                         const src = videoEl.getAttribute('src') || videoEl.getAttribute('data-src');
                         if (src && !videoEl.getAttribute('src')) {
                             videoEl.setAttribute('src', src);
                             videoEl.removeAttribute('data-src');
                         }
-                        openExplorarVideo(src, {
-                            nome: card.querySelector('.explorar-card-empresa')?.textContent || 'Perfil',
-                            desc: card.querySelector('.explorar-card-desc')?.textContent || '',
-                            cidade: card.querySelector('.explorar-card-cidade')?.textContent || '',
-                            avatar: card.querySelector('.explorar-card-avatar')?.getAttribute('src') || 'imagens/default-user.png',
-                            perfilUrl: card.querySelector('.explorar-card-perfil')?.getAttribute('href') || '#',
+                        opennowVideo(src, {
+                            nome: card.querySelector('.now-card-empresa')?.textContent || 'Perfil',
+                            desc: card.querySelector('.now-card-desc')?.textContent || '',
+                            cidade: card.querySelector('.now-card-cidade')?.textContent || '',
+                            avatar: card.querySelector('.now-card-avatar')?.getAttribute('src') || 'imagens/default-user.png',
+                            perfilUrl: card.querySelector('.now-card-perfil')?.getAttribute('href') || '#',
                             postId: statusPostIdNav,
-                            ownerId: card.querySelector('.explorar-card-delete')?.dataset?.id ? userId : null,
+                            ownerId: card.querySelector('.now-card-delete')?.dataset?.id ? userId : null,
                             isStory: false
                         });
                         return;
@@ -12673,12 +15061,12 @@ document.addEventListener('DOMContentLoaded', () => {
                             imgEl.setAttribute('src', src);
                             imgEl.removeAttribute('data-src');
                         }
-                        openExplorarImage(src, {
-                            nome: card.querySelector('.explorar-card-empresa')?.textContent || 'Perfil',
-                            desc: card.querySelector('.explorar-card-desc')?.textContent || '',
-                            cidade: card.querySelector('.explorar-card-cidade')?.textContent || '',
-                            avatar: card.querySelector('.explorar-card-avatar')?.getAttribute('src') || 'imagens/default-user.png',
-                            perfilUrl: card.querySelector('.explorar-card-perfil')?.getAttribute('href') || '#',
+                        opennowImage(src, {
+                            nome: card.querySelector('.now-card-empresa')?.textContent || 'Perfil',
+                            desc: card.querySelector('.now-card-desc')?.textContent || '',
+                            cidade: card.querySelector('.now-card-cidade')?.textContent || '',
+                            avatar: card.querySelector('.now-card-avatar')?.getAttribute('src') || 'imagens/default-user.png',
+                            perfilUrl: card.querySelector('.now-card-perfil')?.getAttribute('href') || '#',
                             postId: statusPostIdNav,
                             ownerId: null,
                             isStory: false
@@ -12690,7 +15078,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     tentativas++;
                     setTimeout(tryOpenStatus, 600);
                 } else {
-                    console.warn('⚠️ Não foi possível abrir o status do explorar:', statusPostIdNav);
+                    console.warn('⚠️ Não foi possível abrir o status do now:', statusPostIdNav);
                 }
             };
             setTimeout(tryOpenStatus, 1200);
@@ -12699,18 +15087,18 @@ document.addEventListener('DOMContentLoaded', () => {
         // Abrir automaticamente os status de um dono específico (vindo do perfil)
         if (statusOwnerIdNav) {
             console.log('🎬 Navegação para status do dono detectada:', statusOwnerIdNav);
-            openExplorarPanel(true);
+            opennowPanel(true);
             let tentativasOwner = 0;
             const maxTentativasOwner = 6;
             const tryOpenOwnerStatus = () => {
-                const cards = Array.from(document.querySelectorAll('.explorar-card[data-explorar-owner-id]'));
+                const cards = Array.from(document.querySelectorAll('.now-card[data-now-owner-id]'));
                 const card = cards.find((c) => {
-                    const ownerId = c.dataset.explorarOwnerId;
-                    const isStatus = c.dataset.explorarIsStatus === '1';
+                    const ownerId = c.dataset.nowOwnerId;
+                    const isStatus = c.dataset.nowIsStatus === '1';
                     return ownerId && ownerId === statusOwnerIdNav && isStatus;
                 });
                 if (card) {
-                    const avatar = card.querySelector('.explorar-card-avatar');
+                    const avatar = card.querySelector('.now-card-avatar');
                     if (avatar) {
                         avatar.click();
                         return;
