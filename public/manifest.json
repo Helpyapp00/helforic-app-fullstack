@@ -1,6 +1,6 @@
 {
-  "name": "Helpy - Serviços e Profissionais",
-  "short_name": "Helpy",
+  "name": "Helforic - Serviços e Profissionais",
+  "short_name": "Helforic",
   "description": "Contrate serviços ou anuncie seu trabalho. Conecte-se com profissionais locais!",
   "start_url": "/",
   "display": "standalone",

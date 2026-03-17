@@ -3862,7 +3862,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 : '';
             
             const desafioHelpyBadge = servico.isDesafioHelpy 
-                ? `<span class="badge-desafio">#DesafioHelpy</span>`
+                ? `<span class="badge-desafio">#DesafioHelforic</span>`
                 : '';
             
             // 🆕 Verifica se o usuário já validou este projeto

@@ -168,7 +168,9 @@ app.use(express.urlencoded({ extended: true, limit: '500mb' }));
 app.use((req, res, next) => {
     const allowed = new Set([
         'https://helpyapp.net',
-        'https://www.helpyapp.net'
+        'https://www.helpyapp.net',
+        'https://helforic.com',
+        'https://www.helforic.com'
     ]);
     const origin = req.headers.origin;
     if (origin && allowed.has(origin)) {
@@ -276,7 +278,7 @@ app.get('/api/geocodificar-reversa', async (req, res) => {
         const data = await new Promise((resolve, reject) => {
             const request = https.get(url, {
                 headers: {
-                    'User-Agent': 'HelpyApp/1.0 (contact@helpyapp.net)'
+                    'User-Agent': 'HelforicApp/1.0 (contact@helpyapp.net)'
                 }
             }, (response) => {
                 let body = '';
@@ -402,7 +404,7 @@ app.post('/api/verificar-email/solicitar', async (req, res) => {
                 await transporter.sendMail({
                     from: process.env.SMTP_FROM || 'no-reply@helpyapp.local',
                     to: email,
-                    subject: 'Código de verificação Helpy',
+                    subject: 'Código de verificação Helforic',
                     text: `Seu código é: ${code}`,
                     html: `<p>Seu código é: <strong>${code}</strong></p>`
                 });
@@ -6404,4 +6406,3 @@ if (require.main === module) {
     process.exit(1);
   });
 }
-

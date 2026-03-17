@@ -1,18 +1,18 @@
 GOOGLE PLAY STORE LISTING
 
-=== TÍTULO (Sugestão - já definido no projeto como "Helpy") ===
-Helpy - Serviços e Profissionais
+=== TÍTULO (Sugestão - já definido no projeto como "Helforic") ===
+Helforic - Serviços e Profissionais
 
 === DESCRIÇÃO CURTA (Max 80 caracteres) ===
 Contrate serviços ou anuncie seu trabalho. Conecte-se com profissionais locais!
 
 === DESCRIÇÃO COMPLETA (Max 4000 caracteres) ===
-O Helpy é a maneira mais fácil e rápida de conectar quem precisa de um serviço a quem sabe fazer. Seja para encontrar um profissional qualificado ou para divulgar o seu trabalho, o Helpy transforma a sua cidade em um grande marketplace de oportunidades.
+O Helforic é a maneira mais fácil e rápida de conectar quem precisa de um serviço a quem sabe fazer. Seja para encontrar um profissional qualificado ou para divulgar o seu trabalho, o Helforic transforma a sua cidade em um grande marketplace de oportunidades.
 
-POR QUE USAR O HELPY?
+POR QUE USAR O HELFORIC?
 
 Para Clientes:
-• Encontre tudo perto de você: De manicures e barbeiros a eletricistas, encanadores e entregadores de lanches. O Helpy organiza os melhores profissionais da sua região.
+• Encontre tudo perto de você: De manicures e barbeiros a eletricistas, encanadores e entregadores de lanches. O Helforic organiza os melhores profissionais da sua região.
 • Navegação visual e intuitiva: Explore serviços através de um feed interativo estilo "stories", onde você pode ver fotos reais do trabalho dos profissionais antes de contratar.
 • Contato direto: Gostou do serviço? Chame o profissional diretamente no WhatsApp com apenas um clique. Sem intermediários, sem taxas escondidas na negociação.
 • Avaliações confiáveis: Veja a reputação dos profissionais, leia comentários de outros clientes e escolha com segurança.
@@ -21,7 +21,7 @@ Para Clientes:
 Para Profissionais e Prestadores de Serviços:
 • Divulgação gratuita e eficiente: Crie seu perfil profissional, adicione fotos do seu trabalho, descreva seus serviços e seja encontrado por milhares de clientes na sua cidade.
 • Anúncios em destaque: Quer mais visibilidade? Utilize nossos planos de destaque (Básico ou Premium) para aparecer no topo das buscas e alcançar ainda mais clientes.
-• Portfólio online: Use seu perfil no Helpy como seu cartão de visitas digital. Mostre o que você faz de melhor.
+• Portfólio online: Use seu perfil no Helforic como seu cartão de visitas digital. Mostre o que você faz de melhor.
 • Gestão de reputação: Receba avaliações dos seus clientes e construa uma reputação sólida que atrai novos negócios.
 
 FUNCIONALIDADES PRINCIPAIS:
@@ -31,9 +31,9 @@ FUNCIONALIDADES PRINCIPAIS:
 • Notificações inteligentes: Saiba quando alguém interage com seu perfil ou avalia seu serviço.
 • Segurança e Privacidade: Seus dados são protegidos e utilizados apenas para melhorar sua experiência no app.
 
-Baixe o Helpy agora e descubra a facilidade de resolver tudo em um só lugar!
+Baixe o Helforic agora e descubra a facilidade de resolver tudo em um só lugar!
 
 ---
-Política de Privacidade: https://helpyapp.net/privacidade.html
-Termos de Uso: https://helpyapp.net/termos.html
+Política de Privacidade: https://helforic.com/privacidade.html
+Termos de Uso: https://helforic.com/termos.html
 Contato e Suporte: suporte@helpyapp.net

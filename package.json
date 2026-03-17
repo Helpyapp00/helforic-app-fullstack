@@ -1,7 +1,7 @@
 {
-  "name": "helpy-app-fullstack",
+  "name": "helforic-app-fullstack",
   "version": "1.0.0",
-  "description": "Aplicativo Fullstack Helpy",
+  "description": "Aplicativo Fullstack Helforic",
   "engines": {
     "node": ">=20.0.0"
   },

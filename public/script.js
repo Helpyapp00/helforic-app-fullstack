@@ -11289,8 +11289,8 @@ document.addEventListener('DOMContentLoaded', () => {
                                 <a href="${perfilUrl}" class="profissional-nome-link">
                                     ${prof.nome}
                                 </a>
-                                ${temSelo ? '<span class="selo-qualidade" title="Selo de Qualidade Helpy">🛡️</span>' : ''}
-                                ${nivelReputacao === 'mestre' ? '<span class="badge-mestre" title="Mestre Helpy">👑</span>' : ''}
+                                ${temSelo ? '<span class="selo-qualidade" title="Selo de Qualidade Helforic">🛡️</span>' : ''}
+                                ${nivelReputacao === 'mestre' ? '<span class="badge-mestre" title="Mestre Helforic">👑</span>' : ''}
                             </h4>
                             <p><i class="fas fa-briefcase"></i> ${prof.atuacao || 'Profissional'}</p>
                             <p><i class="fas fa-map-marker-alt"></i> ${prof.cidade || ''}${prof.estado ? ', ' + prof.estado : ''}</p>

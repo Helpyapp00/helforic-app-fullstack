@@ -87,11 +87,11 @@ function createPaymentClient() {
 
 const PLANOS = {
     basico: {
-        title: 'Plano Básico - Anúncio Helpy',
+        title: 'Plano Básico - Anúncio Helforic',
         price: 1
     },
     premium: {
-        title: 'Plano Premium - Anúncio Helpy',
+        title: 'Plano Premium - Anúncio Helforic',
         price: 39.9
     }
 };
@@ -178,7 +178,7 @@ async function criarPreferenciaPagamento(req, res) {
         const preference = {
             items: [
                 {
-                    title: (anuncioId && planoKey === 'premium') ? 'Upgrade para Premium - Anúncio Helpy' : planoInfo.title,
+                    title: (anuncioId && planoKey === 'premium') ? 'Upgrade para Premium - Anúncio Helforic' : planoInfo.title,
                     description: itemDescription,
                     unit_price: unitPrice,
                     quantity: 1,
@@ -197,7 +197,7 @@ async function criarPreferenciaPagamento(req, res) {
                 excluded_payment_methods: [],
                 installments: 12
             },
-            notification_url: process.env.MERCADOPAGO_WEBHOOK_URL || 'https://helpyapp.net/webhooks/mercadopago'
+            notification_url: process.env.MERCADOPAGO_WEBHOOK_URL || 'https://helforic.com/webhooks/mercadopago'
         };
 
         const mpResp = await preferenceClient.create({ body: preference });
@@ -572,7 +572,7 @@ async function processarPagamentoCartao(req, res) {
             if (anuncio.ativo && planoKey === 'premium' && String(anuncio.plano) === 'basico') {
                 const diff = Math.max(Number(PLANOS.premium.price) - Number(PLANOS.basico.price), 0);
                 expectedAmount = diff;
-                itemDescription = 'Upgrade para Premium - Anúncio Helpy';
+                itemDescription = 'Upgrade para Premium - Anúncio Helforic';
             }
         } else {
             // Novo Anúncio
