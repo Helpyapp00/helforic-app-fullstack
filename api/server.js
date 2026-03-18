@@ -336,8 +336,11 @@ app.get('/s/:id', async (req, res) => {
             .select('_id content mediaUrl mediaType expiresAt thumbUrl drawingUrl createdAt')
             .lean();
 
-        const baseUrl = `${req.protocol}://${req.get('host')}`;
+        const protoHeader = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim();
+        const proto = protoHeader || req.protocol || 'https';
+        const baseUrl = `${proto}://${req.get('host')}`;
         const canonicalUrl = `${baseUrl}/s/${encodeURIComponent(postId)}`;
+        const requestUrl = `${baseUrl}${req.originalUrl || `/s/${encodeURIComponent(postId)}`}`;
         const redirectUrl = `${baseUrl}/index.html?statusPostId=${encodeURIComponent(postId)}#now`;
 
         const escapeHtml = (value) => String(value || '')
@@ -357,10 +360,21 @@ app.get('/s/:id', async (req, res) => {
         const drawingUrl = String(post?.drawingUrl || '').trim();
         const mediaUrl = String(post?.mediaUrl || '').trim();
 
-        const ogImage = thumbUrl
+        const toAbsoluteUrl = (u) => {
+            const raw = String(u || '').trim();
+            if (!raw) return '';
+            if (/^https?:\/\//i.test(raw)) return raw;
+            if (raw.startsWith('//')) return `${proto}:${raw}`;
+            if (raw.startsWith('/')) return `${baseUrl}${raw}`;
+            return `${baseUrl}/${raw}`;
+        };
+
+        const ogImage = toAbsoluteUrl(
+            thumbUrl
             || (mediaType.startsWith('image/') ? mediaUrl : '')
             || drawingUrl
-            || `${baseUrl}/icons/logoicon.png`;
+            || '/icons/logoicon.png'
+        );
 
         const html = `<!doctype html>
 <html lang="pt-BR">
@@ -373,8 +387,9 @@ app.get('/s/:id', async (req, res) => {
   <meta property="og:site_name" content="Helforic">
   <meta property="og:title" content="${escapeHtml(title)}">
   <meta property="og:description" content="${escapeHtml(description)}">
-  <meta property="og:url" content="${escapeHtml(canonicalUrl)}">
+  <meta property="og:url" content="${escapeHtml(requestUrl)}">
   <meta property="og:image" content="${escapeHtml(ogImage)}">
+  <meta property="og:image:secure_url" content="${escapeHtml(ogImage)}">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="${escapeHtml(title)}">
   <meta name="twitter:description" content="${escapeHtml(description)}">
@@ -389,6 +404,7 @@ app.get('/s/:id', async (req, res) => {
 </body>
 </html>`;
 
+        res.setHeader('Cache-Control', 'no-store, max-age=0');
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
         return res.status(200).send(html);
     } catch {

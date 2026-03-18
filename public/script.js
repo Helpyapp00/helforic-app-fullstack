@@ -4861,6 +4861,83 @@ document.addEventListener('DOMContentLoaded', () => {
             const videoEl = nowPostPreview ? nowPostPreview.querySelector('video') : null;
             const duration = videoEl ? (videoEl.duration || 0) : 0;
 
+            let previewThumbBlob = null;
+            const captureThumbFromVideoElement = async (v, seekSeconds = 0) => {
+                try {
+                    if (!v) return null;
+
+                    const prevTime = Number(v.currentTime) || 0;
+                    const wasPaused = !!v.paused;
+
+                    const waitLoaded = await new Promise((resolve) => {
+                        if ((v.readyState || 0) >= 2) return resolve(true);
+                        let done = false;
+                        const finish = () => {
+                            if (done) return;
+                            done = true;
+                            resolve(true);
+                        };
+                        const timer = setTimeout(finish, 1200);
+                        v.addEventListener('loadeddata', () => {
+                            clearTimeout(timer);
+                            finish();
+                        }, { once: true });
+                    });
+                    if (!waitLoaded) return null;
+
+                    const durationSec = Number(v.duration) || 0;
+                    const safeSeek = Number.isFinite(seekSeconds) ? seekSeconds : 0;
+                    const target = durationSec > 0
+                        ? Math.min(Math.max(safeSeek || 0.1, 0), Math.max(durationSec - 0.1, 0))
+                        : 0;
+
+                    await new Promise((resolve) => {
+                        let done = false;
+                        const finish = () => {
+                            if (done) return;
+                            done = true;
+                            resolve();
+                        };
+                        const timer = setTimeout(finish, 1500);
+                        v.addEventListener('seeked', () => {
+                            clearTimeout(timer);
+                            finish();
+                        }, { once: true });
+                        try { v.currentTime = target; } catch { clearTimeout(timer); finish(); }
+                    });
+
+                    const w = Number(v.videoWidth) || 0;
+                    const h = Number(v.videoHeight) || 0;
+                    if (!w || !h) return null;
+
+                    const maxDim = 1200;
+                    const scale = Math.min(1, maxDim / Math.max(w, h));
+                    const outW = Math.max(2, Math.round(w * scale));
+                    const outH = Math.max(2, Math.round(h * scale));
+
+                    const canvas = document.createElement('canvas');
+                    canvas.width = outW;
+                    canvas.height = outH;
+                    const ctx = canvas.getContext('2d');
+                    if (!ctx) return null;
+                    ctx.drawImage(v, 0, 0, outW, outH);
+
+                    const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.85));
+
+                    try { v.currentTime = prevTime; } catch {}
+                    try {
+                        if (!wasPaused) {
+                            const p = v.play();
+                            if (p && typeof p.catch === 'function') p.catch(() => {});
+                        }
+                    } catch {}
+
+                    return blob || null;
+                } catch {
+                    return null;
+                }
+            };
+
             // Captura blob do desenho (se houver) - precisa ser feito ANTES de limpar o canvas
             let drawingBlob = null;
             if (currentEditorState.hasDrawing && typeof videoDrawingCanvas !== 'undefined' && videoDrawingCanvas) {
@@ -4869,6 +4946,13 @@ document.addEventListener('DOMContentLoaded', () => {
                  } catch (e) {
                      console.warn('Erro ao capturar desenho:', e);
                  }
+            }
+
+            if (fileToUpload && String(fileToUpload.type || '').startsWith('video/') && videoEl) {
+                const startSec = (typeof currentEditorState.trimStart === 'number' && duration > 0)
+                    ? (currentEditorState.trimStart / 100) * duration
+                    : 0.1;
+                previewThumbBlob = await captureThumbFromVideoElement(videoEl, startSec);
             }
 
             // ========================================================================
@@ -5046,7 +5130,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (fileToUpload) {
                     if (String(fileToUpload.type || '').startsWith('video/')) {
                         const trimStartSec = Number(formData.get('trimStart')) || 0;
-                        const thumbBlob = await extractVideoThumbBlob(fileToUpload, trimStartSec);
+                        const thumbBlob = previewThumbBlob || await extractVideoThumbBlob(fileToUpload, trimStartSec);
                         if (thumbBlob) {
                             try {
                                 const thumbFile = new File([thumbBlob], `thumb_${Date.now()}.jpg`, { type: 'image/jpeg' });
