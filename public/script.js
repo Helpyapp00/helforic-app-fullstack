@@ -2125,6 +2125,7 @@ document.addEventListener('DOMContentLoaded', () => {
             isDraggingTrim: null,
             drawingSnapshot: null,
             isDrawingDirty: false,
+            filmstripKey: '',
             drawingColor: '#FF0000' // Default red color
         };
         if (videoDrawingHeader) videoDrawingHeader.classList.add('hidden');
@@ -2148,8 +2149,9 @@ document.addEventListener('DOMContentLoaded', () => {
         container.innerHTML = '<div class="loading-strip">Gerando prévia...</div>';
         
         const video = document.createElement('video');
-        video.src = URL.createObjectURL(file);
-        video.preload = 'auto';
+        const objectUrl = URL.createObjectURL(file);
+        video.src = objectUrl;
+        video.preload = 'metadata';
         video.muted = true;
         video.playsInline = true;
 
@@ -2161,32 +2163,58 @@ document.addEventListener('DOMContentLoaded', () => {
         const duration = video.duration;
         if (!duration) {
              container.innerHTML = '';
+             try { URL.revokeObjectURL(objectUrl); } catch {}
              return;
         }
 
-        const numThumbs = 8; // Quantidade de thumbnails
+        const sizeMB = (file && Number(file.size) ? (Number(file.size) / 1024 / 1024) : 0);
+        const numThumbs = sizeMB > 250 ? 4 : (sizeMB > 120 ? 5 : 6);
         const interval = duration / numThumbs;
-        const thumbs = [];
 
         container.innerHTML = '';
         
-                const captureFrame = async (time) => {
-            return new Promise((resolve) => {
-                video.currentTime = time;
-                video.onseeked = () => {
-                    const canvas = document.createElement('canvas');
-                    // Melhor qualidade
-                    const scale = 1.0; // Melhor qualidade (não embaçado)
-                    canvas.width = video.videoWidth * scale;
-                    canvas.height = video.videoHeight * scale;
-                    const ctx = canvas.getContext('2d');
-                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                    const img = document.createElement('img');
-                    img.src = canvas.toDataURL('image/jpeg', 0.9); // 90% quality
-                    img.className = 'filmstrip-thumb';
-                    resolve(img);
+        const captureFrame = async (time) => {
+            return await new Promise((resolve) => {
+                let done = false;
+                const finish = (img) => {
+                    if (done) return;
+                    done = true;
+                    resolve(img || null);
                 };
-                video.onerror = () => resolve(null);
+                const timer = setTimeout(() => finish(null), 900);
+                const onSeeked = () => {
+                    clearTimeout(timer);
+                    try {
+                        const vw = Number(video.videoWidth) || 0;
+                        const vh = Number(video.videoHeight) || 0;
+                        if (!vw || !vh) return finish(null);
+
+                        const targetW = 220;
+                        const scale = Math.min(1, targetW / vw);
+                        const outW = Math.max(2, Math.round(vw * scale));
+                        const outH = Math.max(2, Math.round(vh * scale));
+
+                        const canvas = document.createElement('canvas');
+                        canvas.width = outW;
+                        canvas.height = outH;
+                        const ctx = canvas.getContext('2d');
+                        if (!ctx) return finish(null);
+                        ctx.drawImage(video, 0, 0, outW, outH);
+                        const img = document.createElement('img');
+                        img.src = canvas.toDataURL('image/jpeg', 0.75);
+                        img.className = 'filmstrip-thumb';
+                        finish(img);
+                    } catch {
+                        finish(null);
+                    }
+                };
+                const onError = () => {
+                    clearTimeout(timer);
+                    finish(null);
+                };
+                video.addEventListener('seeked', onSeeked, { once: true });
+                video.addEventListener('error', onError, { once: true });
+                try { video.currentTime = time; } catch { onError(); }
             });
         };
 
@@ -2195,11 +2223,13 @@ document.addEventListener('DOMContentLoaded', () => {
             const time = Math.min(i * interval, duration - 0.1);
             const img = await captureFrame(time);
             if (img) container.appendChild(img);
+            await new Promise((r) => setTimeout(r, 0));
         }
         
         // Libera memória
         video.removeAttribute('src');
         video.load();
+        try { URL.revokeObjectURL(objectUrl); } catch {}
     };
 
     const opennowModal = (file) => {
@@ -2409,9 +2439,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 videoEl.addEventListener('pause', updateNowTrimPauseIndicator);
                 videoEl.addEventListener('ended', updateNowTrimPauseIndicator);
 
-                // Gera filmstrip em background
-                generateFilmstrip(file);
-
             } else {
                 nowPreviewMediaContainer.innerHTML = `<img src="${url}" alt="Prévia">`;
                 if (videoEditorSidebar) videoEditorSidebar.classList.add('hidden');
@@ -2460,6 +2487,13 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // Entrar no modo Trim
             editorState.isTrimMode = true;
+            if (nowSelectedFile && nowSelectedFile.type && nowSelectedFile.type.startsWith('video/')) {
+                const key = `${String(nowSelectedFile.name || '')}:${String(nowSelectedFile.size || '')}:${String(nowSelectedFile.lastModified || '')}`;
+                if (editorState.filmstripKey !== key) {
+                    editorState.filmstripKey = key;
+                    generateFilmstrip(nowSelectedFile);
+                }
+            }
             videoTrimUi.classList.remove('hidden');
             videoTrimHeader.classList.remove('hidden');
             if (nowPreviewMediaContainer) nowPreviewMediaContainer.classList.add('trim-mode-active');
@@ -4752,8 +4786,8 @@ document.addEventListener('DOMContentLoaded', () => {
         nowMediaInput.addEventListener('change', (event) => {
             const file = event.target.files && event.target.files[0];
             if (file) {
-                // Validação de Tamanho (Aumentado para 100MB para Upload Direto S3)
-                const MAX_SIZE_MB = 100; // 100MB
+                // Validação de Tamanho (Upload Direto S3)
+                const MAX_SIZE_MB = 500; // 500MB
                 const maxSize = MAX_SIZE_MB * 1024 * 1024;
                 
                 if (file.size > maxSize) {
@@ -4832,9 +4866,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const content = nowPostDesc?.value || '';
             if (!content.trim() && !nowSelectedFile) return;
 
-            // Validação de Tamanho do Arquivo (Limite Aumentado para Upload Direto S3: 100MB)
+            // Validação de Tamanho do Arquivo (Upload Direto S3)
             if (nowSelectedFile) {
-                const MAX_SIZE_MB = 100; // 100MB
+                const MAX_SIZE_MB = 500; // 500MB
                 const MAX_SIZE_BYTES = MAX_SIZE_MB * 1024 * 1024;
                 
                 if (nowSelectedFile.size > MAX_SIZE_BYTES) {
@@ -5126,10 +5160,149 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 };
 
+                const canExportTrimmedMp4 = () => {
+                    try {
+                        if (typeof MediaRecorder === 'undefined') return false;
+                        if (typeof MediaRecorder.isTypeSupported !== 'function') return false;
+                        if (!MediaRecorder.isTypeSupported('video/mp4')) return false;
+                        const proto = HTMLVideoElement && HTMLVideoElement.prototype;
+                        const hasCapture = !!(proto && (proto.captureStream || proto.mozCaptureStream));
+                        return hasCapture;
+                    } catch {
+                        return false;
+                    }
+                };
+
+                const exportTrimmedVideoMp4 = async (file, startSec, endSec) => {
+                    if (!canExportTrimmedMp4()) return null;
+                    const objectUrl = URL.createObjectURL(file);
+                    const v = document.createElement('video');
+                    v.muted = true;
+                    v.playsInline = true;
+                    v.preload = 'auto';
+                    v.src = objectUrl;
+
+                    const cleanup = (stream) => {
+                        try { v.pause(); } catch {}
+                        try { v.removeAttribute('src'); v.load(); } catch {}
+                        try { URL.revokeObjectURL(objectUrl); } catch {}
+                        try { stream?.getTracks?.().forEach((t) => t.stop()); } catch {}
+                    };
+
+                    try {
+                        const ok = await new Promise((resolve) => {
+                            let done = false;
+                            const finish = (val) => {
+                                if (done) return;
+                                done = true;
+                                resolve(!!val);
+                            };
+                            const timer = setTimeout(() => finish(false), 6000);
+                            v.onloadedmetadata = () => {
+                                clearTimeout(timer);
+                                finish(true);
+                            };
+                            v.onerror = () => {
+                                clearTimeout(timer);
+                                finish(false);
+                            };
+                        });
+                        if (!ok) {
+                            cleanup();
+                            return null;
+                        }
+
+                        const durationSec = Number(v.duration) || 0;
+                        const s = Math.max(0, Number(startSec) || 0);
+                        const e = Math.max(0, Number(endSec) || 0);
+                        const safeEnd = durationSec > 0 ? Math.min(e, Math.max(durationSec - 0.05, 0)) : e;
+                        const safeStart = durationSec > 0 ? Math.min(s, Math.max(safeEnd - 0.05, 0)) : s;
+                        if (!(safeEnd > safeStart)) {
+                            cleanup();
+                            return null;
+                        }
+
+                        await new Promise((resolve) => {
+                            let done = false;
+                            const finish = () => {
+                                if (done) return;
+                                done = true;
+                                resolve();
+                            };
+                            const timer = setTimeout(finish, 2500);
+                            v.addEventListener('seeked', () => {
+                                clearTimeout(timer);
+                                finish();
+                            }, { once: true });
+                            try { v.currentTime = safeStart; } catch { clearTimeout(timer); finish(); }
+                        });
+
+                        const stream = (v.captureStream ? v.captureStream() : v.mozCaptureStream());
+                        if (!stream) {
+                            cleanup();
+                            return null;
+                        }
+
+                        let recorder;
+                        try {
+                            recorder = new MediaRecorder(stream, { mimeType: 'video/mp4' });
+                        } catch {
+                            cleanup(stream);
+                            return null;
+                        }
+
+                        const chunks = [];
+                        recorder.addEventListener('dataavailable', (ev) => {
+                            if (ev && ev.data && ev.data.size > 0) chunks.push(ev.data);
+                        });
+
+                        const stopped = new Promise((resolve) => {
+                            recorder.addEventListener('stop', () => resolve(), { once: true });
+                            recorder.addEventListener('error', () => resolve(), { once: true });
+                        });
+
+                        try { recorder.start(); } catch { cleanup(stream); return null; }
+
+                        try {
+                            const p = v.play();
+                            if (p && typeof p.catch === 'function') await p.catch(() => {});
+                        } catch {}
+
+                        const maxMs = Math.max(800, Math.round((safeEnd - safeStart) * 1000) + 1200);
+                        const startedAt = Date.now();
+
+                        await new Promise((resolve) => {
+                            const tick = () => {
+                                const t = Number(v.currentTime) || 0;
+                                if (t >= (safeEnd - 0.06)) return resolve();
+                                if ((Date.now() - startedAt) > maxMs) return resolve();
+                                requestAnimationFrame(tick);
+                            };
+                            tick();
+                        });
+
+                        try { v.pause(); } catch {}
+                        try { recorder.stop(); } catch {}
+                        await stopped;
+
+                        const blob = new Blob(chunks, { type: recorder.mimeType || 'video/mp4' });
+                        cleanup(stream);
+                        if (!blob || !blob.size) return null;
+
+                        const base = String(file?.name || 'video').replace(/\.[^/.]+$/, '');
+                        return new File([blob], `${base}_trim.mp4`, { type: blob.type || 'video/mp4', lastModified: Date.now() });
+                    } catch {
+                        cleanup();
+                        return null;
+                    }
+                };
+
                 // Se tiver arquivo de vídeo (usando a variável capturada fileToUpload)
                 if (fileToUpload) {
+                    let fileForUpload = fileToUpload;
                     if (String(fileToUpload.type || '').startsWith('video/')) {
                         const trimStartSec = Number(formData.get('trimStart')) || 0;
+                        const trimEndSec = Number(formData.get('trimEnd')) || 0;
                         const thumbBlob = previewThumbBlob || await extractVideoThumbBlob(fileToUpload, trimStartSec);
                         if (thumbBlob) {
                             try {
@@ -5140,9 +5313,17 @@ document.addEventListener('DOMContentLoaded', () => {
                                 }
                             } catch {}
                         }
+                        const maxTrim = (typeof MAX_TRIM_DURATION === 'number' && Number.isFinite(MAX_TRIM_DURATION)) ? MAX_TRIM_DURATION : 30;
+                        const seg = Math.max(0, trimEndSec - trimStartSec);
+                        if (seg > 0.25 && seg <= (maxTrim + 0.25)) {
+                            const trimmed = await exportTrimmedVideoMp4(fileToUpload, trimStartSec, trimEndSec);
+                            if (trimmed && trimmed.size > 0 && trimmed.size < fileToUpload.size) {
+                                fileForUpload = trimmed;
+                            }
+                        }
                     }
-                    mediaUrl = await uploadToS3(fileToUpload);
-                    mediaType = fileToUpload.type;
+                    mediaUrl = await uploadToS3(fileForUpload);
+                    mediaType = fileForUpload.type;
                 }
 
                 // Se tiver desenho (Canvas) (usando o blob capturado drawingBlob)
