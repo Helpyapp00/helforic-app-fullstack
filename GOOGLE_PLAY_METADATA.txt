@@ -3,7 +3,7 @@ GOOGLE PLAY CONSOLE - DADOS DO PACOTE E CONTATO
 Nome do App: Helforic - Serviços e Profissionais
 Short Description: Contrate serviços ou anuncie seu trabalho. Conecte-se com profissionais locais!
 Bundle ID (Package Name): com.helpyapp.servicos
-Email de Suporte: suporte@helpyapp.net
+Email de Suporte: suporte@helforic.com
 Website: https://helforic.com
 Política de Privacidade: https://helforic.com/privacidade
 Termos de Uso: https://helforic.com/termos

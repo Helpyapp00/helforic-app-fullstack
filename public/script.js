@@ -9813,7 +9813,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             <a href="/perfil.html?id=${comment.userId._id}" style="text-decoration: none; color: inherit; font-weight: bold; cursor: pointer;">${comment.userId.nome}</a>
                             <p class="comment-content">${comment.content}</p>
                             ${(canEditComment || canDeleteComment) ? `
-                                <button class="btn-comment-options" data-comment-id="${comment._id}" title="Opções" style="display: block;">⋮</button>
+                                <button class="btn-comment-options" data-comment-id="${comment._id}" title="Opções">⋯</button>
                                 <div class="comment-options-menu oculto" data-comment-id="${comment._id}">
                                     ${canEditComment ? `<button class="btn-edit-comment" data-comment-id="${comment._id}" title="Editar">✏️</button>` : ''}
                                     ${canDeleteComment ? `<button class="btn-delete-comment" data-comment-id="${comment._id}" title="Apagar">🗑️</button>` : ''}
@@ -9857,7 +9857,21 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }
                 
-                commentList.appendChild(newCommentElement);
+                const loadMoreBtn = commentList ? commentList.querySelector('.load-more-comments') : null;
+                if (commentList && loadMoreBtn) {
+                    commentList.insertBefore(newCommentElement, loadMoreBtn);
+                } else if (commentList) {
+                    commentList.appendChild(newCommentElement);
+                }
+
+                if (loadMoreBtn) {
+                    const totalNow = postElement.querySelectorAll('.comment').length;
+                    loadMoreBtn.dataset.total = String(totalNow);
+                }
+
+                if (loadMoreBtn && postElement.querySelector('.comment-hidden')) {
+                    loadMoreBtn.click();
+                }
                 
                 // Re-anexa listeners para os novos botões
                 newCommentElement.querySelector('.btn-like-comment').addEventListener('click', handleLikeComment);
@@ -9876,6 +9890,15 @@ document.addEventListener('DOMContentLoaded', () => {
                         checkLongComment(newCommentElement);
                     }
                 }, 300);
+
+                requestAnimationFrame(() => {
+                    const listEl = postElement.querySelector('.comment-list');
+                    if (listEl && listEl.classList.contains('comment-list-scroll')) {
+                        listEl.scrollTop = listEl.scrollHeight;
+                        return;
+                    }
+                    newCommentElement.scrollIntoView({ block: 'nearest' });
+                });
                 
                 // Limpa e reseta o textarea
                 input.value = '';

@@ -278,7 +278,7 @@ app.get('/api/geocodificar-reversa', async (req, res) => {
         const data = await new Promise((resolve, reject) => {
             const request = https.get(url, {
                 headers: {
-                    'User-Agent': 'HelforicApp/1.0 (contact@helpyapp.net)'
+                    'User-Agent': 'HelforicApp/1.0 (contact@helforic.com)'
                 }
             }, (response) => {
                 let body = '';
@@ -398,11 +398,11 @@ app.post('/api/verificar-email/solicitar', async (req, res) => {
                 const transporter = nodemailer.createTransport({
                     host: process.env.SMTP_HOST,
                     port: Number(process.env.SMTP_PORT || 587),
-                    secure: false,
+                    secure: String(process.env.SMTP_SECURE || '').toLowerCase() === 'true' || Number(process.env.SMTP_PORT || 587) === 465,
                     auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
                 });
                 await transporter.sendMail({
-                    from: process.env.SMTP_FROM || 'no-reply@helpyapp.local',
+                    from: process.env.SMTP_FROM || 'suporte@helforic.com',
                     to: email,
                     subject: 'Código de verificação Helforic',
                     text: `Seu código é: ${code}`,
