@@ -1087,7 +1087,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     waEl.addEventListener('click', async (ev) => {
                         try { ev?.stopPropagation?.(); } catch {}
                         try {
-                            const previewUrl = `${location.origin}/?postId=${encodeURIComponent(postId)}`;
+                            const previewUrl = `${location.origin}/s/${encodeURIComponent(postId)}?t=${Date.now()}`;
                             const msg = `Olá! Vi seu vídeo e tenho uma pergunta: ${previewUrl}`;
                             let numeroDigits = cachedDigits;
                             let popup = null;
@@ -4969,8 +4969,94 @@ document.addEventListener('DOMContentLoaded', () => {
                     return publicUrl;
                 };
 
+                const extractVideoThumbBlob = async (file, seekSeconds = 0) => {
+                    try {
+                        const objectUrl = URL.createObjectURL(file);
+                        const cleanup = () => {
+                            try { URL.revokeObjectURL(objectUrl); } catch {}
+                        };
+                        const blob = await new Promise((resolve) => {
+                            const v = document.createElement('video');
+                            v.muted = true;
+                            v.playsInline = true;
+                            v.preload = 'metadata';
+                            v.src = objectUrl;
+                            let done = false;
+                            const finish = (result) => {
+                                if (done) return;
+                                done = true;
+                                try { v.pause(); } catch {}
+                                resolve(result || null);
+                            };
+                            const timeout = setTimeout(() => finish(null), 4500);
+                            v.onerror = () => {
+                                clearTimeout(timeout);
+                                finish(null);
+                            };
+                            v.onloadedmetadata = () => {
+                                try {
+                                    const duration = Number(v.duration) || 0;
+                                    const safeSeek = Number.isFinite(seekSeconds) ? seekSeconds : 0;
+                                    const target = duration > 0
+                                        ? Math.min(Math.max(safeSeek || 0.1, 0), Math.max(duration - 0.1, 0))
+                                        : 0;
+                                    v.currentTime = target;
+                                } catch {
+                                    clearTimeout(timeout);
+                                    finish(null);
+                                }
+                            };
+                            v.onseeked = () => {
+                                try {
+                                    const w = Number(v.videoWidth) || 0;
+                                    const h = Number(v.videoHeight) || 0;
+                                    if (!w || !h) {
+                                        clearTimeout(timeout);
+                                        finish(null);
+                                        return;
+                                    }
+                                    const canvas = document.createElement('canvas');
+                                    canvas.width = w;
+                                    canvas.height = h;
+                                    const ctx = canvas.getContext('2d');
+                                    if (!ctx) {
+                                        clearTimeout(timeout);
+                                        finish(null);
+                                        return;
+                                    }
+                                    ctx.drawImage(v, 0, 0, w, h);
+                                    canvas.toBlob((b) => {
+                                        clearTimeout(timeout);
+                                        finish(b);
+                                    }, 'image/jpeg', 0.85);
+                                } catch {
+                                    clearTimeout(timeout);
+                                    finish(null);
+                                }
+                            };
+                        });
+                        cleanup();
+                        return blob;
+                    } catch {
+                        return null;
+                    }
+                };
+
                 // Se tiver arquivo de vídeo (usando a variável capturada fileToUpload)
                 if (fileToUpload) {
+                    if (String(fileToUpload.type || '').startsWith('video/')) {
+                        const trimStartSec = Number(formData.get('trimStart')) || 0;
+                        const thumbBlob = await extractVideoThumbBlob(fileToUpload, trimStartSec);
+                        if (thumbBlob) {
+                            try {
+                                const thumbFile = new File([thumbBlob], `thumb_${Date.now()}.jpg`, { type: 'image/jpeg' });
+                                const thumbUrl = await uploadToS3(thumbFile);
+                                if (thumbUrl) {
+                                    formData.append('thumbUrl', thumbUrl);
+                                }
+                            } catch {}
+                        }
+                    }
                     mediaUrl = await uploadToS3(fileToUpload);
                     mediaType = fileToUpload.type;
                 }
@@ -6370,7 +6456,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 waBtn.addEventListener('click', async (ev) => {
                     try { ev?.stopPropagation?.(); } catch {}
                     try {
-                        const previewUrl = `${location.origin}/?postId=${encodeURIComponent(rawItemId)}`;
+                        const previewUrl = `${location.origin}/s/${encodeURIComponent(rawItemId)}?t=${Date.now()}`;
                         const msg = `Olá! Vi seu vídeo e tenho uma pergunta: ${previewUrl}`;
                         const fromUrl = String(item?.whatsappUrl || '').match(/wa\.me\/(\d+)/)?.[1] || '';
                         let numeroDigits = fromUrl;

@@ -325,6 +325,77 @@ app.get('/termos', (req, res) => {
     res.sendFile(path.join(__dirname, '../public/termos.html'));
 });
 
+app.get('/s/:id', async (req, res) => {
+    try {
+        const postId = String(req.params.id || '').trim();
+        if (!postId) {
+            return res.redirect('/');
+        }
+
+        const post = await Postagem.findById(postId)
+            .select('_id content mediaUrl mediaType expiresAt thumbUrl drawingUrl createdAt')
+            .lean();
+
+        const baseUrl = `${req.protocol}://${req.get('host')}`;
+        const canonicalUrl = `${baseUrl}/s/${encodeURIComponent(postId)}`;
+        const redirectUrl = `${baseUrl}/index.html?statusPostId=${encodeURIComponent(postId)}#now`;
+
+        const escapeHtml = (value) => String(value || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+
+        const title = post?.content
+            ? String(post.content).trim().slice(0, 70)
+            : 'Vídeo no Helforic';
+        const description = 'Toque para ver o vídeo no Helforic.';
+
+        const mediaType = String(post?.mediaType || '');
+        const thumbUrl = String(post?.thumbUrl || '').trim();
+        const drawingUrl = String(post?.drawingUrl || '').trim();
+        const mediaUrl = String(post?.mediaUrl || '').trim();
+
+        const ogImage = thumbUrl
+            || (mediaType.startsWith('image/') ? mediaUrl : '')
+            || drawingUrl
+            || `${baseUrl}/icons/logoicon.png`;
+
+        const html = `<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>${escapeHtml(title)}</title>
+  <link rel="canonical" href="${escapeHtml(canonicalUrl)}">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Helforic">
+  <meta property="og:title" content="${escapeHtml(title)}">
+  <meta property="og:description" content="${escapeHtml(description)}">
+  <meta property="og:url" content="${escapeHtml(canonicalUrl)}">
+  <meta property="og:image" content="${escapeHtml(ogImage)}">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="${escapeHtml(title)}">
+  <meta name="twitter:description" content="${escapeHtml(description)}">
+  <meta name="twitter:image" content="${escapeHtml(ogImage)}">
+</head>
+<body>
+  <p>Abrindo…</p>
+  <p><a href="${escapeHtml(redirectUrl)}">Clique aqui se não abrir automaticamente</a></p>
+  <script>
+    setTimeout(function() { window.location.href = ${JSON.stringify(redirectUrl)}; }, 150);
+  </script>
+</body>
+</html>`;
+
+        res.setHeader('Content-Type', 'text/html; charset=utf-8');
+        return res.status(200).send(html);
+    } catch {
+        return res.redirect('/');
+    }
+});
+
 app.get('/perfil/:slug', (req, res) => {
     res.sendFile(path.join(__dirname, '../public/perfil.html'));
 });
@@ -1183,6 +1254,7 @@ app.post('/api/now-posts', authMiddleware, upload.fields([{ name: 'media', maxCo
         const drawingFile = files['drawing'] ? files['drawing'][0] : null;
 
         let mediaUrl = String(req.body?.mediaUrl || '').trim(); // Suporte a URL enviada pelo front (S3 direto)
+        const thumbUrl = String(req.body?.thumbUrl || '').trim();
 
         if (!content && !mediaFile && !mediaUrl) {
             return res.status(400).json({ success: false, message: 'Adicione texto ou mídia.' });
@@ -1286,6 +1358,7 @@ app.post('/api/now-posts', authMiddleware, upload.fields([{ name: 'media', maxCo
             content,
             mediaUrl,
             mediaType,
+            thumbUrl,
             category_tag,
             gender_tag,
             expiresAt,
