@@ -5,6 +5,10 @@
       "destination": "/api/server.js"
     },
     {
+      "source": "/s/(.*)",
+      "destination": "/api/server.js"
+    },
+    {
       "source": "/",
       "destination": "/index.html"
     },
