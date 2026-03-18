@@ -42,6 +42,12 @@ body {
     width: 100%;
 }
 
+@media (max-width: 992px) {
+    .anuncios-sidebar {
+        display: none !important;
+    }
+}
+
 .conteudo {
     margin-top: calc(var(--header-height, 70px) + 2px) !important;
     padding-top: 0 !important;

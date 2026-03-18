@@ -1343,7 +1343,7 @@ app.get('/api/now-feed', authMiddleware, async (req, res) => {
         const posts = await Postagem.find(baseQuery)
             .sort({ createdAt: -1 })
             .limit(60)
-            .populate('userId', 'nome foto avatarUrl tipo cidade estado telefone')
+            .populate('userId', 'nome foto avatarUrl tipo cidade estado whatsapp telefone celular phone')
             .lean();
 
         const postsFiltrados = cidadesSet.size > 0
@@ -1356,9 +1356,17 @@ app.get('/api/now-feed', authMiddleware, async (req, res) => {
         const currentUserId = String(req.user.id || '');
 
         const postItems = postsFiltrados.map((post) => {
-            const telefone = post?.userId?.telefone ? String(post.userId.telefone) : '';
-            const whatsappUrl = telefone
-                ? `https://wa.me/55${telefone.replace(/\D/g, '')}`
+            const numeroRaw = String(
+                post?.userId?.whatsapp
+                || post?.userId?.telefone
+                || post?.userId?.celular
+                || post?.userId?.phone
+                || ''
+            ).trim();
+            let numeroDigits = numeroRaw.replace(/\D/g, '');
+            if (numeroDigits && numeroDigits.length <= 11) numeroDigits = `55${numeroDigits}`;
+            const whatsappUrl = numeroDigits && numeroDigits.length >= 8
+                ? `https://wa.me/${numeroDigits}`
                 : '';
             const likesArray = Array.isArray(post.likes) ? post.likes : [];
             const likesCount = likesArray.length;

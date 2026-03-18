@@ -9,15 +9,41 @@
     <meta name="author" content="Helforic">
     <meta name="theme-color" content="#0e0f12">
     <link rel="icon" href="/icons/logoicon.png" type="image/png">
-    <link rel="preload" href="/style.css?v=20260115-15" as="style">
+    <link rel="preload" href="/style.css?v=20260318-04" as="style">
     <link rel="preload" href="/imagens/logohelpy.png" as="image">
     <link rel="preload" href="/imagens/default-user.png" as="image">
-    <link rel="stylesheet" href="/style.css?v=20260115-15">
+    <link rel="stylesheet" href="/style.css?v=20260318-04">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" xintegrity="sha512-..." crossorigin="anonymous" referrerpolicy="no-referrer" />
 </head>
 <body>
     <!-- 🧹 Silencia console.* em produção (ative com localStorage.DEBUG=1) -->
-    <script src="/console-silencer.js?v=20260115-15"></script>
+    <script src="/console-silencer.js?v=20260318-04"></script>
+    <script>
+        (function() {
+            try {
+                const key = 'sw_cleanup_done:20260318-04';
+                if (localStorage.getItem(key) === '1') return;
+                localStorage.setItem(key, '1');
+                if ('serviceWorker' in navigator) {
+                    navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                        registrations.forEach(function(reg) {
+                            try { reg.unregister(); } catch {}
+                        });
+                    });
+                }
+                if (window.caches && caches.keys) {
+                    caches.keys().then(function(keys) {
+                        keys.forEach(function(k) {
+                            try { caches.delete(k); } catch {}
+                        });
+                    });
+                }
+                setTimeout(function() {
+                    try { location.reload(); } catch {}
+                }, 50);
+            } catch {}
+        })();
+    </script>
     <!-- 🛑 NOVO: Script de Tema (Deve vir ANTES de todo o conteúdo) -->
     <script>
         (function() {
@@ -1490,8 +1516,8 @@
     </nav>
 
 
-    <script src="/header-notificacoes.js?v=20260115-15"></script>
-    <script src="/script.js?v=20260115-15"></script>
-    <script src="/novas-funcionalidades.js?v=20260115-15"></script>
+    <script src="/header-notificacoes.js?v=20260318-04"></script>
+    <script src="/script.js?v=20260318-04"></script>
+    <script src="/novas-funcionalidades.js?v=20260318-04"></script>
 </body>
 </html>

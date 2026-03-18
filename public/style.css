@@ -5850,6 +5850,11 @@ textarea#post-content-input::placeholder { color: var(--text-placeholder); }
     color: #22c55e;
     font-size: 18px;
     text-decoration: none;
+    border: none;
+    background: transparent;
+    padding: 0;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
 }
 
 /* WhatsApp em nome do card no now */
@@ -5863,6 +5868,11 @@ textarea#post-content-input::placeholder { color: var(--text-placeholder); }
     color: #22c55e;
     font-size: 18px;
     text-decoration: none;
+    border: none;
+    background: transparent;
+    padding: 0;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
 }
 
 /* Avatares de likes: estilo neutro para não-donos */

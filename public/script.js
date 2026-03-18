@@ -1066,7 +1066,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (nowVideoNome) {
                 nowVideoNome.textContent = nome;
             }
-            // Adiciona botão de WhatsApp ao lado do nome no fullscreen (apenas se não for dono)
             const existingVideoWa = nowVideoInfo.querySelector('.now-video-whatsapp');
             if (existingVideoWa) existingVideoWa.remove();
             (async () => {
@@ -1074,30 +1073,59 @@ document.addEventListener('DOMContentLoaded', () => {
                     const ownerId = info?.ownerId;
                     const postId = info?.postId;
                     if (!ownerId || !nowVideoNome || !postId) return;
-                    if (userId && String(ownerId) === String(userId)) return; // não mostra para o dono
-                    const respUser = await fetch(`/api/usuario/${ownerId}`, {
-                        headers: { Authorization: `Bearer ${token}` }
+                    if (isOwner) return;
+                    let cachedDigits = String(info?.whatsappUrl || '').match(/wa\.me\/(\d+)/)?.[1] || '';
+                    if (!cachedDigits) {
+                        const numeroRawInfo = String(info?.whatsapp || info?.telefone || info?.celular || info?.phone || '').trim();
+                        cachedDigits = numeroRawInfo.replace(/\D+/g, '');
+                    }
+                    const waEl = document.createElement('button');
+                    waEl.type = 'button';
+                    waEl.className = 'now-video-whatsapp';
+                    waEl.setAttribute('aria-label', 'Chamar no WhatsApp');
+                    waEl.innerHTML = '<i class="fab fa-whatsapp"></i>';
+                    waEl.addEventListener('click', async (ev) => {
+                        try { ev?.stopPropagation?.(); } catch {}
+                        try {
+                            const previewUrl = `${location.origin}/?postId=${encodeURIComponent(postId)}`;
+                            const msg = `Olá! Vi seu vídeo e tenho uma pergunta: ${previewUrl}`;
+                            let numeroDigits = cachedDigits;
+                            let popup = null;
+                            try { popup = window.open('about:blank', '_blank'); } catch {}
+                            if (!numeroDigits) {
+                                const respUser = await fetch(`/api/usuario/${ownerId}`, {
+                                    headers: { Authorization: `Bearer ${token}` }
+                                });
+                                const dataUser = await respUser.json();
+                                if (!respUser.ok || dataUser?.success === false) {
+                                    alert('Não foi possível obter o WhatsApp do usuário.');
+                                    return;
+                                }
+                                const u = dataUser.usuario || {};
+                                const numeroRaw = String(u.whatsapp || u.telefone || u.celular || u.phone || '').trim();
+                                numeroDigits = numeroRaw.replace(/\D+/g, '');
+                                cachedDigits = numeroDigits;
+                            }
+                            if (numeroDigits && numeroDigits.length <= 11) numeroDigits = `55${numeroDigits}`;
+                            if (!numeroDigits || numeroDigits.length < 8) {
+                                alert('Usuário não possui WhatsApp cadastrado.');
+                                try { popup?.close?.(); } catch {}
+                                return;
+                            }
+                            const waUrl = `https://wa.me/${encodeURIComponent(numeroDigits)}?text=${encodeURIComponent(msg)}`;
+                            if (popup && !popup.closed) {
+                                try { popup.location.href = waUrl; } catch { window.location.href = waUrl; }
+                            } else {
+                                window.location.href = waUrl;
+                            }
+                        } catch {
+                            alert('Erro ao abrir WhatsApp.');
+                        }
                     });
-                    const dataUser = await respUser.json();
-                    if (!respUser.ok || dataUser?.success === false) return;
-                    const u = dataUser.usuario || {};
-                    const numeroRaw = String(u.whatsapp || u.telefone || u.celular || u.phone || '').trim();
-                    const numeroDigits = numeroRaw.replace(/\D+/g, '');
-                    if (!numeroDigits || numeroDigits.length < 8) return;
-                    const previewUrl = `${location.origin}/?postId=${encodeURIComponent(postId)}`;
-                    const msg = `Olá! Vi seu vídeo e tenho uma pergunta: ${previewUrl}`;
-                    const waLink = document.createElement('a');
-                    waLink.href = `https://wa.me/${encodeURIComponent(numeroDigits)}?text=${encodeURIComponent(msg)}`;
-                    waLink.target = '_blank';
-                    waLink.rel = 'noopener noreferrer';
-                    waLink.className = 'now-video-whatsapp';
-                    waLink.innerHTML = '<i class="fab fa-whatsapp"></i>';
-                    ['click', 'touchstart', 'touchend', 'pointerdown', 'pointerup'].forEach((type) => {
-                        waLink.addEventListener(type, (ev) => {
-                            ev.stopPropagation();
-                        });
-                    });
-                    nowVideoNome.insertAdjacentElement('afterend', waLink);
+                    waEl.addEventListener('pointerdown', (ev) => {
+                        try { ev?.stopPropagation?.(); } catch {}
+                    }, { passive: true });
+                    nowVideoNome.insertAdjacentElement('afterend', waEl);
                 } catch {}
             })();
             if (nowVideoDesc) {
@@ -1657,8 +1685,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function closeLikesModal() {
         if (!likesModalOverlay) return;
+        try {
+            const active = document.activeElement;
+            if (active && likesModalOverlay.contains(active) && typeof active.blur === 'function') {
+                active.blur();
+            }
+        } catch {}
         likesModalOverlay.classList.add('hidden');
         likesModalOverlay.setAttribute('aria-hidden', 'true');
+        likesModalOverlay.setAttribute('inert', '');
         likesModalOverlay.style.display = 'none';
         likesModalOverlay.style.pointerEvents = 'none';
         const contentEl = document.getElementById('likes-modal-content');
@@ -1677,6 +1712,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!likesModalOverlay || !likesModalList || !postId) return;
         likesModalOverlay.classList.remove('hidden');
         likesModalOverlay.setAttribute('aria-hidden', 'false');
+        likesModalOverlay.removeAttribute('inert');
         likesModalOverlay.style.display = 'flex';
         likesModalOverlay.style.pointerEvents = 'auto';
         let likes = null;
@@ -6287,6 +6323,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         <i class="fas fa-trash"></i>
                     </button>`
                 : '';
+            const waHtml = (!isOwner && rawItemId && ownerId)
+                ? `<button class="now-card-whatsapp" type="button" aria-label="Chamar no WhatsApp"><i class="fab fa-whatsapp"></i></button>`
+                : '';
 
             card.innerHTML = `
                 <div class="now-card-media">
@@ -6304,6 +6343,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 <img class="now-card-avatar" src="${perfilFoto}" alt="${empresaNome}" onerror="this.src='imagens/default-user.png'">
                                 <span class="now-card-empresa">${empresaNome}</span>
                             </a>
+                            ${waHtml}
                         </div>
                         ${(desc || title) ? `<p class="now-card-desc">${desc || title}</p>` : ''}
                         ${cityText ? `<span class="now-card-cidade">${cityText}</span>` : ''}
@@ -6325,6 +6365,50 @@ document.addEventListener('DOMContentLoaded', () => {
             const perfilAnchor = card.querySelector('.now-card-perfil');
             const avatarEl = card.querySelector('.now-card-avatar');
             const nomeEl = card.querySelector('.now-card-empresa');
+            const waBtn = card.querySelector('.now-card-whatsapp');
+            if (waBtn && ownerId && rawItemId) {
+                waBtn.addEventListener('click', async (ev) => {
+                    try { ev?.stopPropagation?.(); } catch {}
+                    try {
+                        const previewUrl = `${location.origin}/?postId=${encodeURIComponent(rawItemId)}`;
+                        const msg = `Olá! Vi seu vídeo e tenho uma pergunta: ${previewUrl}`;
+                        const fromUrl = String(item?.whatsappUrl || '').match(/wa\.me\/(\d+)/)?.[1] || '';
+                        let numeroDigits = fromUrl;
+                        let popup = null;
+                        try { popup = window.open('about:blank', '_blank'); } catch {}
+                        if (!numeroDigits) {
+                            const respUser = await fetch(`/api/usuario/${ownerId}`, {
+                                headers: { Authorization: `Bearer ${token}` }
+                            });
+                            const dataUser = await respUser.json();
+                            if (!respUser.ok || dataUser?.success === false) {
+                                alert('Não foi possível obter o WhatsApp do usuário.');
+                                return;
+                            }
+                            const u = dataUser.usuario || {};
+                            const numeroRaw = String(u.whatsapp || u.telefone || u.celular || u.phone || '').trim();
+                            numeroDigits = numeroRaw.replace(/\D+/g, '');
+                        }
+                        if (numeroDigits && numeroDigits.length <= 11) numeroDigits = `55${numeroDigits}`;
+                        if (!numeroDigits || numeroDigits.length < 8) {
+                            alert('Usuário não possui WhatsApp cadastrado.');
+                            try { popup?.close?.(); } catch {}
+                            return;
+                        }
+                        const waUrl = `https://wa.me/${encodeURIComponent(numeroDigits)}?text=${encodeURIComponent(msg)}`;
+                        if (popup && !popup.closed) {
+                            try { popup.location.href = waUrl; } catch { window.location.href = waUrl; }
+                        } else {
+                            window.location.href = waUrl;
+                        }
+                    } catch {
+                        alert('Erro ao abrir WhatsApp.');
+                    }
+                });
+                waBtn.addEventListener('pointerdown', (ev) => {
+                    try { ev?.stopPropagation?.(); } catch {}
+                }, { passive: true });
+            }
 
             if (avatarEl) {
                 avatarEl.addEventListener('click', (event) => {
@@ -6465,6 +6549,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         cidade: cityText,
                         avatar: perfilFoto,
                         perfilUrl,
+                        whatsappUrl: item?.whatsappUrl,
                         postId: rawItemId,
                         ownerId,
                         isStory: false,
@@ -6482,37 +6567,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                 });
             }
-            // Adiciona botão WhatsApp no card do now ao lado do nome (apenas se não for dono)
-            (async () => {
-                try {
-                    const perfilAnchor = card.querySelector('.now-card-perfil');
-                    if (!perfilAnchor || !ownerId) return;
-                    if (userId && String(ownerId) === String(userId)) return; // não mostra para o dono
-                    const respUser = await fetch(`/api/usuario/${ownerId}`, {
-                        headers: { Authorization: `Bearer ${token}` }
-                    });
-                    const dataUser = await respUser.json();
-                    if (!respUser.ok || dataUser?.success === false) return;
-                    const u = dataUser.usuario || {};
-                    const numeroRaw = String(u.whatsapp || u.telefone || u.celular || u.phone || '').trim();
-                    const numeroDigits = numeroRaw.replace(/\D+/g, '');
-                    if (!numeroDigits || numeroDigits.length < 8) return;
-                    const previewUrl = `${location.origin}/?postId=${encodeURIComponent(rawItemId)}`;
-                    const msg = `Olá! Vi seu vídeo e tenho uma pergunta: ${previewUrl}`;
-                    const waLink = document.createElement('a');
-                    waLink.href = `https://wa.me/${encodeURIComponent(numeroDigits)}?text=${encodeURIComponent(msg)}`;
-                    waLink.target = '_blank';
-                    waLink.rel = 'noopener noreferrer';
-                    waLink.className = 'now-card-whatsapp';
-                    waLink.innerHTML = '<i class="fab fa-whatsapp"></i>';
-                    ['click', 'touchstart', 'touchend', 'pointerdown', 'pointerup'].forEach((type) => {
-                        waLink.addEventListener(type, (ev) => {
-                            ev.stopPropagation();
-                        });
-                    });
-                    perfilAnchor.insertAdjacentElement('afterend', waLink);
-                } catch {}
-            })();
 
             const deleteBtn = card.querySelector('.now-card-delete');
             if (deleteBtn) {
@@ -14978,6 +15032,13 @@ document.addEventListener('DOMContentLoaded', () => {
             if (postsContainer) {
                 loadHeaderInfo();
                 fetchPosts();
+            }
+            if (!postsContainer) {
+                const sidebar = document.querySelector('.anuncios-sidebar');
+                if (sidebar && !sidebar.dataset.adsSidebarStandaloneInit) {
+                    sidebar.dataset.adsSidebarStandaloneInit = '1';
+                    setupAdsSidebarInfinite();
+                }
             }
             if (destaquesScroll) {
                 deferNonCriticalInit(() => fetchDestaques());
