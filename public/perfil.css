@@ -2780,7 +2780,7 @@ html.dark-mode #inputPostagemPerfilTexto:focus {
 
 /* 🆕 NOVO: Estilos para Disponibilidade */
 .disponibilidade-container {
-    display: flex;
+    display: none !important;
     align-items: center;
     justify-content: center;
     gap: 10px;

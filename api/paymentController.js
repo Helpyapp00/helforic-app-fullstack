@@ -143,7 +143,7 @@ async function criarPreferenciaPagamento(req, res) {
             }
             externalReference = String(anuncioId);
             itemDescription = anuncio.titulo || planoInfo.title;
-            if (planoKey === 'premium' && String(anuncio.plano) === 'basico') {
+            if (anuncio.ativo && anuncio.inicioEm && anuncio.fimEm && planoKey === 'premium' && String(anuncio.plano) === 'basico') {
                 const diff = Math.max(Number(PLANOS.premium.price) - Number(PLANOS.basico.price), 0);
                 unitPrice = diff;
             }

@@ -225,6 +225,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const headerEl = document.querySelector('header');
     let searchResultsContainer = null;
     let searchResultsBackdrop = null;
+    let searchPrevScrollY = null;
     
     // --- Modais ---
     const logoutConfirmModal = document.getElementById('logout-confirm-modal');
@@ -638,6 +639,128 @@ document.addEventListener('DOMContentLoaded', () => {
             avatar.classList.toggle('is-viewed', hasStatus && !hasUnviewed);
         });
     }
+
+    (function () {
+        const isCompact = () => window.innerWidth <= 992;
+        function attachPullDownClose(el, isActive, onClose) {
+            if (!el) return;
+            let startY = 0;
+            let lastDy = 0;
+            let tracking = false;
+            const getDragEl = () => el.querySelector('.modal-content') || el;
+            const maxDrag = 260;
+            const closeThreshold = maxDrag / 2;
+            const closeTranslate = 420;
+            el.addEventListener('touchstart', (e) => {
+                if (!isCompact() || !isActive()) return;
+                if (!e.touches || e.touches.length === 0) return;
+                if (typeof el.scrollTop === 'number' && el.scrollTop > 0) return;
+                startY = e.touches[0].clientY;
+                lastDy = 0;
+                tracking = true;
+                const dragEl = getDragEl();
+                dragEl.style.transition = 'none';
+                dragEl.style.willChange = 'transform, opacity';
+                el.style.transition = 'none';
+                el.style.willChange = 'opacity';
+            }, { passive: true });
+            el.addEventListener('touchmove', (e) => {
+                if (!tracking) return;
+                if (!isCompact() || !isActive()) { tracking = false; return; }
+                const y = e.touches && e.touches.length ? e.touches[0].clientY : 0;
+                const dy = y - startY;
+                if (dy <= 0) return;
+                lastDy = dy;
+                const dragEl = getDragEl();
+                const clamped = Math.min(dy, maxDrag);
+                dragEl.style.transform = `translateY(${clamped}px)`;
+                const fade = Math.max(0, Math.min(1, 1 - clamped / (maxDrag + 80)));
+                dragEl.style.opacity = `${fade}`;
+                try { e.preventDefault(); } catch {}
+            }, { passive: false });
+            function resetStyles() {
+                const dragEl = getDragEl();
+                dragEl.style.removeProperty('transition');
+                dragEl.style.removeProperty('transform');
+                dragEl.style.removeProperty('opacity');
+                dragEl.style.removeProperty('will-change');
+                el.style.removeProperty('transition');
+                el.style.removeProperty('opacity');
+                el.style.removeProperty('will-change');
+            }
+            function animateClose() {
+                const dragEl = getDragEl();
+                dragEl.style.transition = 'transform 220ms ease, opacity 220ms ease';
+                dragEl.style.transform = `translateY(${closeTranslate}px)`;
+                dragEl.style.opacity = '0';
+                el.style.transition = 'opacity 220ms ease';
+                el.style.opacity = '0';
+                setTimeout(() => {
+                    try { onClose(); } catch {}
+                    resetStyles();
+                }, 220);
+            }
+            function animateBack() {
+                const dragEl = getDragEl();
+                dragEl.style.transition = 'transform 160ms ease, opacity 160ms ease';
+                dragEl.style.transform = 'translateY(0px)';
+                dragEl.style.opacity = '1';
+                setTimeout(() => {
+                    resetStyles();
+                }, 170);
+            }
+            el.addEventListener('touchend', () => {
+                if (!tracking) return;
+                tracking = false;
+                if (lastDy >= closeThreshold) {
+                    animateClose();
+                } else {
+                    animateBack();
+                }
+            }, { passive: true });
+            el.addEventListener('touchcancel', () => {
+                tracking = false;
+                resetStyles();
+            }, { passive: true });
+        }
+
+        const categoriasAsideForGesture = document.querySelector('.categorias');
+        const closeBtn = document.getElementById('mobile-sidebar-close');
+        attachPullDownClose(
+            categoriasAsideForGesture,
+            () => !!(categoriasAsideForGesture && categoriasAsideForGesture.classList.contains('aberta')),
+            () => {
+                if (closeBtn) {
+                    closeBtn.click();
+                } else {
+                    try { categoriasAsideForGesture.classList.remove('aberta'); } catch {}
+                    try { document.documentElement.classList.remove('mobile-sidebar-open'); } catch {}
+                    try { document.body.classList.remove('mobile-sidebar-open'); } catch {}
+                }
+            }
+        );
+
+        const modalNotif = document.getElementById('modal-notificacoes');
+        attachPullDownClose(
+            modalNotif,
+            () => !!(modalNotif && !modalNotif.classList.contains('hidden')),
+            () => {
+                if (!modalNotif) return;
+                modalNotif.style.cssText = '';
+                modalNotif.style.removeProperty('display');
+                modalNotif.style.removeProperty('visibility');
+                modalNotif.style.removeProperty('opacity');
+                modalNotif.style.removeProperty('position');
+                modalNotif.style.removeProperty('z-index');
+                modalNotif.style.removeProperty('top');
+                modalNotif.style.removeProperty('left');
+                modalNotif.style.removeProperty('width');
+                modalNotif.style.removeProperty('height');
+                modalNotif.classList.add('hidden');
+                document.documentElement.classList.remove('modal-notificacoes-open');
+            }
+        );
+    })();
 
     function updatenowStoryNav() {
         if (!nowStoryPrev || !nowStoryNext) return;
@@ -5456,67 +5579,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const mobileSidebarToggle = document.getElementById('mobile-sidebar-toggle');
     const htmlElement = document.documentElement; // O elemento <html>
 
-    // --- Disponibilidade (no menu lateral do feed) ---
-    const menuDisponibilidade = document.getElementById('menu-disponibilidade');
-    const toggleDisponibilidade = document.getElementById('toggle-disponibilidade');
-
-    async function initDisponibilidadeMenu() {
-        if (!menuDisponibilidade || !toggleDisponibilidade) return;
-        if (!token) {
-            menuDisponibilidade.style.display = 'none';
-            return;
-        }
-
-        // Evita múltiplos listeners se o script re-inicializar por algum motivo
-        if (toggleDisponibilidade.dataset.bound === '1') return;
-        toggleDisponibilidade.dataset.bound = '1';
-
-        try {
-            const resp = await fetch('/api/user/me', {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            const data = await resp.json();
-            const user = data?.user || data; // compat
-
-            // Mostra principalmente para profissionais (mas não quebra se não existir campo)
-            const isProfissional =
-                user?.tipo === 'trabalhador' ||
-                user?.tipo === 'profissional' ||
-                !!user?.atuacao ||
-                userType === 'trabalhador' ||
-                userType === 'profissional';
-
-            if (!isProfissional) {
-                menuDisponibilidade.style.display = 'none';
-                return;
-            }
-
-            menuDisponibilidade.style.display = 'block';
-            toggleDisponibilidade.checked = !!user?.disponivelAgora;
-
-            toggleDisponibilidade.addEventListener('change', async () => {
-                const disponivelAgora = !!toggleDisponibilidade.checked;
-                try {
-                    await fetch('/api/user/disponibilidade', {
-                        method: 'PUT',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${token}`
-                        },
-                        body: JSON.stringify({ disponivelAgora })
-                    });
-                } catch (e) {
-                    console.error('Erro ao atualizar disponibilidade:', e);
-                }
-            });
-        } catch (e) {
-            console.error('Erro ao inicializar disponibilidade:', e);
-            menuDisponibilidade.style.display = 'none';
-        }
-    }
-
-    initDisponibilidadeMenu();
-
     // --- Barra inferior (mobile) ---
     const bottomNavHomeBtn = document.getElementById('bottom-nav-home');
     const bottomNavQuickBtn = document.getElementById('bottom-nav-quick');
@@ -5581,6 +5643,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (backdropEl) {
             backdropEl.classList.remove('visible');
             backdropEl.style.display = 'none';
+        }
+        if (typeof searchPrevScrollY === 'number') {
+            try { window.scrollTo(0, searchPrevScrollY); } catch {}
+            searchPrevScrollY = null;
         }
     }
 
@@ -5798,6 +5864,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!headerEl) return;
             const willOpen = !headerEl.classList.contains('search-open');
             if (willOpen) {
+                searchPrevScrollY = window.scrollY || window.pageYOffset || 0;
                 headerEl.classList.add('search-open');
                 searchInput.focus();
             } else {
@@ -5837,10 +5904,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const headerNowBtn = document.getElementById('header-now');
     if (headerNowBtn) {
         headerNowBtn.addEventListener('click', () => {
-            const isMobile = window.matchMedia('(max-width: 768px)').matches;
+            const isCompact = window.matchMedia('(max-width: 992px)').matches;
             
             // Toggle logic for desktop
-            if (!isMobile) {
+            if (!isCompact) {
                 if (document.body.classList.contains('now-open')) {
                     closenowPanel();
                 } else {
@@ -5851,9 +5918,50 @@ document.addEventListener('DOMContentLoaded', () => {
 
             fecharModaisPrecisoAgoraEPedidoUrgente();
             fecharBuscaUI();
-            opennowPanel();
+
+            const categoriasAside = document.querySelector('.categorias');
+            const closeBtn = document.getElementById('mobile-sidebar-close');
+            const menuWasOpen = !!(categoriasAside && categoriasAside.classList.contains('aberta'));
+
+            if (menuWasOpen) {
+                if (closeBtn) {
+                    closeBtn.click();
+                } else {
+                    try { categoriasAside.classList.remove('aberta'); } catch {}
+                    try { document.documentElement.classList.remove('mobile-sidebar-open'); } catch {}
+                    try { document.body.classList.remove('mobile-sidebar-open'); } catch {}
+                }
+            }
+
+            setTimeout(() => {
+                opennowPanel();
+            }, menuWasOpen ? 300 : 0);
         });
     }
+
+    (function () {
+        function removerDisponibilidadeMenu() {
+            const elMenu = document.getElementById('menu-disponibilidade');
+            if (elMenu && elMenu.parentNode) elMenu.parentNode.removeChild(elMenu);
+            const toggle = document.getElementById('toggle-disponibilidade');
+            if (toggle) {
+                const row = toggle.closest('.filtro-disponibilidade') || toggle.closest('.filtro-disponibilidade-row') || toggle.parentElement;
+                if (row && row.parentNode) row.parentNode.removeChild(row);
+                else toggle.style.display = 'none';
+            }
+            const labels = Array.from(document.querySelectorAll('*')).filter(n => (n.textContent || '').trim().toLowerCase() === 'disponível agora?');
+            labels.forEach(n => {
+                const p = n.parentElement;
+                if (p && p.parentNode) p.parentNode.removeChild(p);
+                else n.style.display = 'none';
+            });
+        }
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', removerDisponibilidadeMenu);
+        } else {
+            removerDisponibilidadeMenu();
+        }
+    })();
 
     // Botão Voltar Desktop (ao lado do Menu)
     const desktopBackBtn = document.getElementById('desktop-back-btn');
@@ -7378,17 +7486,25 @@ document.addEventListener('DOMContentLoaded', () => {
     async function fetchAdsFeed() {
         if (adsLoadedFeed) return;
         try {
-            // Adiciona timeout de 5s para não travar o feed
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 5000);
-
-            const resp = await fetch('/api/anuncios-feed?limit=50', {
-                headers: { 'Authorization': `Bearer ${token}` },
-                signal: controller.signal
-            });
+            const freshToken = localStorage.getItem('jwtToken');
+            let resp;
+            const optsWithAuth = freshToken ? { headers: { 'Authorization': `Bearer ${freshToken}` }, signal: controller.signal } : { signal: controller.signal };
+            try {
+                resp = await fetch('/api/anuncios-feed?limit=50', optsWithAuth);
+            } catch (netErr) {
+                resp = null;
+            }
+            if (!resp || !resp.ok) {
+                try {
+                    resp = await fetch('/api/anuncios-feed?limit=50', { signal: controller.signal });
+                } catch (netErr2) {
+                    resp = null;
+                }
+            }
             clearTimeout(timeoutId);
-
-            if (!resp.ok) throw new Error('Falha ao buscar anúncios.');
+            if (!resp || !resp.ok) throw new Error('Falha ao buscar anúncios.');
             const json = await resp.json();
             const anuncios = Array.isArray(json?.anuncios) ? json.anuncios : [];
             adsPoolFeed = anuncios;
@@ -7438,7 +7554,34 @@ document.addEventListener('DOMContentLoaded', () => {
                 } catch {}
             }
         }
-        const link = destaque?.linkUrl || destaque?.url || destaque?.link;
+        let link = destaque?.linkUrl || destaque?.url || destaque?.link;
+        const messageBase = titulo ? `Olá! Vi seu anúncio "${String(titulo).trim()}" no Helforic.` : 'Olá! Vi seu anúncio no Helforic.';
+        const descText = String(descricao || '').trim();
+        const message = descText ? `${messageBase} ${descText} Quero saber mais.` : `${messageBase} Quero saber mais.`;
+
+        if (!link) {
+            const whatsappRaw = destaque?.whatsapp || destaque?.whatsappNumber || destaque?.whatsApp || destaque?.telefoneWhatsapp;
+            if (whatsappRaw) {
+                const digits = String(whatsappRaw || '').replace(/[^\d]/g, '');
+                let phone = digits;
+                if (phone.startsWith('0')) phone = phone.replace(/^0+/, '');
+                if (!(phone.startsWith('55')) && (phone.length === 10 || phone.length === 11)) {
+                    phone = `55${phone}`;
+                }
+                if (phone.length >= 12) {
+                    link = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
+                }
+            }
+        }
+        if (typeof link === 'string') {
+            const trimmedLink = link.trim();
+            if (trimmedLink && !/^https?:\/\//i.test(trimmedLink)) link = `https://${trimmedLink.replace(/^\/+/, '')}`;
+            else link = trimmedLink;
+
+            if (/^https?:\/\/wa\.me\/\d+/i.test(link) && !/[?&]text=/i.test(link)) {
+                link += (link.includes('?') ? '&' : '?') + `text=${encodeURIComponent(message)}`;
+            }
+        }
         const perfilUrl = destaque?.ownerId ? `/perfil.html?id=${destaque.ownerId}` : null;
         const cidadeEstado = [destaque?.ownerCidade, destaque?.ownerEstado].filter(Boolean).join(' - ');
 
@@ -9733,6 +9876,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 // No mobile, fecha a área de busca do header também
                 const headerEl = document.querySelector('header');
                 headerEl && headerEl.classList.remove('search-open');
+                if (typeof searchPrevScrollY === 'number') {
+                    try { window.scrollTo(0, searchPrevScrollY); } catch {}
+                    searchPrevScrollY = null;
+                }
             });
         } else {
             searchResultsBackdrop = document.getElementById('search-results-backdrop');
@@ -11632,130 +11779,20 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ----------------------------------------------------------------------
-    // 🆕 NOVO: FUNCIONALIDADES "PRECISO AGORA!" - Profissionais Próximos
+    // Modal "Preciso agora!" (sem busca/listagem de profissionais)
     // ----------------------------------------------------------------------
-    // Disponível para todos os usuários (clientes e profissionais podem precisar de outros profissionais)
     const btnPrecisoAgora = document.getElementById('btn-preciso-agora');
     const modalPrecisoAgora = document.getElementById('modal-preciso-agora');
-    const profissionaisProximos = document.getElementById('profissionais-proximos');
-    const btnBuscarProximos = document.getElementById('btn-buscar-proximos');
-    const filtroTipoServico = document.getElementById('filtro-tipo-servico');
 
     if (btnPrecisoAgora) {
-        btnPrecisoAgora.addEventListener('click', async () => {
-            if (!navigator.geolocation) {
-                alert('Seu navegador não suporta geolocalização.');
-                return;
-            }
-
-            // Fecha sidebar em telas médias quando abre o modal
+        btnPrecisoAgora.addEventListener('click', () => {
             if (typeof window.fecharSidebarSeMedia === 'function') {
                 window.fecharSidebarSeMedia();
             }
-            modalPrecisoAgora?.classList.remove('hidden');
-            profissionaisProximos.innerHTML = '<p>Obtendo sua localização...</p>';
-
-            navigator.geolocation.getCurrentPosition(
-                async (position) => {
-                    const { latitude, longitude } = position.coords;
-                    
-                    // Atualiza localização do usuário no servidor
-                    try {
-                        await fetch('/api/user/localizacao', {
-                            method: 'PUT',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'Authorization': `Bearer ${token}`
-                            },
-                            body: JSON.stringify({ latitude, longitude })
-                        });
-                    } catch (error) {
-                        console.error('Erro ao atualizar localização:', error);
-                    }
-
-                    // Busca profissionais próximos
-                    await buscarProfissionaisProximos(latitude, longitude);
-                },
-                (error) => {
-                    profissionaisProximos.innerHTML = `<p class="erro">Erro ao obter localização: ${error.message}</p>`;
-                }
-            );
-        });
-    }
-
-    async function buscarProfissionaisProximos(latitude, longitude, tipoServico = null) {
-        if (!profissionaisProximos) return;
-        
-        profissionaisProximos.innerHTML = '<p>Buscando profissionais...</p>';
-        
-        try {
-            const response = await fetch('/api/preciso-agora', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({ latitude, longitude, tipoServico, raioKm: 10 })
-            });
-
-            const data = await response.json();
-            
-            if (data.success && data.profissionais.length > 0) {
-                profissionaisProximos.innerHTML = data.profissionais.map(prof => {
-                    const temSelo = prof.gamificacao?.temSeloQualidade || false;
-                    const nivelReputacao = prof.gamificacao?.nivelReputacao || 'iniciante';
-                    const nivel = prof.gamificacao?.nivel || 1;
-                    const perfilUrl = `/perfil?id=${prof._id}`;
-                    
-                    return `
-                    <div class="profissional-card ${temSelo ? 'com-selo' : ''}">
-                        <a href="${perfilUrl}" class="profissional-avatar-link">
-                            <img src="${prof.foto || prof.avatarUrl || 'imagens/default-user.png'}" alt="${prof.nome}" class="profissional-avatar">
-                        </a>
-                        <div class="profissional-info">
-                            <h4>
-                                <a href="${perfilUrl}" class="profissional-nome-link">
-                                    ${prof.nome}
-                                </a>
-                                ${temSelo ? '<span class="selo-qualidade" title="Selo de Qualidade Helforic">🛡️</span>' : ''}
-                                ${nivelReputacao === 'mestre' ? '<span class="badge-mestre" title="Mestre Helforic">👑</span>' : ''}
-                            </h4>
-                            <p><i class="fas fa-briefcase"></i> ${prof.atuacao || 'Profissional'}</p>
-                            <p><i class="fas fa-map-marker-alt"></i> ${prof.cidade || ''}${prof.estado ? ', ' + prof.estado : ''}</p>
-                            <p><i class="fas fa-star"></i> ${prof.mediaAvaliacao?.toFixed(1) || '0.0'} (${prof.totalAvaliacoes || 0} avaliações)</p>
-                            <p><i class="fas fa-trophy"></i> Nível ${nivel} - ${nivelReputacao === 'mestre' ? 'Mestre' : nivelReputacao === 'validado' ? 'Validado' : 'Iniciante'}</p>
-                            <p class="distancia-info">
-                                <i class="fas fa-route"></i> ${prof.distancia} km &bull; 
-                                <i class="fas fa-clock"></i> ~${prof.tempoEstimado} min
-                            </p>
-                            ${prof.telefone ? `<a href="https://wa.me/55${prof.telefone.replace(/\D/g, '')}" target="_blank" class="btn-contatar"><i class="fab fa-whatsapp"></i> Contatar</a>` : ''}
-                        </div>
-                    </div>
-                `;
-                }).join('');
-            } else {
-                profissionaisProximos.innerHTML = '<p class="mensagem-vazia">Nenhum profissional disponível próximo a você no momento.</p>';
+            if (modalPrecisoAgora) {
+                modalPrecisoAgora.classList.remove('hidden');
+                try { window.syncModalScrollLock?.(); } catch {}
             }
-        } catch (error) {
-            console.error('Erro ao buscar profissionais:', error);
-            profissionaisProximos.innerHTML = '<p class="erro">Erro ao buscar profissionais. Tente novamente.</p>';
-        }
-    }
-
-    if (btnBuscarProximos && filtroTipoServico) {
-        btnBuscarProximos.addEventListener('click', async () => {
-            if (!navigator.geolocation) return;
-            
-            navigator.geolocation.getCurrentPosition(
-                async (position) => {
-                    const { latitude, longitude } = position.coords;
-                    const tipoServico = filtroTipoServico.value.trim() || null;
-                    await buscarProfissionaisProximos(latitude, longitude, tipoServico);
-                },
-                (error) => {
-                    alert('Erro ao obter localização: ' + error.message);
-                }
-            );
         });
     }
 

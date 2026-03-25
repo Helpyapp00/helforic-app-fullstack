@@ -952,7 +952,7 @@ const anuncioPagoSchema = new mongoose.Schema({
     cidade: { type: String, trim: true },
     estado: { type: String, trim: true },
     plano: { type: String, enum: ['basico', 'premium'], default: 'basico' },
-    ativo: { type: Boolean, default: true },
+    ativo: { type: Boolean, default: false },
     inicioEm: { type: Date },
     fimEm: { type: Date },
     prioridade: { type: Number, default: 0 }
@@ -1081,7 +1081,7 @@ app.post('/api/upload-url', authMiddleware, async (req, res) => {
 
 app.post('/api/anuncios', authMiddleware, async (req, res) => {
     try {
-        const { titulo, descricao, imagemUrl, linkUrl, endereco, numero, cidade, estado, ativo, plano } = req.body;
+        const { titulo, descricao, imagemUrl, linkUrl, endereco, numero, cidade, estado, plano } = req.body;
 
         if (!titulo || String(titulo).trim().length === 0) {
             return res.status(400).json({ success: false, message: 'Título do anúncio é obrigatório.' });
@@ -1093,11 +1093,43 @@ app.post('/api/anuncios', authMiddleware, async (req, res) => {
 
         const planoFinal = (String(plano || 'basico').toLowerCase() === 'premium') ? 'premium' : 'basico';
         const prioridadeFinal = planoFinal === 'premium' ? 10 : 0;
-        const inicioFinal = new Date();
-        const fimFinal = new Date(inicioFinal.getTime() + 30 * 24 * 60 * 60 * 1000);
+        const ownerId = req.user.id;
+        const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+        const pendingFilter = {
+            ownerId,
+            createdAt: { $gte: cutoff },
+            $or: [
+                { ativo: false },
+                { inicioEm: { $exists: false } },
+                { inicioEm: null },
+                { fimEm: { $exists: false } },
+                { fimEm: null }
+            ]
+        };
+
+        const existingPending = await AnuncioPago.findOne(pendingFilter).sort({ createdAt: -1 });
+        if (existingPending) {
+            existingPending.ownerId = ownerId;
+            existingPending.titulo = String(titulo).trim();
+            existingPending.descricao = descricao ? String(descricao).trim() : '';
+            existingPending.imagemUrl = imagemUrl ? String(imagemUrl).trim() : '';
+            existingPending.linkUrl = linkUrl ? String(linkUrl).trim() : '';
+            existingPending.endereco = endereco ? String(endereco).trim() : '';
+            existingPending.numero = numero ? String(numero).trim() : '';
+            existingPending.cidade = cidade ? String(cidade).trim() : '';
+            existingPending.estado = estado ? String(estado).trim() : '';
+            existingPending.plano = planoFinal;
+            existingPending.ativo = false;
+            existingPending.inicioEm = undefined;
+            existingPending.fimEm = undefined;
+            existingPending.prioridade = prioridadeFinal;
+            await existingPending.save();
+            return res.status(200).json({ success: true, anuncio: existingPending, reused: true });
+        }
 
         const anuncio = new AnuncioPago({
-            ownerId: req.user.id,
+            ownerId,
             titulo: String(titulo).trim(),
             descricao: descricao ? String(descricao).trim() : '',
             imagemUrl: imagemUrl ? String(imagemUrl).trim() : '',
@@ -1107,14 +1139,14 @@ app.post('/api/anuncios', authMiddleware, async (req, res) => {
             cidade: cidade ? String(cidade).trim() : '',
             estado: estado ? String(estado).trim() : '',
             plano: planoFinal,
-            ativo: typeof ativo === 'boolean' ? ativo : true,
-            inicioEm: inicioFinal,
-            fimEm: fimFinal,
+            ativo: false,
+            inicioEm: undefined,
+            fimEm: undefined,
             prioridade: prioridadeFinal
         });
 
         await anuncio.save();
-        res.status(201).json({ success: true, anuncio });
+        return res.status(201).json({ success: true, anuncio });
     } catch (error) {
         console.error('Erro ao criar anúncio:', error);
         res.status(500).json({ success: false, message: 'Erro interno do servidor.' });
@@ -1184,6 +1216,23 @@ app.get('/api/anuncios', authMiddleware, async (req, res) => {
             ativo: false,
             createdAt: { $lt: ontem }
         }).catch(() => {});
+
+        const pendingRecent = await AnuncioPago.find({
+            ownerId: req.user.id,
+            createdAt: { $gte: ontem },
+            $or: [
+                { ativo: false },
+                { inicioEm: { $exists: false } },
+                { inicioEm: null },
+                { fimEm: { $exists: false } },
+                { fimEm: null }
+            ]
+        }).select('_id').sort({ createdAt: -1 }).lean();
+
+        if (pendingRecent.length > 1) {
+            const toDelete = pendingRecent.slice(1).map(p => p._id);
+            await AnuncioPago.deleteMany({ _id: { $in: toDelete } }).catch(() => {});
+        }
 
         const anuncios = await AnuncioPago.find({ ownerId: req.user.id })
             .sort({ createdAt: -1 })

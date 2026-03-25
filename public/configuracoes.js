@@ -130,10 +130,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            // Filtra anúncios expirados (inativos > 24h)
+            // Filtra anúncios pendentes expirados (sem pagamento > 24h)
             const anunciosVisiveis = anuncios.filter(a => {
-                const ativo = !!a?.ativo;
-                if (ativo) return true;
+                const hasPeriodoPago = !!a?.inicioEm && !!a?.fimEm;
+                if (hasPeriodoPago) return true;
                 const createdAt = a?.createdAt ? new Date(a.createdAt) : new Date();
                 const now = new Date();
                 const expireTime = new Date(createdAt.getTime() + 24 * 60 * 60 * 1000);
@@ -149,22 +149,35 @@ document.addEventListener('DOMContentLoaded', () => {
                 const titulo = a?.titulo ? String(a.titulo) : 'Anúncio';
                 const descricao = a?.descricao ? String(a.descricao) : '';
                 const plano = a?.plano ? String(a.plano) : 'basico';
-                const ativo = !!a?.ativo;
                 const imagemUrl = a?.imagemUrl ? String(a.imagemUrl) : '';
                 const preco = plano === 'premium' ? 'R$ 39,90' : 'R$ 1,00';
                 const planoBadge = plano === 'premium' ? 'PREMIUM' : 'BÁSICO';
-                const fim = a?.fimEm ? new Date(a.fimEm) : null;
                 const createdAt = a?.createdAt ? new Date(a.createdAt) : new Date();
+                const now = new Date();
+                const inicio = a?.inicioEm ? new Date(a.inicioEm) : null;
+                const fim = a?.fimEm ? new Date(a.fimEm) : null;
+                const pagoUmaVez = !!inicio && !!fim;
+                const ativoAgora = (a?.ativo === true) && pagoUmaVez && (inicio <= now) && (fim >= now);
                 
                 // Lógica de expiração e status
                 let leftPill = '';
                 let btnLabel = '';
                 let btnClass = 'salvar-btn btn-ghost'; // default
-                let targetPlano = plano; // Default to current plan (for first payment)
+                let targetPlano = plano;
 
-                if (ativo) {
-                    // Ativo
-                    const expiraTxt = fim ? `Expira em: ${('0'+fim.getDate()).slice(-2)}/${('0'+(fim.getMonth()+1)).slice(-2)}/${fim.getFullYear()}` : '';
+                if (!pagoUmaVez) {
+                    // Primeiro pagamento (pendente)
+                    const expireTime = new Date(createdAt.getTime() + 24 * 60 * 60 * 1000);
+                    const isRecent = now < expireTime;
+                    if (isRecent) {
+                        leftPill = `<span class="countdown-timer" data-created-at="${createdAt.toISOString()}" style="background: #eab308; color: #000; font-weight: bold; font-size: 11px; padding: 3px 8px; border-radius: 999px;">Calculando...</span>`;
+                    } else {
+                        leftPill = `<span style="background: #ef4444; color: #fff; font-size: 11px; padding: 3px 8px; border-radius: 999px;">Expirado</span>`;
+                    }
+                    btnLabel = 'Pagar';
+                    targetPlano = plano;
+                } else if (ativoAgora) {
+                    const expiraTxt = `Expira em: ${('0'+fim.getDate()).slice(-2)}/${('0'+(fim.getMonth()+1)).slice(-2)}/${fim.getFullYear()}`;
                     leftPill = `<span style="background: rgba(0,0,0,0.6); color: #fff; font-size: 11px; padding: 3px 8px; border-radius: 999px;">${expiraTxt}</span>`;
                     
                     if (plano === 'basico') {
@@ -175,23 +188,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         targetPlano = 'premium';
                     }
                 } else {
-                    // Inativo (Aguardando pagamento ou expirado)
-                    // Verifica se está dentro das 24h
-                    const now = new Date();
-                    const expireTime = new Date(createdAt.getTime() + 24 * 60 * 60 * 1000);
-                    const isRecent = now < expireTime;
-                    
-                    if (isRecent) {
-                        // Mostra countdown
-                        leftPill = `<span class="countdown-timer" data-created-at="${createdAt.toISOString()}" style="background: #eab308; color: #000; font-weight: bold; font-size: 11px; padding: 3px 8px; border-radius: 999px;">Calculando...</span>`;
-                        btnLabel = 'Pagar';
-                        targetPlano = plano; // Pay for what was selected
-                    } else {
-                        // Expirado
-                        leftPill = `<span style="background: #ef4444; color: #fff; font-size: 11px; padding: 3px 8px; border-radius: 999px;">Expirado</span>`;
-                        btnLabel = 'Pagar'; 
-                        targetPlano = plano;
-                    }
+                    // Já pagou uma vez, mas está fora do período (expirado/inativo)
+                    leftPill = `<span style="background: #ef4444; color: #fff; font-size: 11px; padding: 3px 8px; border-radius: 999px;">Expirado</span>`;
+                    btnLabel = 'Renovar';
+                    targetPlano = plano;
                 }
 
                 const payPlano = targetPlano;
@@ -215,7 +215,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 <div style="font-weight: 700; font-size: 16px; line-height: 1.2; text-shadow: 0 1px 2px rgba(0,0,0,0.5);">${safeTitle}</div>
 
                             </div>
-                            <button class="${btnClass}" data-pay-anuncio="${a?._id}" data-pay-plano="${payPlano}" data-current-plano="${plano}" data-ativo="${ativo}" data-title="${safeTitle}" data-imagem="${encodeURIComponent(imagemUrl)}" data-descricao="${safeDesc}" style="position: absolute; right: 14px; bottom: 8px; padding: 5px 12px; font-size: 12px; line-height: 1.1; min-width: auto; width: auto; border-width: 1px;">${btnLabel}</button>
+                            <button class="${btnClass}" data-pay-anuncio="${a?._id}" data-pay-plano="${payPlano}" data-current-plano="${plano}" data-ativo="${ativoAgora}" data-title="${safeTitle}" data-imagem="${encodeURIComponent(imagemUrl)}" data-descricao="${safeDesc}" style="position: absolute; right: 14px; bottom: 8px; padding: 5px 12px; font-size: 12px; line-height: 1.1; min-width: auto; width: auto; border-width: 1px;">${btnLabel}</button>
                         </div>
                     </div>
                 `;
@@ -258,72 +258,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const menuDisponibilidade = document.getElementById('menu-disponibilidade');
-    const toggleDisponibilidade = document.getElementById('toggle-disponibilidade');
-
-    async function initDisponibilidadeMenu() {
-        if (!menuDisponibilidade || !toggleDisponibilidade) return;
-        if (!token) {
-            menuDisponibilidade.style.display = 'none';
-            return;
-        }
-
-        if (toggleDisponibilidade.dataset.bound === '1') return;
-        toggleDisponibilidade.dataset.bound = '1';
-
-        try {
-            const resp = await fetch('/api/user/me', { headers: getAuthHeaders() });
-            const data = await resp.json();
-            const user = data?.usuario || data?.user || data;
-
-            if (user) {
-                loggedUserEmail = user.email || null;
-                loggedUserCpf = user.cpf || null;
-                if (loggedUserEmail) {
-                    localStorage.setItem('userEmail', loggedUserEmail);
-                }
-                if (loggedUserCpf) {
-                    localStorage.setItem('userCpf', String(loggedUserCpf));
-                }
-            }
-
-            const userType = localStorage.getItem('userType');
-            const isProfissional =
-                user?.tipo === 'trabalhador' ||
-                user?.tipo === 'profissional' ||
-                !!user?.atuacao ||
-                userType === 'trabalhador' ||
-                userType === 'profissional';
-
-            if (!isProfissional) {
-                menuDisponibilidade.style.display = 'none';
-                return;
-            }
-
-            menuDisponibilidade.style.display = 'block';
-            toggleDisponibilidade.checked = !!user?.disponivelAgora;
-
-            toggleDisponibilidade.addEventListener('change', async () => {
-                const disponivelAgora = !!toggleDisponibilidade.checked;
-                try {
-                    await fetch('/api/user/disponibilidade', {
-                        method: 'PUT',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            ...getAuthHeaders()
-                        },
-                        body: JSON.stringify({ disponivelAgora })
-                    });
-                } catch (e) {
-                    console.error('Erro ao atualizar disponibilidade:', e);
-                }
-            });
-        } catch (e) {
-            console.error('Erro ao inicializar disponibilidade:', e);
-            menuDisponibilidade.style.display = 'none';
-        }
+    if (menuDisponibilidade) {
+        menuDisponibilidade.style.display = 'none';
     }
-
-    initDisponibilidadeMenu();
 
     const formCriarAnuncio = document.getElementById('form-criar-anuncio');
     const btnAbrirCriarAnuncio = document.getElementById('btn-abrir-criar-anuncio');
@@ -337,6 +274,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const adImagePicker = document.getElementById('anuncio-imagem-picker');
     const enderecoOutroBox = document.getElementById('anuncio-endereco-outro');
     const enderecoOpcaoInputs = document.querySelectorAll('input[name="anuncio-endereco-opcao"]');
+    const linkTipoInputs = document.querySelectorAll('input[name="anuncio-link-tipo"]');
+    const linkSiteGroup = document.getElementById('anuncio-link-site-group');
+    const linkWhatsappGroup = document.getElementById('anuncio-link-whatsapp-group');
+    const linkHintSite = document.getElementById('anuncio-link-hint-site');
+    const linkHintWhatsapp = document.getElementById('anuncio-link-hint-whatsapp');
+    const inputAnuncioWhatsapp = document.getElementById('anuncio-whatsapp');
     let adPreviewObjectUrl = null;
 
     function clearAdPreview() {
@@ -366,6 +309,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function abrirModalCriarAnuncio() {
         if (!modalCriarAnuncio) return;
         modalCriarAnuncio.classList.remove('hidden');
+        syncLinkTipo();
         if (window.syncModalScrollLock) window.syncModalScrollLock();
     }
 
@@ -404,6 +348,58 @@ document.addEventListener('DOMContentLoaded', () => {
             input.addEventListener('change', syncEnderecoOpcao);
         });
         syncEnderecoOpcao();
+    }
+
+    function limparTelefone(telefone) {
+        return String(telefone || '').replace(/[^\d]/g, '');
+    }
+
+    function buildWhatsAppUrlFromNumber(inputValue, titulo, descricao) {
+        const digits = limparTelefone(inputValue);
+        if (!digits) return '';
+        let phone = digits;
+        if (phone.startsWith('0')) phone = phone.replace(/^0+/, '');
+        if (!(phone.startsWith('55')) && (phone.length === 10 || phone.length === 11)) {
+            phone = `55${phone}`;
+        }
+        if (phone.length < 12) return '';
+        const titleText = String(titulo || '').trim();
+        const descText = String(descricao || '').trim();
+        const messageBase = titleText ? `Olá! Vi seu anúncio "${titleText}" no Helforic.` : 'Olá! Vi seu anúncio no Helforic.';
+        const message = descText ? `${messageBase} ${descText} Quero saber mais.` : `${messageBase} Quero saber mais.`;
+        return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
+    }
+
+    function normalizeUrl(url) {
+        const value = String(url || '').trim();
+        if (!value) return '';
+        if (/^https?:\/\//i.test(value)) return value;
+        return `https://${value}`;
+    }
+
+    function getTelefonePreferido() {
+        const fromCfg = document.getElementById('cfg-telefone')?.value || '';
+        const fromStorage = localStorage.getItem('userTelefone') || localStorage.getItem('userPhone') || '';
+        return String(fromCfg || fromStorage || '').trim();
+    }
+
+    function syncLinkTipo() {
+        const selected = document.querySelector('input[name="anuncio-link-tipo"]:checked')?.value || 'site';
+        if (linkSiteGroup) linkSiteGroup.classList.toggle('hidden', selected !== 'site');
+        if (linkWhatsappGroup) linkWhatsappGroup.classList.toggle('hidden', selected !== 'whatsapp');
+        if (linkHintSite) linkHintSite.classList.toggle('hidden', selected !== 'site');
+        if (linkHintWhatsapp) linkHintWhatsapp.classList.toggle('hidden', selected !== 'whatsapp');
+        if (selected === 'whatsapp' && inputAnuncioWhatsapp && !String(inputAnuncioWhatsapp.value || '').trim()) {
+            const tel = getTelefonePreferido();
+            if (tel) inputAnuncioWhatsapp.value = tel;
+        }
+    }
+
+    if (linkTipoInputs && linkTipoInputs.length) {
+        linkTipoInputs.forEach((input) => {
+            input.addEventListener('change', syncLinkTipo);
+        });
+        syncLinkTipo();
     }
 
     if (adPickBtn) {
@@ -642,7 +638,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const titulo = document.getElementById('anuncio-titulo')?.value;
             const descricao = document.getElementById('anuncio-descricao')?.value;
-            const linkUrl = document.getElementById('anuncio-link')?.value;
+            const linkTipo = document.querySelector('input[name="anuncio-link-tipo"]:checked')?.value || 'site';
+            const linkSiteValue = document.getElementById('anuncio-link')?.value;
+            const whatsappValue = document.getElementById('anuncio-whatsapp')?.value;
+            const linkUrl = linkTipo === 'whatsapp'
+                ? buildWhatsAppUrlFromNumber(whatsappValue, titulo, descricao)
+                : normalizeUrl(linkSiteValue);
             const enderecoOpcao = document.querySelector('input[name="anuncio-endereco-opcao"]:checked')?.value || 'perfil';
             const endereco = document.getElementById('anuncio-endereco')?.value;
             const numero = document.getElementById('anuncio-numero')?.value;
@@ -653,6 +654,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const file = fileInput && fileInput.files ? fileInput.files[0] : null;
 
             try {
+                if (!linkUrl) {
+                    if (msgAnuncio) msgAnuncio.textContent = linkTipo === 'whatsapp'
+                        ? 'Informe um WhatsApp válido ou selecione Site e informe a URL.'
+                        : 'Informe uma URL válida ou selecione WhatsApp e informe o número.';
+                    return;
+                }
                 if (!file) {
                     if (msgAnuncio) msgAnuncio.textContent = 'Selecione uma imagem para o anúncio.';
                     return;

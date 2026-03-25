@@ -1254,7 +1254,43 @@ html.dark-mode .header-now .now-float-icon {
 
 @media (max-width: 992px) {
   #header-now {
-    display: none !important;
+    display: flex !important;
+  }
+}
+
+#menu-disponibilidade {
+  display: none !important;
+}
+
+@media (max-width: 1200px) {
+  .categorias .header-now {
+    display: flex !important;
+  }
+}
+
+@media (max-width: 992px) {
+  .categorias.aberta .filtro-acoes-rapidas {
+    display: flex;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    gap: 10px;
+    align-items: center;
+  }
+  .categorias.aberta .filtro-acoes-rapidas h4 {
+    flex: 0 0 100%;
+    width: 100%;
+    margin-bottom: 0;
+  }
+  .categorias.aberta .filtro-acoes-rapidas .btn-preciso-agora-lateral,
+  .categorias.aberta .filtro-acoes-rapidas .btn-acao-lateral,
+  .categorias.aberta .filtro-acoes-rapidas #header-now {
+    flex: 0 0 auto;
+    width: 80% !important;
+    margin: 0 auto !important;
+    height: 44px;
+    padding: 0 14px;
+    font-size: 0.95em;
+    white-space: nowrap;
   }
 }
 .user-info { display: flex; align-items: center; gap: 15px; }
@@ -1268,8 +1304,54 @@ html.dark-mode .header-now .now-float-icon {
     image-rendering: auto;
 }
 .user-info span { font-weight: bold; color: var(--text-header); } 
-#logout-button { background-color: var(--btn-primary-bg); color: white; border: none; padding: 10px 16px; border-radius: 7px; cursor: pointer; font-size: 15px; transition: background-color 0.2s; }
-#logout-button:hover { background-color: var(--btn-primary-hover); } 
+#logout-button,
+#logout-button-mobile {
+    background: transparent !important;
+    border: none !important;
+    padding: 0 !important;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    line-height: 1;
+}
+#logout-button:hover,
+#logout-button:active,
+#logout-button:focus,
+#logout-button-mobile:hover,
+#logout-button-mobile:active,
+#logout-button-mobile:focus {
+    background: transparent !important;
+    box-shadow: none !important;
+}
+#logout-button:focus,
+#logout-button-mobile:focus {
+    outline: none !important;
+}
+#logout-button,
+#logout-button-mobile {
+    -webkit-tap-highlight-color: transparent;
+}
+#logout-button .logout-icon,
+#logout-button-mobile .logout-icon {
+    width: 28px;
+    height: 28px;
+    display: block;
+    object-fit: contain;
+    border-radius: 999px;
+}
+#logout-button .logout-icon-escuro,
+#logout-button-mobile .logout-icon-escuro {
+    display: none;
+}
+html.dark-mode #logout-button .logout-icon-claro,
+html.dark-mode #logout-button-mobile .logout-icon-claro {
+    display: none;
+}
+html.dark-mode #logout-button .logout-icon-escuro,
+html.dark-mode #logout-button-mobile .logout-icon-escuro {
+    display: block;
+}
 
 /* Mobile: esconde o botão "Sair" do cabeçalho em todas as páginas */
 @media (max-width: 992px) {
@@ -4023,8 +4105,16 @@ textarea#post-content-input::placeholder { color: var(--text-placeholder); }
     overflow: hidden;
     padding: 0;
     border: 1px solid rgba(255,255,255,0.08);
-    min-height: 240px;
-    height: 260px;
+    border-radius: 16px;
+    aspect-ratio: 16 / 9;
+    min-height: 0;
+    height: auto;
+}
+@media (min-width: 993px) {
+    .anuncios-sidebar .anuncio-nativo-feed {
+        aspect-ratio: 16 / 9;
+        border-radius: 24px;
+    }
 }
 .anuncio-nativo-feed .anuncio-nativo-img {
     position: absolute;
@@ -7402,6 +7492,7 @@ html.dark-mode #aviso-localizacao-incompleta {
 
 /* 🆕 NOVO: Estilos para elementos na lateral */
 .filtro-disponibilidade {
+    display: none !important;
     margin-top: 12px;
     padding: 10px 0;
     width: 100%;
@@ -7409,7 +7500,7 @@ html.dark-mode #aviso-localizacao-incompleta {
 }
 
 .filtro-disponibilidade-row {
-    display: flex;
+    display: none !important;
     align-items: center;
     justify-content: flex-start;
     gap: 8px;
@@ -7428,6 +7519,10 @@ html.dark-mode #aviso-localizacao-incompleta {
 /* Toggle verde quando ativo (apenas no bloco de disponibilidade do menu) */
 .filtro-disponibilidade-row .switch input:checked + .slider {
     background-color: #28a745;
+}
+
+#profissionais-proximos {
+    display: none !important;
 }
 
 .filtro-acoes-rapidas,
@@ -13825,8 +13920,8 @@ body.now-open header.search-open .header-actions {
         display: block !important;
         position: fixed !important;
         top: 125px !important;
-        width: 280px !important;
-        min-width: 280px !important;
+        width: clamp(320px, 22vw, 380px) !important;
+        min-width: 320px !important;
         height: calc(100vh - 125px) !important;
         max-height: calc(100vh - 125px) !important;
         overflow-y: auto !important;
@@ -13835,7 +13930,7 @@ body.now-open header.search-open .header-actions {
         -ms-overflow-style: none !important;
         margin: 0 !important;
         left: auto !important;
-        right: max(0px, calc(50vw - 755px)) !important;
+        right: max(0px, calc(50vw - 755px) - 70px) !important;
         flex-shrink: 0 !important;
         z-index: 900 !important;
     }

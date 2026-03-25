@@ -10,8 +10,8 @@
     <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
     <link rel="preload" href="/imagens/default-user.png" as="image">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="/style.css">
-    <link rel="stylesheet" href="/perfil.css">
+    <link rel="stylesheet" href="/style.css?v=20260324-18">
+    <link rel="stylesheet" href="/perfil.css?v=20260324-04">
 </head>
 <body>
     
@@ -41,7 +41,10 @@
         <div class="user-info">
             <img id="user-avatar-header" src="/imagens/default-user.png" alt="Avatar do Usuário" class="user-avatar-header" loading="lazy" decoding="async" onerror="this.onerror=null; this.src='/imagens/default-user.png';">
             <span id="user-name-header"></span>
-            <button id="logout-button">Sair</button>
+            <button id="logout-button" type="button" aria-label="Sair" title="Sair">
+                <img class="logout-icon logout-icon-claro" src="/imagens/sair.tema.claro.png" alt="Sair">
+                <img class="logout-icon logout-icon-escuro" src="/imagens/sair.tema.escuro.png" alt="Sair">
+            </button>
         </div>
         <div class="header-actions">
             <!-- Botão de busca (mobile) -->
@@ -66,20 +69,23 @@
             </button>
             <h2>Menu</h2>
 
-            <div id="menu-disponibilidade" class="filtro-disponibilidade" style="display: none;">
-                <div class="filtro-disponibilidade-row">
-                    <span class="filtro-disponibilidade-label">Disponível agora?</span>
-                    <label class="switch">
-                        <input type="checkbox" id="toggle-disponibilidade">
-                        <span class="slider round"></span>
-                    </label>
-                </div>
-            </div>
-
             <div class="filtro-acoes-rapidas">
                 <h4>Ações Rápidas</h4>
                 <button id="btn-preciso-agora" class="btn-preciso-agora-lateral">
                     <i class="fas fa-bolt"></i> Preciso agora!
+                </button>
+                <button id="header-now" class="header-now" aria-label="Abrir Now">
+                    <span class="now-bg-effect now-bg-1"></span>
+                    <span class="now-bg-effect now-bg-2"></span>
+                    <span class="now-bg-effect now-bg-3"></span>
+                    <div class="now-floating-icons">
+                        <i class="fas fa-video now-float-icon" style="--d: 0s; --x: 5%; --y: 40%"></i>
+                        <i class="fas fa-clapperboard now-float-icon" style="--d: 3s; --x: 85%; --y: 40%"></i>
+                    </div>
+                    <div class="now-content">
+                        <i class="fas fa-play-circle"></i>
+                        <span>Now</span>
+                    </div>
                 </button>
                 <button id="btn-ver-pedidos-urgentes" class="btn-acao-lateral">
                     <i class="fas fa-bolt"></i> Procurar Pedidos
@@ -595,9 +601,9 @@
         </button>
     </nav>
 
-    <script src="/header-notificacoes.js"></script>
-    <script src="/script.js"></script>
-    <script src="/novas-funcionalidades.js"></script>
-    <script src="/perfil.js"></script>
+    <script src="/header-notificacoes.js?v=20260324-11"></script>
+    <script src="/script.js?v=20260324-18"></script>
+    <script src="/novas-funcionalidades.js?v=20260324-11"></script>
+    <script src="/perfil.js?v=20260324-11"></script>
 </body>
 </html>

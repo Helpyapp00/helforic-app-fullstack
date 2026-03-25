@@ -1715,40 +1715,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (mediaEstrelas) mediaEstrelas.innerHTML = '<span class="no-rating">Nenhuma avaliação</span>';
                 if (totalAvaliacoes) totalAvaliacoes.textContent = '';
             }
-            // 🆕 NOVO: Botão de disponibilidade
             const disponibilidadeContainer = document.getElementById('disponibilidade-container');
-            const toggleDisponibilidade = document.getElementById('toggle-disponibilidade');
-            const disponibilidadeTexto = document.getElementById('disponibilidade-texto');
-            
-            if (isOwnProfile && disponibilidadeContainer && toggleDisponibilidade) {
-                disponibilidadeContainer.style.display = 'flex';
-                toggleDisponibilidade.checked = user.disponivelAgora || false;
-                
-                if (disponibilidadeTexto) {
-                    disponibilidadeTexto.textContent = user.disponivelAgora ? 'Disponível agora' : 'Indisponível';
-                }
-                
-                toggleDisponibilidade.addEventListener('change', async () => {
-                    const disponivel = toggleDisponibilidade.checked;
-                    try {
-                        const response = await fetch('/api/user/disponibilidade', {
-                            method: 'PUT',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'Authorization': `Bearer ${token}`
-                            },
-                            body: JSON.stringify({ disponivelAgora: disponivel })
-                        });
-                        
-                        data = await response.json();
-                        if (data.success && disponibilidadeTexto) {
-                            disponibilidadeTexto.textContent = disponivel ? 'Disponível agora' : 'Indisponível';
-                        }
-                    } catch (error) {
-                        console.error('Erro ao atualizar disponibilidade:', error);
-                        toggleDisponibilidade.checked = !disponivel; // Reverte
-                    }
-                });
+            if (disponibilidadeContainer) {
+                disponibilidadeContainer.style.display = 'none';
             }
             
             if (isOwnProfile && addServicoBtn) {
@@ -8330,4 +8299,3 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 });
-

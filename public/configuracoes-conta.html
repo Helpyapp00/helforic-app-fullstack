@@ -10,8 +10,8 @@
     <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
     <link rel="preload" href="/imagens/default-user.png" as="image">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="/style.css">
-    <link rel="stylesheet" href="/perfil.css">
+    <link rel="stylesheet" href="/style.css?v=20260324-18">
+    <link rel="stylesheet" href="/perfil.css?v=20260324-04">
 </head>
 <body class="page-configuracoes">
     <!-- 🧹 Silencia console.* em produção (ative com localStorage.DEBUG=1) -->
@@ -45,7 +45,10 @@
         <div class="user-info">
             <img id="user-avatar-header" src="imagens/default-user.png" alt="Avatar" class="user-avatar-header" loading="lazy" decoding="async">
             <span id="user-name-header">Carregando...</span>
-            <button id="logout-button">Sair</button>
+            <button id="logout-button" type="button" aria-label="Sair" title="Sair">
+                <img class="logout-icon logout-icon-claro" src="/imagens/sair.tema.claro.png" alt="Sair">
+                <img class="logout-icon logout-icon-escuro" src="/imagens/sair.tema.escuro.png" alt="Sair">
+            </button>
         </div>
     </header>
 
@@ -55,16 +58,6 @@
                 &times;
             </button>
             <h2>Menu</h2>
-
-            <div id="menu-disponibilidade" class="filtro-disponibilidade" style="display: none;">
-                <div class="filtro-disponibilidade-row">
-                    <span class="filtro-disponibilidade-label">Disponível agora?</span>
-                    <label class="switch">
-                        <input type="checkbox" id="toggle-disponibilidade">
-                        <span class="slider round"></span>
-                    </label>
-                </div>
-            </div>
 
             <div class="filtro-acoes-rapidas">
                 <h4>Ações Rápidas</h4>
@@ -132,7 +125,10 @@
                     <img id="config-user-avatar" class="config-mobile-avatar" src="imagens/default-user.png" alt="Avatar do usuário" loading="lazy" decoding="async">
                     <span id="config-user-name" class="config-mobile-name">Usuário</span>
                     <div class="config-mobile-logout-wrap">
-                        <button id="logout-button-mobile" class="config-mobile-logout" type="button">Sair</button>
+                        <button id="logout-button-mobile" class="config-mobile-logout" type="button" aria-label="Sair" title="Sair">
+                            <img class="logout-icon logout-icon-claro" src="/imagens/sair.tema.claro.png" alt="Sair">
+                            <img class="logout-icon logout-icon-escuro" src="/imagens/sair.tema.escuro.png" alt="Sair">
+                        </button>
                         <div id="logout-inline-confirm" class="config-mobile-logout-confirm" aria-live="polite">
                             <span class="logout-confirm-text">Tem certeza?</span>
                             <button id="logout-inline-yes" type="button" class="logout-confirm-btn">Sim</button>
@@ -435,8 +431,29 @@
                     </div>
 
                     <div class="form-group">
-                        <label for="anuncio-link">URL do link</label>
+                        <label>Link do anúncio</label>
+                        <div class="address-choice" role="radiogroup" aria-label="Tipo de link do anúncio">
+                            <label class="address-choice-card">
+                                <input type="radio" name="anuncio-link-tipo" value="site" checked>
+                                <span>Site</span>
+                            </label>
+                            <label class="address-choice-card">
+                                <input type="radio" name="anuncio-link-tipo" value="whatsapp">
+                                <span>WhatsApp</span>
+                            </label>
+                        </div>
+                        <small id="anuncio-link-hint-site" class="address-choice-hint">Clicando no anúncio abre direto no site.</small>
+                        <small id="anuncio-link-hint-whatsapp" class="address-choice-hint hidden">Clicando no anúncio abre na cvs do WhatsApp.</small>
+                    </div>
+
+                    <div id="anuncio-link-site-group" class="form-group">
+                        <label for="anuncio-link">Site:</label>
                         <input type="text" id="anuncio-link" class="input-edicao" placeholder="https://...">
+                    </div>
+
+                    <div id="anuncio-link-whatsapp-group" class="form-group hidden">
+                        <label for="anuncio-whatsapp">WhatsApp</label>
+                        <input type="tel" id="anuncio-whatsapp" class="input-edicao" placeholder="(XX) XXXXX-XXXX">
                     </div>
 
                     <div class="form-group">
@@ -675,6 +692,6 @@
     
     <script src="https://sdk.mercadopago.com/js/v2"></script>
     <script src="/header-notificacoes.js"></script>
-    <script src="/configuracoes.js"></script>
+    <script src="/configuracoes.js?v=20260324-03"></script>
 </body>
 </html>
