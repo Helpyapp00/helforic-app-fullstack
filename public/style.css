@@ -1310,6 +1310,7 @@ html.dark-mode .header-now .now-float-icon {
     border: none !important;
     padding: 0 !important;
     display: inline-flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
     cursor: pointer;
@@ -1351,6 +1352,19 @@ html.dark-mode #logout-button-mobile .logout-icon-claro {
 html.dark-mode #logout-button .logout-icon-escuro,
 html.dark-mode #logout-button-mobile .logout-icon-escuro {
     display: block;
+}
+
+#logout-button .logout-caption,
+#logout-button-mobile .logout-caption {
+    margin-top: 2px;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1;
+    color: #000000;
+}
+html.dark-mode #logout-button .logout-caption,
+html.dark-mode #logout-button-mobile .logout-caption {
+    color: #ffffff;
 }
 
 /* Mobile: esconde o botão "Sair" do cabeçalho em todas as páginas */
@@ -3429,6 +3443,48 @@ textarea#post-content-input::placeholder { color: var(--text-placeholder); }
 .btn-like.liked { color: var(--text-link); } 
 .btn-like.liked i { color: var(--text-link); } 
 
+.action-btn.btn-like {
+    transition: background-color 0.2s, gap 520ms cubic-bezier(0.2, 0.9, 0.2, 1), padding 520ms cubic-bezier(0.2, 0.9, 0.2, 1);
+}
+.action-btn.btn-like .like-count,
+.action-btn.btn-like .like-label {
+    display: inline-block;
+    overflow: hidden;
+    white-space: nowrap;
+    opacity: 1;
+    transform: translateX(0);
+    max-width: 120px;
+    transition: max-width 520ms cubic-bezier(0.2, 0.9, 0.2, 1), opacity 260ms ease, transform 520ms cubic-bezier(0.2, 0.9, 0.2, 1);
+}
+.action-btn.btn-like .like-count {
+    max-width: 56px;
+}
+.action-btn.btn-like.liked {
+    gap: 0;
+    padding: 8px 10px;
+}
+.action-btn.btn-like.liked .like-count,
+.action-btn.btn-like.liked .like-label {
+    max-width: 0;
+    opacity: 0;
+    transform: translateX(-10px);
+}
+@keyframes likeThumbSpin {
+    from { transform: rotate(0deg) scale(1); }
+    to { transform: rotate(360deg) scale(1); }
+}
+.action-btn.btn-like.like-spin i {
+    animation: likeThumbSpin 450ms ease-out;
+}
+
+@keyframes likeThumbUnspin {
+    from { transform: rotate(0deg) scale(1); }
+    to { transform: rotate(-360deg) scale(1); }
+}
+.action-btn.btn-like.like-unspin i {
+    animation: likeThumbUnspin 450ms ease-out;
+}
+
 .btn-report {
     margin-left: auto;
 }
@@ -3775,6 +3831,19 @@ textarea#post-content-input::placeholder { color: var(--text-placeholder); }
     min-width: 0;
     margin-bottom: 0;
     width: 100%;
+}
+
+.barra-destaques .destaques-city-wrapper {
+    display: none;
+    margin: 0 0 6px 0;
+    padding: 0 12px;
+}
+
+.barra-destaques .destaques-city-label {
+    display: inline-block;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-secondary);
 }
 
 .barra-destaques {

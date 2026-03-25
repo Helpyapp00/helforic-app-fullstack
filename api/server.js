@@ -2795,130 +2795,42 @@ app.get('/api/servicos/:userId', authMiddleware, async (req, res) => {
     }
 });
 
-// 🆕 Destaques de perfis profissionais (mini vitrine de profissionais bem avaliados)
+// 🆕 Destaques de perfis profissionais (mini vitrine por cidade)
 app.get('/api/destaques-servicos', authMiddleware, async (req, res) => {
     try {
         const user = await User.findById(req.user.id).select('cidade estado');
 
         const limitRaw = Number(req.query.limit);
         const displayLimit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 50) : 30;
-        const dbLimit = 100; // Busca mais para permitir rotação
+        const cidadeUsuario = String(user?.cidade || '').trim();
+        if (!cidadeUsuario) {
+            return res.json({ success: true, destaques: [] });
+        }
 
+        const dbLimit = Math.min(displayLimit * 4, 200);
         const filter = {
-            tipo: 'trabalhador',
-            mediaAvaliacao: { $gte: 4.5 },
-            totalAvaliacoes: { $gte: 30 }
+            tipo: { $in: ['trabalhador', 'empresa'] },
+            cidade: cidadeUsuario
         };
 
-        console.log('🔍 Buscando destaques com filtro:', JSON.stringify(filter, null, 2));
+        const baseSelect = 'nome cidade estado foto avatarUrl tipo atuacao createdAt';
+        const baseSort = { createdAt: -1 };
 
-        let selected = [];
-        const selectedIds = new Set();
+        let profissionais = await User.find(filter)
+            .select(baseSelect)
+            .sort(baseSort)
+            .limit(dbLimit)
+            .collation({ locale: 'pt', strength: 1 })
+            .lean();
 
-        const pushUnique = (items) => {
-            (items || []).forEach((it) => {
-                const id = String(it._id);
-                if (selectedIds.has(id)) return;
-                selectedIds.add(id);
-                selected.push(it);
-            });
-        };
-
-        const baseSelect = 'nome cidade estado foto avatarUrl mediaAvaliacao totalAvaliacoes tipo atuacao createdAt avaliacoes';
-        const baseSort = { mediaAvaliacao: -1, totalAvaliacoes: -1, createdAt: -1 };
-
-        if (user?.cidade && user?.estado) {
-            const cidadeRegex = new RegExp(`^${user.cidade}$`, 'i');
-            const estadoRegex = new RegExp(`^${user.estado}$`, 'i');
-
-            console.log(`📍 Buscando profissionais em ${user.cidade}-${user.estado}`);
-            const locais = await User.find({ ...filter, cidade: cidadeRegex, estado: estadoRegex })
-                .select(baseSelect)
-                .sort(baseSort)
-                .limit(dbLimit);
-            pushUnique(locais);
-
-            if (selected.length < displayLimit) {
-                console.log(`📍 Buscando profissionais no estado ${user.estado}`);
-                const estaduais = await User.find({ ...filter, estado: estadoRegex })
-                    .select(baseSelect)
-                    .sort(baseSort)
-                    .limit(dbLimit);
-                pushUnique(estaduais);
-            }
-        } else if (user?.estado) {
-            const estadoRegex = new RegExp(`^${user.estado}$`, 'i');
-            console.log(`📍 Buscando profissionais no estado ${user.estado}`);
-            const estaduais = await User.find({ ...filter, estado: estadoRegex })
-                .select(baseSelect)
-                .sort(baseSort)
-                .limit(dbLimit);
-            pushUnique(estaduais);
-        } else if (user?.cidade) {
-            const cidadeRegex = new RegExp(`^${user.cidade}$`, 'i');
-            console.log(`📍 Buscando profissionais em ${user.cidade}`);
-            const locais = await User.find({ ...filter, cidade: cidadeRegex })
-                .select(baseSelect)
-                .sort(baseSort)
-                .limit(dbLimit);
-            pushUnique(locais);
+        for (let i = profissionais.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [profissionais[i], profissionais[j]] = [profissionais[j], profissionais[i]];
         }
 
-        if (selected.length < displayLimit) {
-            console.log('🌎 Buscando profissionais gerais (fallback)');
-            const gerais = await User.find({ ...filter })
-                .select(baseSelect)
-                .sort(baseSort)
-                .limit(dbLimit);
-            pushUnique(gerais);
-        }
+        const destaques = profissionais.slice(0, displayLimit);
 
-        // Lógica de rotação e ordenação:
-        // 1. Agrupar por nota (ex: "5.0", "4.9")
-        // 2. Embaralhar dentro do grupo
-        // 3. Concatenar na ordem decrescente
-        const groups = {};
-        selected.forEach(p => {
-            const rating = (p.mediaAvaliacao || 0).toFixed(1);
-            if (!groups[rating]) groups[rating] = [];
-            groups[rating].push(p);
-        });
-
-        const sortedKeys = Object.keys(groups).sort((a, b) => b - a); // 5.0 primeiro
-        let shuffledList = [];
-
-        sortedKeys.forEach(key => {
-            const group = groups[key];
-            // Shuffle (Fisher-Yates)
-            for (let i = group.length - 1; i > 0; i--) {
-                const j = Math.floor(Math.random() * (i + 1));
-                [group[i], group[j]] = [group[j], group[i]];
-            }
-            shuffledList = shuffledList.concat(group);
-        });
-
-        let destaques = shuffledList.slice(0, displayLimit);
-
-        destaques.forEach(prof => {
-            console.log(`  - ${prof.nome}: ${prof.mediaAvaliacao} estrelas, ${prof.totalAvaliacoes} avaliações, ${prof.cidade}/${prof.estado}`);
-        });
-
-        const resposta = destaques.map(profissional => {
-            const avaliacoes = profissional?.avaliacoes || [];
-            const totalAvaliacoesReal = Array.isArray(avaliacoes) ? avaliacoes.length : (profissional.totalAvaliacoes || 0);
-            const mediaAvaliacaoReal = profissional.mediaAvaliacao || 0;
-
-            if (Array.isArray(avaliacoes) && avaliacoes.length > 0) {
-                const totalEstrelas = avaliacoes.reduce((acc, av) => acc + (av.estrelas || 0), 0);
-                const mediaCalculada = totalEstrelas / avaliacoes.length;
-                if (Math.abs(mediaCalculada - mediaAvaliacaoReal) > 0.01 || totalAvaliacoesReal !== profissional.totalAvaliacoes) {
-                    User.updateOne(
-                        { _id: profissional._id },
-                        { $set: { mediaAvaliacao: mediaCalculada, totalAvaliacoes: avaliacoes.length } }
-                    ).catch(err => console.error('Erro ao atualizar avaliações:', err));
-                }
-            }
-
+        const resposta = destaques.map((profissional) => {
             const foto = profissional.foto || profissional.avatarUrl || 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png';
             return {
                 id: profissional._id,
@@ -2929,13 +2841,9 @@ app.get('/api/destaques-servicos', authMiddleware, async (req, res) => {
                     estado: profissional.estado,
                     foto: foto,
                     avatarUrl: foto,
-                    mediaAvaliacao: mediaAvaliacaoReal,
-                    totalAvaliacoes: totalAvaliacoesReal,
                     tipo: profissional.tipo,
                     atuacao: profissional.atuacao || 'Profissional'
                 },
-                mediaAvaliacao: mediaAvaliacaoReal,
-                totalValidacoes: totalAvaliacoesReal,
                 createdAt: profissional.createdAt
             };
         });

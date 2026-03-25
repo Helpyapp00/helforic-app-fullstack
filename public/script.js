@@ -5567,6 +5567,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Mantém o estado do filtro (para reaplicar após recarregar posts por cidade, etc.)
     let currentTipoFeed = 'todos';
     const destaquesScroll = document.getElementById('destaques-scroll');
+    const destaquesCityLabel = document.getElementById('destaques-city-label');
     const modalDestaqueServico = document.getElementById('modal-destaque-servico');
     const destaqueModalImagens = document.getElementById('destaque-modal-imagens');
     const destaqueModalInfo = document.getElementById('destaque-modal-info');
@@ -6324,8 +6325,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderDestaquesMini(lista) {
         if (!destaquesScroll) return;
+        if (destaquesCityLabel) {
+            const userCity = (localStorage.getItem('userCity') || '').trim();
+            destaquesCityLabel.textContent = userCity;
+            const wrapper = destaquesCityLabel.closest('.destaques-city-wrapper');
+            if (wrapper) wrapper.style.display = userCity ? '' : 'none';
+        }
         if (!lista || lista.length === 0) {
-            destaquesScroll.innerHTML = '<p class="mensagem-vazia" style="padding:8px 10px;margin:0;">Ainda sem destaques. Profissionais com 4.5+ estrelas e 50+ avaliações aparecerão aqui!</p>';
+            const userCity = (localStorage.getItem('userCity') || '').trim();
+            const msg = userCity ? `Ainda sem destaques em ${userCity}.` : 'Ainda sem destaques na sua cidade.';
+            destaquesScroll.innerHTML = `<p class="mensagem-vazia" style="padding:8px 10px;margin:0;">${msg}</p>`;
             return;
         }
 
@@ -6334,7 +6343,6 @@ document.addEventListener('DOMContentLoaded', () => {
         lista.forEach(item => {
             const profissional = item.user || item.userId || {};
             const foto = profissional.foto || profissional.avatarUrl || 'imagens/default-user.png';
-            const nota = item.mediaAvaliacao || profissional.mediaAvaliacao || 0;
             const isEmpresa = profissional.tipo === 'empresa';
             const profissao = profissional.atuacao || 'Profissional';
             
@@ -6345,10 +6353,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="thumb-overlay"></div>
                 <div class="thumb-info-overlay">
                     ${isEmpresa ? '' : `<div class="thumb-profissao">${profissao}</div>`}
-                    <div class="thumb-avaliacao">
-                        <i class="fas fa-star" style="color:#f5a623;"></i> 
-                        <span>${nota.toFixed(1)}</span>
-                    </div>
                 </div>
             `;
             card.addEventListener('click', () => {
@@ -6366,13 +6370,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const fotos = thumbs.length ? thumbs : imagens;
         const profissional = item.user || {};
         const cidadeEstado = [profissional.cidade, profissional.estado].filter(Boolean).join(' - ');
-        const nota = item.mediaAvaliacao || profissional.mediaAvaliacao || 0;
 
         destaqueModalImagens.innerHTML = fotos.map(img => `<img src="${img}" alt="Foto do serviço">`).join('');
         destaqueModalInfo.innerHTML = `
             <p class="destaque-prof" style="margin:0; font-weight:700;">${item.title || 'Serviço'}</p>
             <p class="destaque-local" style="margin:4px 0 0 0;">${profissional.nome || 'Profissional'} ${cidadeEstado ? '• ' + cidadeEstado : ''}</p>
-            <p class="destaque-nota" style="margin:6px 0 0 0;"><i class="fas fa-star" style="color:#f5a623;"></i> ${(nota || 0).toFixed(1)}</p>
         `;
 
         const perfilId = profissional._id || item.userId || item.idUser;
@@ -8147,14 +8149,15 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
             <div class="post-actions">
                 <button class="action-btn btn-like ${isLiked ? 'liked' : ''}" data-post-id="${post._id}">
-                    <i class="fas fa-thumbs-up"></i> 
-                    <span class="like-count">${post.likes.length}</span> Curtir
+                    <i class="fas fa-thumbs-up"></i>
+                    <span class="like-count">${post.likes.length}</span>
+                    <span class="like-label">Curtir</span>
                 </button>
                 <button class="action-btn btn-comment ${comentariosVisiveis ? 'active' : ''}" data-post-id="${post._id}">
                     <i class="fas fa-comment"></i> ${visibleCommentsCount} Comentários
                 </button>
-                <button class="action-btn btn-report" data-post-id="${post._id}">
-                    <i class="fas fa-flag"></i> Denunciar
+                <button class="action-btn btn-report" data-post-id="${post._id}" aria-label="Denunciar" title="Denunciar">
+                    <i class="fas fa-flag"></i>
                 </button>
             </div>
             <div class="post-comments ${comentariosVisiveis}">
@@ -10116,10 +10119,31 @@ document.addEventListener('DOMContentLoaded', () => {
             allButtons.forEach((button) => {
                 const countEl = button.querySelector('.like-count');
                 if (countEl) countEl.textContent = count;
+                const wasLiked = button.classList.contains('liked');
                 if (isLikedByMe) {
                     button.classList.add('liked');
+                    button.classList.remove('like-unspin');
+                    if (!wasLiked) {
+                        button.classList.remove('like-spin');
+                        void button.offsetWidth;
+                        button.classList.add('like-spin');
+                        window.setTimeout(() => {
+                            button.classList.remove('like-spin');
+                        }, 500);
+                    }
                 } else {
                     button.classList.remove('liked');
+                    button.classList.remove('like-spin');
+                    if (wasLiked) {
+                        button.classList.remove('like-unspin');
+                        void button.offsetWidth;
+                        button.classList.add('like-unspin');
+                        window.setTimeout(() => {
+                            button.classList.remove('like-unspin');
+                        }, 500);
+                    } else {
+                        button.classList.remove('like-unspin');
+                    }
                 }
             });
             const feedOverlays = document.querySelectorAll(`.now-card[data-now-id="${postId}"] .now-card-info-overlay`);

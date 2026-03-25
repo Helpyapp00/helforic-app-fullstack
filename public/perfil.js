@@ -4251,8 +4251,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
                 <div class="post-actions">
                     <button class="action-btn btn-like ${isLiked ? 'liked' : ''}" data-post-id="${postCompleto._id}">
-                        <i class="fas fa-thumbs-up"></i> 
-                        <span class="like-count">${likesCount}</span> Curtir
+                        <i class="fas fa-thumbs-up"></i>
+                        <span class="like-count">${likesCount}</span>
+                        <span class="like-label">Curtir</span>
                     </button>
                     <button class="action-btn btn-comment ${comentariosVisiveis ? 'active' : ''}" data-post-id="${postCompleto._id}">
                         <i class="fas fa-comment"></i> ${commentsCount} Comentários
@@ -4570,7 +4571,33 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                     const data = await response.json();
                     if (data.success) {
-                        btnLike.classList.toggle('liked');
+                        const wasLiked = btnLike.classList.contains('liked');
+                        const isLikedNow = Array.isArray(data.likes) && loggedInUserId ? data.likes.includes(loggedInUserId) : !wasLiked;
+                        if (isLikedNow) {
+                            btnLike.classList.add('liked');
+                            btnLike.classList.remove('like-unspin');
+                            if (!wasLiked) {
+                                btnLike.classList.remove('like-spin');
+                                void btnLike.offsetWidth;
+                                btnLike.classList.add('like-spin');
+                                window.setTimeout(() => {
+                                    btnLike.classList.remove('like-spin');
+                                }, 500);
+                            }
+                        } else {
+                            btnLike.classList.remove('liked');
+                            btnLike.classList.remove('like-spin');
+                            if (wasLiked) {
+                                btnLike.classList.remove('like-unspin');
+                                void btnLike.offsetWidth;
+                                btnLike.classList.add('like-unspin');
+                                window.setTimeout(() => {
+                                    btnLike.classList.remove('like-unspin');
+                                }, 500);
+                            } else {
+                                btnLike.classList.remove('like-unspin');
+                            }
+                        }
                         btnLike.querySelector('.like-count').textContent = data.likes.length;
                         // Atualiza contador e status na miniatura
                         const thumbnail = document.querySelector(`.post-thumbnail[data-post-id="${postId}"]`);
